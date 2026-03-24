@@ -1301,12 +1301,24 @@ router.get('/analytics/:instanceId', async (req, res) => {
         }
 
         const intent = { ventas: 0, soporte: 0, otros: 0 };
+        const channels = { whatsapp: 0, messenger: 0, instagram: 0, web: 0, tiktok: 0, otros: 0 };
 
         messages.forEach(msg => {
             const dateKey = msg.created_at.split('T')[0];
             if (volumeMap[dateKey] !== undefined) {
                 volumeMap[dateKey]++;
             }
+
+            // Channel detection
+            let channel = 'whatsapp';
+            const cText = msg.content || '';
+            if (cText.startsWith('[messenger]')) channel = 'messenger';
+            else if (cText.startsWith('[instagram]')) channel = 'instagram';
+            else if (cText.startsWith('[web]')) channel = 'web';
+            else if (cText.startsWith('[tiktok]')) channel = 'tiktok';
+            else if (cText.startsWith('[')) channel = 'otros';
+
+            channels[channel] = (channels[channel] || 0) + 1;
 
             if (msg.direction === 'INBOUND') {
                 const text = String(msg.content || '').toLowerCase();
@@ -1322,7 +1334,7 @@ router.get('/analytics/:instanceId', async (req, res) => {
 
         const volume = Object.keys(volumeMap).map(date => ({ date, count: volumeMap[date] }));
 
-        res.json({ success: true, volume, intent });
+        res.json({ success: true, volume, intent, channels });
     } catch (err) {
         console.error('❌ Error fetching analytics:', err.message);
         res.status(500).json({ error: 'Error interno obteniendo analíticas' });

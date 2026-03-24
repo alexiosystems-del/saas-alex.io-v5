@@ -1,7 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap } from 'lucide-react';
+import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
+
+const getPlatformIcon = (content, size = 14) => {
+    if (!content) return <MessageCircle size={size} />;
+    if (content.startsWith('[messenger]')) return <Facebook size={size} />;
+    if (content.startsWith('[instagram]')) return <Instagram size={size} />;
+    if (content.startsWith('[web]')) return <Globe size={size} />;
+    if (content.startsWith('[tiktok]')) return <Smartphone size={size} />;
+    return <MessageCircle size={size} />; // Default WhatsApp
+};
+
+const cleanContent = (content) => {
+    if (!content) return '';
+    if (content.startsWith('[')) {
+        return content.replace(/^\[(messenger|instagram|web|tiktok|whatsapp|AUDIO)\]\s*/i, '');
+    }
+    return content;
+};
 
 export default function LiveChat({ instanceId, tenantId }) {
     const [leads, setLeads] = useState([]);
@@ -171,8 +188,11 @@ export default function LiveChat({ instanceId, tenantId }) {
                                 onClick={() => setSelectedLead(lead.jid)}
                                 className={`w-full text-left p-4 border-b border-slate-800 transition-colors ${selectedLead === lead.jid ? 'bg-blue-900/40 border-l-4 border-l-blue-500' : 'hover:bg-slate-800'}`}
                             >
-                                <div className="font-mono text-xs text-slate-300 mb-1">{lead.jid.split('@')[0]}</div>
-                                <div className="text-xs text-slate-500 truncate">{lead.preview}</div>
+                                <div className="font-mono text-xs text-slate-300 mb-1 flex items-center gap-2">
+                                    {getPlatformIcon(lead.preview, 14)}
+                                    {lead.jid.split('@')[0]}
+                                </div>
+                                <div className="text-xs text-slate-500 truncate">{cleanContent(lead.preview)}</div>
                             </button>
                         ))
                     )}
@@ -189,7 +209,10 @@ export default function LiveChat({ instanceId, tenantId }) {
                 ) : (
                     <>
                         <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center">
-                            <span className="font-mono font-bold text-slate-200">{selectedLead.split('@')[0]}</span>
+                            <span className="font-mono font-bold text-slate-200 flex items-center gap-2">
+                                {getPlatformIcon(messages[0]?.content || '', 18)}
+                                {selectedLead.split('@')[0]}
+                            </span>
 
                             <button
                                 onClick={togglePauseBot}
@@ -206,7 +229,7 @@ export default function LiveChat({ instanceId, tenantId }) {
                                 return (
                                     <div key={msg.id || idx} className={`flex ${isUser ? 'justify-start' : 'justify-end'}`}>
                                         <div className={`max-w-[70%] rounded-xl p-3 text-sm flex flex-col ${isUser ? 'bg-slate-800 text-slate-200 rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'}`}>
-                                            <span>{msg.content}</span>
+                                            <span>{cleanContent(msg.content)}</span>
                                             <span className={`text-[9px] mt-1 text-right ${isUser ? 'text-slate-500' : 'text-blue-300'}`}>
                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 {!isUser && msg.translation_model === 'none' && ' (Manual)'}

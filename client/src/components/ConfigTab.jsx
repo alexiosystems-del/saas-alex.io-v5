@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight } from 'lucide-react';
+import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram } from 'lucide-react';
 
 // ─── Color Tokens (derived from parent theme or default dark) ─
 const makeTokens = (theme) => ({
@@ -393,27 +393,65 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                 {/* Channel Credentials */}
                 <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                     <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
-                        <Key size={16} style={{ color: C.amber }} /> Canal WhatsApp
+                        <Key size={16} style={{ color: C.amber }} /> Conexiones y Canales
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Proveedor</label>
-                            <select className="w-full rounded-lg p-3 text-sm focus:outline-none appearance-none"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                value={configDraft.provider || 'baileys'} onChange={e => setConfigDraft(p => ({ ...p, provider: e.target.value }))}>
-                                <option value="baileys">Baileys (QR - Gratis)</option>
-                                <option value="meta">Meta Cloud API</option>
-                                <option value="360dialog">360Dialog</option>
-                            </select>
-                        </div>
-                        {configDraft.provider === 'meta' && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Access Token</label>
-                                <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
+                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Proveedor WhatsApp Principal</label>
+                                <select className="w-full rounded-lg p-3 text-sm focus:outline-none appearance-none"
                                     style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                    value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
+                                    value={configDraft.provider || 'baileys'} onChange={e => setConfigDraft(p => ({ ...p, provider: e.target.value }))}>
+                                    <option value="baileys">Baileys (QR - Gratis)</option>
+                                    <option value="meta">Meta Cloud API (WhatsApp)</option>
+                                    <option value="360dialog">360Dialog</option>
+                                </select>
                             </div>
-                        )}
+                            {configDraft.provider === 'meta' && (
+                                <div>
+                                    <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
+                                    <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
+                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                        value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Nuevos Canales */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                            <div className="sm:col-span-2">
+                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider flex items-center gap-1" style={{ color: C.textDim }}>
+                                    Integración con ManyChat (Meta Bridge)
+                                </label>
+                                <p className="text-[10px] mb-2" style={{ color: C.textMuted }}>
+                                    Ingresa tu ALEX IO Webhook URL en ManyChat: `https://tu-dominio.com/api/webhooks/manychat`<br/>
+                                    Crea un Token de Seguridad a continuación y envíalo en el Header `Authorization: Bearer TU_TOKEN`.
+                                </p>
+                                <div className="flex gap-2">
+                                    <input type="password" className="flex-1 rounded-lg p-3 text-sm focus:outline-none transition-colors"
+                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                        onFocus={e => e.target.style.borderColor = C.indigo}
+                                        onBlur={e => e.target.style.borderColor = C.border}
+                                        value={configDraft.manychatToken || ''} onChange={e => setConfigDraft(p => ({ ...p, manychatToken: e.target.value }))} placeholder="Inserta o genera un token secreto..." />
+                                    <button onClick={() => setConfigDraft(p => ({ ...p, manychatToken: 'ALEX_' + Math.random().toString(36).substr(2, 10).toUpperCase() }))}
+                                        className="px-3 rounded-lg font-bold text-xs transition-all hover:scale-105"
+                                        style={{ background: C.indigoDim, color: C.indigo, border: `1px solid ${C.indigo}44` }}>
+                                        <Sparkles size={14} className="inline mr-1" /> Generar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider flex items-center gap-1" style={{ color: C.textDim }}>
+                                    TikTok Access Token
+                                </label>
+                                <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
+                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                    onFocus={e => e.target.style.borderColor = C.indigo}
+                                    onBlur={e => e.target.style.borderColor = C.border}
+                                    value={configDraft.tiktokAccessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, tiktokAccessToken: e.target.value }))} placeholder="Actxxxxxxx..." />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -501,9 +539,22 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     </div>
                 </div>
 
-                {/* Analytics */}
                 <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                     <h4 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: C.textDim }}>Analítica (7 días)</h4>
+
+                    {/* Channel Distribution */}
+                    {analytics?.channels && (
+                        <div className="mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
+                           <h5 className="text-[10px] uppercase font-bold mb-2 flex items-center gap-1" style={{ color: C.textMuted }}><BarChart3 size={12}/> Uso por Canal</h5>
+                           <div className="grid grid-cols-2 gap-2">
+                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-green-400"><MessageSquare size={12}/> WA</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.whatsapp || 0}</span></div>
+                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-blue-400"><Facebook size={12}/> FB</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.messenger || 0}</span></div>
+                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-pink-400"><Instagram size={12}/> IG</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.instagram || 0}</span></div>
+                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-slate-400"><Globe size={12}/> Web</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.web || 0}</span></div>
+                           </div>
+                        </div>
+                    )}
+
                     <div className="space-y-4">
                         {[
                             { label: 'Mensajes recibidos', value: analytics?.messages_received || 0, icon: <MessageSquare size={14} />, color: C.indigo },

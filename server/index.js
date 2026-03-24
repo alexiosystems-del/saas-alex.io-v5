@@ -274,6 +274,10 @@ app.get('/api/sre/health', authenticateTenant, (req, res) => {
     return res.json({ success: true, health: getHealthSnapshot() });
 });
 
+// Multi-Platform Webhooks (Public endpoints for providers)
+const webhooksMulti = require('./routes/webhooks-multi');
+app.use('/api/webhooks', webhooksMulti);
+
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
 app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); // Extra rate limit on connect

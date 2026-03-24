@@ -12,6 +12,9 @@ const SaasDashboard = lazy(() => import('./components/SaasDashboard'));
 const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
 const SuperAdminLogin = lazy(() => import('./components/SuperAdminLogin'));
 
+// Componente WebChat de prueba
+import WebChatWidget from './components/WebChatWidget';
+
 if (import.meta.env.DEV) {
   console.log('📦 [ALEX IO] App loaded in development mode');
 }
@@ -221,6 +224,7 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+            <WebChatWidget apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:3000'} tenantId="demo-testing" />
           </Suspense>
         </div>
       </Router>
