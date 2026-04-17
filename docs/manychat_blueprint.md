@@ -19,6 +19,7 @@ En la ventana de configuración del External Request, completa los siguientes da
   - Haz clic en "Add Header".
   - Key: `Content-Type` | Value: `application/json`
   - Key: `Authorization` | Value: `Bearer TU_TOKEN_MANYCHAT_DEL_DASHBOARD` *(Cópialo de la pestaña Configuración en el panel de ALEX IO)*.
+  - Key: `x-tenant-id` | Value: `TU_TENANT_ID` *(requerido para enrutar el mensaje al bot correcto)*.
 
 ## 3. Configurar el Body (Cuerpo de la Petición)
 
@@ -29,6 +30,8 @@ En la pestaña **Body** de la External Request, pega exactamente este código JS
   "user_id": "{{user_id}}",
   "name": "{{first_name}} {{last_name}}",
   "channel": "instagram",
+  "platform": "instagram",
+  "tenantId": "TU_TENANT_ID",
   "message": "{{last_text_input}}"
 }
 ```
@@ -45,3 +48,20 @@ En la pestaña **Body** de la External Request, pega exactamente este código JS
 ## 5. Publicar
 
 Conecta la acción al flujo inicial, dale al botón azul de **Publish** arriba a la derecha en ManyChat, y prueba enviar un mensaje privado a tu propia cuenta de Instagram. ¡Tu bot omnicanal responderá casi al instante!
+
+---
+
+## 6. ¿Hace falta algo más según el Quick Start oficial de ManyChat?
+
+Sí, **si vas a escalar esta integración como app reusable** (en lugar de solo un flujo con External Request), conviene implementar lo siguiente:
+
+1. **Bloque de autenticación (`auth`)** en la app JSON de ManyChat.
+   - Para evitar pegar manualmente tokens por cada acción.
+2. **Variables globales de autenticación** (ej. `base_url`, `token`) para reutilizar en múltiples acciones.
+3. **Payload configurable** en acciones para mapear campos opcionales/obligatorios.
+4. **Guide/ayuda dentro de la acción** para reducir errores de configuración de usuarios no técnicos.
+5. **Proceso de publicación y versionado** de app si se usará en más de una cuenta/workspace.
+
+En resumen:
+- **Modo rápido (actual):** External Request + headers/body manuales.
+- **Modo profesional/escala:** App JSON de ManyChat con `auth`, `actions`, `sources` y guía integrada.

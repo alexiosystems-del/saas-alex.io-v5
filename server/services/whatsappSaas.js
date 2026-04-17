@@ -43,6 +43,32 @@ const maxReconnectAttempts = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS 
 const botEventLogs = new Map(); // key: instanceId, value: Array<{timestamp, level, message, meta}>
 const botAiUsage = new Map();   // key: instanceId, value: { gemini: {count, tokens}, openai: {count, tokens}, deepseek: {count, tokens} }
 const BOT_LOG_MAX = 100;
+const SALES_INTENT_TERMS = [
+    'comprar', 'precio', 'costo', 'cotizacion', 'cotizar', 'presupuesto', 'pagar', 'pago', 'tarjeta',
+    'plan', 'suscripcion', 'agendar', 'cita', 'quiero', 'info', 'contacto', 'demo', 'contratar'
+];
+const SUPPORT_INTENT_TERMS = [
+    'ayuda', 'soporte', 'problema', 'error', 'falla', 'no funciona', 'asesor', 'reclamo',
+    'devolucion', 'reembolso', 'incidente'
+];
+
+const normalizeIntentText = (text = '') => String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const hasIntentTerm = (normalizedText, terms = []) => terms.some(term => normalizedText.includes(term));
+
+const classifyInboundIntent = (text = '') => {
+    const normalized = normalizeIntentText(text);
+    if (!normalized) return 'otros';
+    if (hasIntentTerm(normalized, SALES_INTENT_TERMS)) return 'ventas';
+    if (hasIntentTerm(normalized, SUPPORT_INTENT_TERMS)) return 'soporte';
+    return 'otros';
+};
 
 // Persist critical events to Supabase (fire-and-forget, non-blocking)
 const persistBotEvent = async (instanceId, level, message, meta) => {
@@ -442,9 +468,14 @@ async function handleQRMessage(sock, msg, instanceId) {
         }
 
         // --- Lead Extraction & Webhooks (Background) ---
-        const lowerText = processedText.toLowerCase();
-        const intentTriggers = /(comprar|precio|costo|agendar|cita|quiero|info|contacto|hablar|humano|mail|correo|arroba)/;
-        const shouldExtract = lowerText.match(intentTriggers) || (history.filter(h => h.role === 'user').length % 4 === 0);
+        const normalizedText = normalizeIntentText(processedText);
+        const shouldExtract = hasIntentTerm(normalizedText, SALES_INTENT_TERMS)
+            || normalizedText.includes('hablar')
+            || normalizedText.includes('humano')
+            || normalizedText.includes('mail')
+            || normalizedText.includes('correo')
+            || normalizedText.includes('arroba')
+            || (history.filter(h => h.role === 'user').length % 4 === 0);
 
         if (shouldExtract) {
             alexBrain.extractLeadInfo({ history, systemPrompt: config.customPrompt })
@@ -1321,14 +1352,8 @@ router.get('/analytics/:instanceId', async (req, res) => {
             channels[channel] = (channels[channel] || 0) + 1;
 
             if (msg.direction === 'INBOUND') {
-                const text = String(msg.content || '').toLowerCase();
-                if (text.match(/(comprar|precio|costo|pagar|tarjeta|cotización)/)) {
-                    intent.ventas++;
-                } else if (text.match(/(ayuda|soporte|problema|error|falla|no funciona|asesor)/)) {
-                    intent.soporte++;
-                } else {
-                    intent.otros++;
-                }
+                const detectedIntent = classifyInboundIntent(msg.content || '');
+                intent[detectedIntent] = (intent[detectedIntent] || 0) + 1;
             }
         });
 
@@ -1346,6 +1371,23 @@ router.get('/superadmin/clients', async (req, res) => {
     if (!isSupabaseEnabled) return res.json({ clients: [] });
 
     try {
+        // Load usage + bots snapshots first (avoid "usage is not defined" on partial environments)
+        let usageData = [];
+        let botsData = [];
+        try {
+            const { data: usageRows, error: usageErr } = await supabase
+                .from(usageTable)
+                .select('tenant_id, messages_sent, plan_limit, tokens_consumed');
+            if (!usageErr && Array.isArray(usageRows)) usageData = usageRows;
+        } catch (_) { }
+
+        try {
+            const { data: botRows, error: botErr } = await supabase
+                .from(sessionsTable)
+                .select('instance_id, tenant_id, owner_email, company_name, status, provider, updated_at');
+            if (!botErr && Array.isArray(botRows)) botsData = botRows;
+        } catch (_) { }
+
         // Fetch users using admin api if service role available, else rely on a view or standard table (app_users fallback)
         // Since app_users has plan and role, we pull them.
         // Merge profiles and app_users to catch old and new users
@@ -1365,9 +1407,6 @@ router.get('/superadmin/clients', async (req, res) => {
                 });
             }
         } catch (_) { }
-
-        const usageData = usage || [];
-        const botsData = bots || [];
 
         if (botsData.length > 0) {
             botsData.forEach(b => {
@@ -1846,14 +1885,36 @@ router.post('/broadcast', async (req, res) => {
             return res.status(400).json({ error: 'instanceId, phones (array) y message son requeridos' });
         }
 
-        const sessionPath = `${sessionsDir}/${instanceId}`;
-        const configPath = `${sessionPath}/config.json`;
+        // Runtime-first config (works for active instances on Render without local config.json)
+        let config = clientConfigs.get(instanceId);
 
-        if (!fs.existsSync(configPath)) {
-            return res.status(404).json({ error: 'Instancia no encontrada o inactiva' });
+        // Fallback to DB metadata for persisted sessions
+        if (!config && isSupabaseEnabled) {
+            try {
+                const { data: session } = await supabase
+                    .from(sessionsTable)
+                    .select('instance_id, tenant_id, provider, company_name, meta_api_url, meta_phone_number_id, meta_access_token, dialog_api_key')
+                    .eq('instance_id', instanceId)
+                    .eq('tenant_id', tenantId)
+                    .single();
+
+                if (session) {
+                    config = {
+                        provider: session.provider || 'baileys',
+                        companyName: session.company_name || 'Bot',
+                        tenantId: session.tenant_id,
+                        metaApiUrl: session.meta_api_url,
+                        metaPhoneNumberId: session.meta_phone_number_id,
+                        metaAccessToken: session.meta_access_token,
+                        dialogApiKey: session.dialog_api_key
+                    };
+                }
+            } catch (_) { }
         }
 
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (!config) {
+            return res.status(404).json({ error: 'Instancia no encontrada o inactiva' });
+        }
 
         // Asignar el envío asíncronamente en background
         res.json({ success: true, message: `Iniciando broadcast a ${phones.length} números en segundo plano.`, queued: phones.length });
@@ -1873,7 +1934,7 @@ router.post('/broadcast', async (req, res) => {
 
                 try {
                     if (config.provider === 'baileys') {
-                        const sock = global.whatsappSessions?.get(instanceId);
+                        const sock = activeSessions.get(instanceId);
                         if (!sock) throw new Error('Bot no conectado');
                         let msgPayload = { text: message };
                         if (mediaUrl) {
@@ -2029,5 +2090,12 @@ const restoreSessions = async () => {
 
 module.exports = {
     router,
-    restoreSessions
+    restoreSessions,
+    __intentUtils: {
+        normalizeIntentText,
+        hasIntentTerm,
+        classifyInboundIntent,
+        SALES_INTENT_TERMS,
+        SUPPORT_INTENT_TERMS
+    }
 };

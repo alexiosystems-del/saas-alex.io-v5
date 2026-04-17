@@ -26,7 +26,12 @@ class ManyChatAPI {
     async handleIncomingWebhook(req, res) {
         try {
             // Get tenantId from headers or query params
-            const tenantId = req.headers['x-tenant-id'] || req.query.tenantId;
+            const payload = req.body || {};
+            const tenantId = req.headers['x-tenant-id']
+                || req.query.tenantId
+                || payload.tenantId
+                || payload.tenant_id
+                || payload.metadata?.tenantId;
             const token = req.headers['authorization']?.split(' ')[1] || req.query.token;
 
             if (!tenantId) {
@@ -38,10 +43,9 @@ class ManyChatAPI {
             // or pass it down to let the router / auth layer handle it.
             // For now, we extract the data and pass it to the messageRouter.
 
-            const payload = req.body;
             const senderId = payload.subscriber_id || payload.user_id;
             const messageText = payload.message || payload.last_message || payload.text;
-            const platform = payload.platform || 'manychat';
+            const platform = payload.platform || payload.channel || 'manychat';
 
             if (!senderId || !messageText) {
                 logger.warn('ManyChat Webhook reject: Missing senderId or messageText in payload', payload);
@@ -62,14 +66,15 @@ class ManyChatAPI {
                 // For this V5 architecture, we will attempt synchronous reply first.
                 
                 aiResponseText = await this.messageRouter.processMessageLocally({
-                    tenantId: tenantId,
                     platform: platform,
                     senderId: senderId,
                     messageType: 'text',
                     text: messageText,
                     metadata: {
+                        tenantId: tenantId,
                         name: payload.name,
-                        manychatToken: token
+                        manychatToken: token,
+                        subscriberId: senderId
                     }
                 });
 
