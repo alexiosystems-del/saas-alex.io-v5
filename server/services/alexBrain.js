@@ -359,16 +359,22 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
 
     // AI Limiters: Extraction and Application
     const maxWords = botConfig.maxWords || 50;
-    const maxMessages = botConfig.maxMessages || 10;
+    const maxMessages = botConfig.maxMessages || 100;
 
     const userMessageCount = history.filter(h => h.role === 'user').length;
     if (userMessageCount >= maxMessages) {
-        console.log(`⏸️ [${botName}] Límite de mensajes alcanzado (${userMessageCount}/${maxMessages}). Silenciando IA.`);
-        return {
-            text: "He alcanzado el límite de interacción automática. Un asesor humano continuará con tu atención en breve.",
-            trace: { model: 'limiter_pause', timestamp: new Date().toISOString() },
-            botPaused: true
-        };
+        // Only send the pause message ONCE (at the exact limit), then go silent
+        if (userMessageCount === maxMessages) {
+            console.log(`⏸️ [${botName}] Límite de mensajes alcanzado (${userMessageCount}/${maxMessages}). Enviando aviso único.`);
+            return {
+                text: "He alcanzado el límite de interacción automática. Un asesor humano continuará con tu atención en breve.",
+                trace: { model: 'limiter_pause', timestamp: new Date().toISOString() },
+                botPaused: true
+            };
+        }
+        // Already past the limit — stay silent (no spam loop)
+        console.log(`⏸️ [${botName}] AI Limiter: ya superó ${maxMessages} msgs (${userMessageCount}). Silencio total.`);
+        return null;
     }
 
     // Force conciseness
