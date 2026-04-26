@@ -457,18 +457,24 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         // --- GEMINI ---
         if (modelName.startsWith('gemini')) {
             if (!GEMINI_KEY || !circuitBreaker.isAvailable('GEMINI')) throw new Error('GEMINI_UNAVAILABLE');
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`;
-            const contents = (history || []).slice(-20).map(h => ({ 
-                role: h.role === 'assistant' ? 'model' : 'user', 
-                parts: [{ text: h.content || h.text || "" }] 
-            }));
-            contents.push({ role: 'user', parts: [{ text: normalizedUserMsg }] });
-            const payload = { contents, generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens }, system_instruction: { parts: [{ text: systemPrompt }] } };
-            const res = await axios.post(url, payload, { timeout: 5000 });
-            const text = res.data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error('GEMINI_EMPTY_RESPONSE');
-            circuitBreaker.recordSuccess('GEMINI');
-            return { text, model: modelName };
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`;
+                const contents = (history || []).slice(-20).map(h => ({ 
+                    role: h.role === 'assistant' ? 'model' : 'user', 
+                    parts: [{ text: h.content || h.text || "" }] 
+                }));
+                contents.push({ role: 'user', parts: [{ text: normalizedUserMsg }] });
+                const payload = { contents, generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens }, system_instruction: { parts: [{ text: systemPrompt }] } };
+                const res = await axios.post(url, payload, { timeout: 5000 });
+                const text = res.data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('GEMINI_EMPTY_RESPONSE');
+                circuitBreaker.recordSuccess('GEMINI');
+                return { text, model: modelName };
+            } catch (geminiErr) {
+                circuitBreaker.recordFailure('GEMINI');
+                if (geminiErr.response?.status === 429) markProviderDead('GEMINI', 'Quota exceeded (429)');
+                throw geminiErr;
+            }
         }
         
         // --- MINIMAX ---
@@ -558,6 +564,9 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         orchestratorLog.latency_ms = Date.now() - startTime;
     } catch (err) {
         console.warn(`⚠️ [ORCHESTRATOR] Primary failed (${routing.model}):`, err.message);
+        // Record failure for circuit breaker
+        const providerName = routing.model.startsWith('gemini') ? 'GEMINI' : routing.model.startsWith('gpt') ? 'OPENAI' : routing.model.startsWith('claude') ? 'ANTHROPIC' : routing.model.startsWith('deepseek') ? 'DEEPSEEK' : 'MINIMAX';
+        circuitBreaker.recordFailure(providerName);
         const fallbackModel = getOrchestratorFallback(routing.model);
         orchestratorLog.fallback_used = true;
         orchestratorLog.fallback_model = fallbackModel;
@@ -854,7 +863,30 @@ Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
             return parsed;
         }
     } catch (err) {
-        console.warn(`⚠️ [LeadExtractor] Falló la extracción:`, err.response?.data?.error?.message || err.message);
+        const errDetail = err.response?.data?.error?.message || err.message;
+        console.warn(`⚠️ [LeadExtractor] Falló la extracción con Gemini:`, errDetail);
+        
+        // --- FALLBACK: OpenAI GPT-4o-mini for Lead Extraction ---
+        if (OPENAI_KEY) {
+            try {
+                console.log(`🔄 [LeadExtractor] Usando OpenAI fallback...`);
+                const oaRes = await axios.post('https://api.openai.com/v1/chat/completions', {
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: 'Extrae información de leads de conversaciones. Devuelve solo JSON válido.' },
+                        ...contents.map(c => ({ role: c.role === 'model' ? 'assistant' : c.role, content: c.parts[0].text })),
+                    ],
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' }
+                }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
+
+                if (oaRes.data.choices?.[0]?.message?.content) {
+                    return JSON.parse(oaRes.data.choices[0].message.content);
+                }
+            } catch (oaErr) {
+                console.warn(`⚠️ [LeadExtractor] También falló OpenAI:`, oaErr.message);
+            }
+        }
     }
     return null;
 }
