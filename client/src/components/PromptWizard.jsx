@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { Sparkles, ChevronRight, ChevronLeft, Loader, Wand2, Copy, CheckCircle2, Shield } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Loader, Wand2, Copy, CheckCircle2, Shield, MessageSquare, BarChart3, Search, Zap } from 'lucide-react';
 import { fetchJsonWithApiFallback } from '../api';
+
+const BRAIN_MODES = [
+    { id: 'messaging', icon: <MessageSquare size={20} />, title: 'Messaging', subtitle: 'Ventas, chat, soporte al cliente', color: 'from-blue-600 to-cyan-600', border: 'border-blue-500', bg: 'bg-blue-600/20', text: 'text-blue-300' },
+    { id: 'productivity', icon: <BarChart3 size={20} />, title: 'Productivity', subtitle: 'Operaciones, automatización, tareas', color: 'from-amber-600 to-orange-600', border: 'border-amber-500', bg: 'bg-amber-600/20', text: 'text-amber-300' },
+    { id: 'research', icon: <Search size={20} />, title: 'Research', subtitle: 'Análisis de mercado, insights, datos', color: 'from-purple-600 to-pink-600', border: 'border-purple-500', bg: 'bg-purple-600/20', text: 'text-purple-300' },
+];
 
 const STEPS = [
     {
         id: 'business_type',
         title: '¿Qué tipo de negocio tenés?',
         subtitle: 'Esto nos ayuda a adaptar el tono y vocabulario del bot.',
-        options: ['Restaurante/Gastronomía', 'Clínica/Salud', 'E-commerce/Tienda Online', 'Inmobiliaria', 'Servicios Profesionales', 'Educación/Cursos', 'Belleza/Estética', 'Otro'],
+        options: ['Restaurante/Gastronomía', 'Clínica/Salud', 'E-commerce/Tienda Online', 'Inmobiliaria', 'Servicios Profesionales', 'Educación/Cursos', 'Belleza/Estética', 'Agencia de Marketing', 'SaaS/Tech', 'Fitness/Gym', 'Retail/Moda', 'Otro'],
         allowCustom: true,
         field: 'businessType'
     },
@@ -88,6 +94,7 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
     const [customInput, setCustomInput] = useState('');
     const [qaResult, setQaResult] = useState(null);
     const [qaLoading, setQaLoading] = useState(false);
+    const [brainMode, setBrainMode] = useState('messaging');
 
     const currentStep = STEPS[step];
     const isLastStep = step === STEPS.length - 1;
@@ -146,7 +153,7 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
             const { data } = await fetchJsonWithApiFallback('/api/saas/generate-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(answers),
+                body: JSON.stringify({ ...answers, brainMode }),
                 timeoutMs: 30000
             });
 
@@ -253,6 +260,29 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
                         </div>
                     </div>
                     <button onClick={onClose} className="text-white/60 hover:text-white text-sm">✕</button>
+                </div>
+
+                {/* Brain Mode Selector */}
+                <div className="px-5 pt-4 pb-2">
+                    <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider flex items-center gap-1.5">
+                        <Zap size={12} className="text-amber-400" /> Brain Mode del Orchestrator
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                        {BRAIN_MODES.map(mode => (
+                            <button
+                                key={mode.id}
+                                onClick={() => setBrainMode(mode.id)}
+                                className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-xs font-bold transition-all ${brainMode === mode.id
+                                    ? `${mode.bg} ${mode.border} ${mode.text}`
+                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'
+                                }`}
+                            >
+                                <div className={`${brainMode === mode.id ? '' : 'opacity-50'} transition-opacity`}>{mode.icon}</div>
+                                <span>{mode.title}</span>
+                                <span className="text-[10px] font-normal opacity-70 leading-tight text-center">{mode.subtitle}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Progress Bar */}
