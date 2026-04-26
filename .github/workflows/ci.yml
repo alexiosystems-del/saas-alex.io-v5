@@ -1,0 +1,44 @@
+name: ALEX IO CI/CD Phase 1
+
+on:
+  push:
+    branches: [ "main", "v5" ]
+  pull_request:
+    branches: [ "main", "v5" ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: './server/package-lock.json'
+
+    # 1. Server Dependencies & Tests
+    - name: Install Server Dependencies (Reproducible)
+      working-directory: ./server
+      run: npm ci
+
+    - name: Lint Server Code
+      working-directory: ./server
+      run: npm run lint
+
+    - name: Run Server Smoke Tests
+      working-directory: ./server
+      run: npm test
+
+    # 2. Client Dependencies & Build Test
+    - name: Install Client Dependencies
+      working-directory: ./client
+      run: npm ci
+
+    - name: Build Frontend Application
+      working-directory: ./client
+      run: npm run build

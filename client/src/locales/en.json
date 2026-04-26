@@ -1,0 +1,16 @@
+{
+    "dashboard": {
+        "welcome": "Welcome back",
+        "connect": "Connect WhatsApp",
+        "connected": "Connected as",
+        "disconnect": "Disconnect",
+        "botConfig": "Advisor Configuration",
+        "refresh": "Refresh",
+        "saving": "Saving...",
+        "saveConfig": "Save Configuration",
+        "saved": "Saved successfully!",
+        "myBots": "Digital Advisors",
+        "createNewBot": "Add New Advisor",
+        "connectedAs": "Online via"
+    }
+}

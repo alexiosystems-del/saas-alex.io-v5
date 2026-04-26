@@ -1,0 +1,16 @@
+{
+    "dashboard": {
+        "welcome": "Bienvenido",
+        "connect": "Conectar WhatsApp",
+        "connected": "Conectado como",
+        "disconnect": "Desconectar",
+        "botConfig": "Configuración del Asesor",
+        "refresh": "Actualizar",
+        "saving": "Guardando...",
+        "saveConfig": "Guardar Configuración",
+        "saved": "¡Guardado con éxito!",
+        "myBots": "Asesores Digitales",
+        "createNewBot": "Añadir Nuevo Asesor",
+        "connectedAs": "Online vía"
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "dashboard": {
+        "welcome": "欢迎回来",
+        "connect": "连接 WhatsApp",
+        "connected": "连接为",
+        "disconnect": "断开连接",
+        "botConfig": "顾问配置",
+        "refresh": "刷新",
+        "saving": "保存中...",
+        "saveConfig": "保存配置",
+        "saved": "保存成功！",
+        "myBots": "数字顾问",
+        "createNewBot": "添加新顾问",
+        "connectedAs": "在线通过"
+    }
+}
