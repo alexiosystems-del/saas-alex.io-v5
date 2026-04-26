@@ -100,56 +100,153 @@ const AI_BUDGETS = {
     minimax: Number.parseFloat(process.env.MINIMAX_BUDGET_USD || '')
 };
 
-// --- SMART ROUTER V6 CONFIG ---
+// ============================================================
+// --- AI ORCHESTRATOR (Multi-Brain System Controller) ---
+// CONSTITUTION: Accuracy > Speed. Strict tenant isolation.
+// Context consistency per task type. Cost optimization.
+// One request = one primary model. Log every decision.
+// ============================================================
+
+const CONTEXT_TEMPLATES = {
+    messaging: 'You are a concise, persuasive assistant focused on helping customers quickly. Prioritize speed and clarity in every response.',
+    productivity: 'You are an efficient business operations assistant. Be precise, structured, and action-oriented.',
+    research: 'You are a market analyst. Provide deep, structured, and objective insights with supporting reasoning.'
+};
+
 const MODEL_COST_PER_1K = {
     'gemini-2.0-flash': 0.000075,
     'minimax-abab6.5s-chat': 0.00010,
     'deepseek-chat': 0.00014,
     'gpt-4o-mini': 0.00015,
+    'claude-3-5-sonnet-20241022': 0.003,
 };
 const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
-async function classifyMessage(message, history) {
+/**
+ * ORCHESTRATOR: Automatic Language Detection
+ * Detects CJK languages for MiniMax routing, plus common Western languages.
+ */
+function detectLanguage(text) {
+    if (!text) return 'es';
+    const cjkRegex = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/;
+    if (cjkRegex.test(text)) {
+        if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
+        if (/[\uac00-\ud7af]/.test(text)) return 'ko';
+        return 'zh';
+    }
+    if (/\b(você|obrigado|bom dia|boa tarde|não|está|também)\b/i.test(text)) return 'pt';
+    if (/\b(hello|hi|thanks|please|would|could|should|the|what|how|why)\b/i.test(text)) return 'en';
+    if (/\b(bonjour|merci|comment|pourquoi|oui|non|je suis)\b/i.test(text)) return 'fr';
+    return 'es';
+}
+
+/**
+ * ORCHESTRATOR: Brain Mode Classifier
+ * Classifies every request into: messaging | productivity | research
+ * Also detects deep_reasoning need and cost sensitivity.
+ */
+function classifyRequest(message, history = []) {
     const lower = String(message || '').toLowerCase();
     const estimatedTokens = Math.ceil(lower.length / 3.5);
+    const language = detectLanguage(message);
 
-    // Deterministic rules for fast classification
-    const simplePatterns = [/horario/, /precio/, /teléfono/, /dirección/, /cuánto cuesta/, /hola/, /gracias/];
-    const isSimple = simplePatterns.some(p => p.test(lower)) && estimatedTokens < 80;
+    let brain = 'messaging'; // Default: customer conversations (speed + clarity)
 
-    const complexPatterns = [/analiza/, /compara/, /explica por qué/, /genera un informe/, /paso a paso/, /resumen/, /diferencia/];
-    const isComplex = complexPatterns.some(p => p.test(lower)) || estimatedTokens > 300;
+    const researchPatterns = [/analiza/, /compara/, /investiga/, /informe/, /tendencia/, /mercado/, /competencia/, /benchmark/, /reporte/, /estadístic/, /analyze/, /compare/, /research/];
+    if (researchPatterns.some(p => p.test(lower)) || estimatedTokens > 400) {
+        brain = 'research';
+    }
+
+    const productivityPatterns = [/automatiza/, /agenda/, /programa/, /configura/, /optimiza/, /genera lista/, /crea plantilla/, /exporta/, /importa/, /schedule/, /automate/];
+    if (productivityPatterns.some(p => p.test(lower))) {
+        brain = 'productivity';
+    }
+
+    const deepReasoningPatterns = [/explica por qué/, /razona/, /paso a paso/, /análisis profundo/, /ventajas y desventajas/, /pros y contras/, /diferencia entre/, /explain why/, /step by step/];
+    const needsDeepReasoning = deepReasoningPatterns.some(p => p.test(lower)) || estimatedTokens > 500;
 
     const hasPII = /\b\d{7,}\b|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(message);
     const hasRAG = (history || []).length > 2;
+    const costSensitive = (history || []).length > 15;
 
     return {
-        complexity: isSimple ? 'simple' : isComplex ? 'complex' : 'conversational',
+        brain,
+        language,
+        needsDeepReasoning,
+        estimatedTokens,
         hasPII,
         hasRAG,
-        estimatedTokens
+        costSensitive,
+        priority: brain === 'messaging' ? 'speed' : brain === 'research' ? 'depth' : 'efficiency'
     };
 }
 
-function selectModel(complexity, estimatedTokens) {
-    const models = {
-        simple: { model: 'gemini-2.0-flash', maxTokens: 512 },
-        conversational: { model: 'minimax-abab6.5s-chat', maxTokens: 1024 },
-        complex: { model: 'deepseek-chat', maxTokens: 2048 }
-    };
-    const decision = models[complexity] || models.conversational;
-    const estimatedCost = (estimatedTokens / 1000) * (MODEL_COST_PER_1K[decision.model] || 0.0001);
-    return { ...decision, estimatedCost };
+/**
+ * ORCHESTRATOR: Constitutional Model Router
+ * Applies routing rules in strict priority order per the Constitution.
+ */
+function routeToModel(classification) {
+    const { brain, language, needsDeepReasoning, costSensitive } = classification;
+
+    // RULE 1: Asian languages → MiniMax (native CJK support)
+    if (['zh', 'ja', 'ko'].includes(language) && MINIMAX_KEY && circuitBreaker.isAvailable('MINIMAX')) {
+        return { model: 'minimax-abab6.5s-chat', reason: `CJK language (${language}) → MiniMax native`, maxTokens: 1024, contextTemplate: CONTEXT_TEMPLATES[brain] };
+    }
+
+    // RULE 2: Deep reasoning → Claude (accuracy priority)
+    if (needsDeepReasoning && ANTHROPIC_KEY && circuitBreaker.isAvailable('ANTHROPIC')) {
+        return { model: 'claude-3-5-sonnet-20241022', reason: 'Deep reasoning → Claude (accuracy priority)', maxTokens: 2048, contextTemplate: CONTEXT_TEMPLATES[brain] };
+    }
+
+    // RULE 3: Speed priority (messaging) → Gemini
+    if (brain === 'messaging' && GEMINI_KEY && circuitBreaker.isAvailable('GEMINI')) {
+        return { model: 'gemini-2.0-flash', reason: 'Messaging mode → Gemini (speed priority)', maxTokens: 512, contextTemplate: CONTEXT_TEMPLATES.messaging };
+    }
+
+    // RULE 4: High volume / cost sensitive → DeepSeek
+    if (costSensitive && DEEPSEEK_KEY && circuitBreaker.isAvailable('DEEPSEEK')) {
+        return { model: 'deepseek-chat', reason: 'Cost sensitive → DeepSeek', maxTokens: 1024, contextTemplate: CONTEXT_TEMPLATES[brain] };
+    }
+
+    // RULE 5: Default → OpenAI
+    if (OPENAI_KEY && circuitBreaker.isAvailable('OPENAI')) {
+        return { model: 'gpt-4o-mini', reason: `Default for ${brain} → OpenAI`, maxTokens: brain === 'research' ? 2048 : 1024, contextTemplate: CONTEXT_TEMPLATES[brain] };
+    }
+
+    // RULE 6: Last resort → whatever is available
+    if (GEMINI_KEY) return { model: 'gemini-2.0-flash', reason: 'Last resort → Gemini', maxTokens: 512, contextTemplate: CONTEXT_TEMPLATES[brain] };
+    if (MINIMAX_KEY) return { model: 'minimax-abab6.5s-chat', reason: 'Last resort → MiniMax', maxTokens: 1024, contextTemplate: CONTEXT_TEMPLATES[brain] };
+
+    return { model: 'safeguard', reason: 'No models available', maxTokens: 0, contextTemplate: '' };
 }
 
-function getFallback(model) {
-    const fallbacks = {
-        'gemini-2.0-flash': 'minimax-abab6.5s-chat',
+/**
+ * ORCHESTRATOR: Multi-Level Fallback Chain (per Constitution)
+ * openai → claude → gemini | minimax → openai | claude → openai | gemini → openai | deepseek → openai
+ */
+function getOrchestratorFallback(model) {
+    const chains = {
+        'gpt-4o-mini': 'claude-3-5-sonnet-20241022',
+        'claude-3-5-sonnet-20241022': 'gemini-2.0-flash',
+        'gemini-2.0-flash': 'gpt-4o-mini',
         'minimax-abab6.5s-chat': 'gpt-4o-mini',
         'deepseek-chat': 'gpt-4o-mini',
-        'gpt-4o-mini': 'safeguard'
     };
-    return fallbacks[model] || 'safeguard';
+    return chains[model] || 'safeguard';
+}
+
+/**
+ * ORCHESTRATOR: Response Validation
+ * Rejects empty, too short, or irrelevant responses.
+ */
+function validateResponse(text, originalMessage) {
+    if (!text || text.trim().length < 10) {
+        return { valid: false, reason: 'Response empty or too short' };
+    }
+    if (/^(i am an ai|soy una inteligencia artificial|i cannot help|no puedo ayudar)/i.test(text.trim()) && text.length < 60) {
+        return { valid: false, reason: 'Generic AI refusal detected' };
+    }
+    return { valid: true, reason: null };
 }
 
 // --- UTILS ---
@@ -320,21 +417,38 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     }
     // ----------------------------------------------
 
-    // --- SMART ROUTER DECISION ---
-    const { complexity, hasPII, hasRAG, estimatedTokens } = await withTrace('brain.classify', { 'message.len': normalizedUserMsg.length }, () => classifyMessage(normalizedUserMsg, history));
-    const decision = selectModel(complexity, estimatedTokens);
-    
+    // --- AI ORCHESTRATOR DECISION ---
+    const startTime = Date.now();
+    const classification = await withTrace('brain.classify', { 'message.len': normalizedUserMsg.length }, () => classifyRequest(normalizedUserMsg, history));
+    const routing = routeToModel(classification);
+
+    // Inject Context Template (Layer 0: Brain Mode Identity)
+    systemPrompt = `${routing.contextTemplate}\n\n${systemPrompt}`;
+
     // Budget Check: Request-level AND Tenant-level
-    const tenantRemaining = quotaStatus.data?.plan_limit - (quotaStatus.data?.messages_sent || 0); // Simplified for now
-    
-    if (decision.estimatedCost > BUDGET_PER_REQUEST) {
-        console.warn(`💸 [BUDGET] Mensaje demasiado costoso ($${decision.estimatedCost}). Bloqueando.`);
+    const estimatedCost = (classification.estimatedTokens / 1000) * (MODEL_COST_PER_1K[routing.model] || 0.0001);
+    const tenantRemaining = quotaStatus.data?.plan_limit - (quotaStatus.data?.messages_sent || 0);
+
+    if (estimatedCost > BUDGET_PER_REQUEST) {
+        console.warn(`💸 [BUDGET] Mensaje demasiado costoso ($${estimatedCost}). Bloqueando.`);
         return {
             text: "Tu consulta requiere una capacidad de procesamiento superior a la permitida por mensaje. Intenta ser más específico.",
-            trace: { model: 'budget_blocked', cost: decision.estimatedCost },
+            trace: { model: 'budget_blocked', cost: estimatedCost },
             botPaused: false
         };
     }
+
+    // Orchestrator Decision Log (Structured JSON)
+    const orchestratorLog = {
+        brain: classification.brain,
+        model: routing.model,
+        reason: routing.reason,
+        language: classification.language,
+        estimated_cost: estimatedCost.toFixed(6),
+        fallback_used: false,
+        fallback_model: null
+    };
+    console.log(`🧠 [ORCHESTRATOR] ${JSON.stringify(orchestratorLog)}`);
 
     const tryCallModel = async (modelName, maxTokens) => {
         // --- GEMINI ---
@@ -395,34 +509,89 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
             return { text, model: 'gpt-4o-mini' };
         }
 
+        // --- CLAUDE (Deep Reasoning Engine) ---
+        if (modelName.startsWith('claude')) {
+            if (!ANTHROPIC_KEY || !circuitBreaker.isAvailable('ANTHROPIC')) throw new Error('CLAUDE_UNAVAILABLE');
+            const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: modelName,
+                max_tokens: maxTokens,
+                temperature: 0.7,
+                system: systemPrompt,
+                messages: [...(history || []).slice(-20).map(h => ({
+                    role: h.role === 'assistant' ? 'assistant' : 'user',
+                    content: h.content || h.text || ''
+                })), { role: 'user', content: normalizedUserMsg }]
+            }, {
+                headers: {
+                    'x-api-key': ANTHROPIC_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: 8000
+            });
+            const text = claudeRes.data.content?.[0]?.text;
+            if (!text) throw new Error('CLAUDE_EMPTY_RESPONSE');
+            circuitBreaker.recordSuccess('ANTHROPIC');
+            return { text, model: modelName };
+        }
+
         throw new Error('MODEL_NOT_SUPPORTED');
     };
 
-    // --- EXECUTION LOOP ---
+    // --- ORCHESTRATOR EXECUTION LOOP ---
     try {
-        console.log(`🤖 [SMART ROUTER] Class: ${complexity} -> Target: ${decision.model}`);
-        const callResult = await withTrace('model.call.primary', { model: decision.model, complexity }, () => tryCallModel(decision.model, decision.maxTokens));
+        const callResult = await withTrace('model.call.primary', { model: routing.model, brain: classification.brain }, () => tryCallModel(routing.model, routing.maxTokens));
+
+        // VALIDATION GATE: Reject empty/irrelevant responses
+        const validation = validateResponse(callResult.text, normalizedUserMsg);
+        if (!validation.valid) {
+            console.warn(`⚠️ [ORCHESTRATOR] Validation failed: ${validation.reason}. Triggering fallback...`);
+            throw new Error(`VALIDATION_FAILED: ${validation.reason}`);
+        }
+
         responseText = callResult.text;
         usedModel = callResult.model;
-        tokensUsed = estimateTokens(responseText) + estimatedTokens;
+        tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
+        orchestratorLog.latency_ms = Date.now() - startTime;
     } catch (err) {
-        console.warn(`⚠️ [SMART ROUTER] Primario falló (${decision.model}):`, err.message);
-        const fallback = getFallback(decision.model);
-        
-        if (fallback === 'safeguard') {
+        console.warn(`⚠️ [ORCHESTRATOR] Primary failed (${routing.model}):`, err.message);
+        const fallbackModel = getOrchestratorFallback(routing.model);
+        orchestratorLog.fallback_used = true;
+        orchestratorLog.fallback_model = fallbackModel;
+
+        if (fallbackModel === 'safeguard') {
             responseText = ''; // Will trigger safeguard below
         } else {
             try {
-                console.log(`🔄 [SMART ROUTER] Fallback: ${fallback}...`);
-                const fallbackResult = await withTrace('model.call.fallback', { fallback, original: decision.model }, () => tryCallModel(fallback, decision.maxTokens));
+                console.log(`🔄 [ORCHESTRATOR] Fallback → ${fallbackModel}...`);
+                const fallbackResult = await withTrace('model.call.fallback', { fallback: fallbackModel, original: routing.model }, () => tryCallModel(fallbackModel, routing.maxTokens));
                 responseText = fallbackResult.text;
                 usedModel = fallbackResult.model;
-                tokensUsed = estimateTokens(responseText) + estimatedTokens;
+                tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
+                orchestratorLog.latency_ms = Date.now() - startTime;
             } catch (fErr) {
-                console.error(`❌ [SMART ROUTER] Fallback falló (${fallback}):`, fErr.message);
+                console.error(`❌ [ORCHESTRATOR] Fallback failed (${fallbackModel}):`, fErr.message);
+                // Second-level fallback (Constitution: multi-level chain)
+                const secondFallback = getOrchestratorFallback(fallbackModel);
+                if (secondFallback !== 'safeguard') {
+                    try {
+                        console.log(`🔄 [ORCHESTRATOR] Second fallback → ${secondFallback}...`);
+                        const secondResult = await withTrace('model.call.fallback2', { fallback: secondFallback }, () => tryCallModel(secondFallback, routing.maxTokens));
+                        responseText = secondResult.text;
+                        usedModel = secondResult.model;
+                        tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
+                    } catch (sErr) {
+                        console.error(`❌ [ORCHESTRATOR] All fallbacks exhausted.`);
+                    }
+                }
             }
         }
     }
+
+    // Final Orchestrator Report (Structured JSON Log)
+    orchestratorLog.final_model = usedModel || 'safeguard';
+    orchestratorLog.latency_ms = orchestratorLog.latency_ms || (Date.now() - startTime);
+    console.log(`📊 [ORCHESTRATOR RESULT] ${JSON.stringify(orchestratorLog)}`);
 
     // 3. SAFEGUARD
     if (!responseText) {
@@ -432,8 +601,8 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
 
     // 4. CONDITIONAL COMPLIANCE GATE (Claude 3.5)
     let finalBotPaused = false;
-    const needsSyncAudit = hasPII || complexity === 'complex';
-    const needsAsyncAudit = hasRAG || history.length > 5;
+    const needsSyncAudit = classification.hasPII || classification.brain === 'research';
+    const needsAsyncAudit = classification.hasRAG || history.length > 5;
 
     if (ANTHROPIC_KEY && responseText && usedModel !== 'safeguard' && usedModel !== 'policy_engine' && usedModel !== 'limiter_pause') {
         if (needsSyncAudit) {
@@ -453,7 +622,7 @@ Devuelve SOLO JSON:
                 const userPayload = `USUARIO DIJO: ${normalizedUserMsg}\nBOT QUIERE RESPONDER: ${responseText}`;
 
                 console.log(`🛡️ [SYNC RISK GATE] Evaluando salida de ALTO RIESGO...`);
-                const complianceRes = await withTrace('compliance.sync', { complexity, hasPII }, () => axios.post('https://api.anthropic.com/v1/messages', {
+                const complianceRes = await withTrace('compliance.sync', { brain: classification.brain, hasPII: classification.hasPII }, () => axios.post('https://api.anthropic.com/v1/messages', {
                     model: 'claude-3-haiku-20240307',
                     max_tokens: 150,
                     temperature: 0,
