@@ -1,0 +1,15 @@
+{
+    "name": "whatsapp-fullstack",
+    "version": "2.1.0",
+    "private": true,
+    "scripts": {
+        "start": "node server/index.js",
+        "build": "cd server && npm install && cd ../client && npm install && npm run build"
+    },
+    "dependencies": {
+        "@opentelemetry/api": "^1.9.1",
+        "@opentelemetry/auto-instrumentations-node": "^0.73.0",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",
+        "@opentelemetry/sdk-node": "^0.215.0"
+    }
+}

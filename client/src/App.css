@@ -1,0 +1,5 @@
+/* ALEX IO — App-level overrides (minimal, design system lives in index.css) */
+
+#root {
+  min-height: 100vh;
+}
