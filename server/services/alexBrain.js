@@ -450,6 +450,9 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     };
     console.log(`🧠 [ORCHESTRATOR] ${JSON.stringify(orchestratorLog)}`);
 
+    // Generate cache key for response deduplication
+    const cacheKey = `${tenantId}:${normalizedUserMsg.substring(0, 80)}:${routing.model}`;
+
     const tryCallModel = async (modelName, maxTokens) => {
         // --- GEMINI ---
         if (modelName.startsWith('gemini')) {
@@ -748,7 +751,7 @@ Devuelve SOLO JSON:
         }
     }
 
-    global.responseCache.set(cacheKey, result);
+    try { if (cacheKey && global.responseCache) global.responseCache.set(cacheKey, result); } catch (_) {}
 
     // --- POST-INTERACTION: MEMORY EXTRACTION (Async) ---
     if (botConfig.tenantId && customerId !== 'unknown' && responseText && usedModel !== 'safeguard') {
