@@ -122,22 +122,28 @@ const MODEL_COST_PER_1K = {
 };
 const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
-/**
- * ORCHESTRATOR: Automatic Language Detection
- * Detects CJK languages for MiniMax routing, plus common Western languages.
- */
-function detectLanguage(text) {
-    if (!text) return 'es';
-    const cjkRegex = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/;
-    if (cjkRegex.test(text)) {
-        if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
-        if (/[\uac00-\ud7af]/.test(text)) return 'ko';
-        return 'zh';
-    }
-    if (/\b(você|obrigado|bom dia|boa tarde|não|está|também)\b/i.test(text)) return 'pt';
-    if (/\b(hello|hi|thanks|please|would|could|should|the|what|how|why)\b/i.test(text)) return 'en';
-    if (/\b(bonjour|merci|comment|pourquoi|oui|non|je suis)\b/i.test(text)) return 'fr';
+function detectLanguage(text = '', history = []) {
+    const recentHistory = (history || [])
+        .slice(-6)
+        .filter(h => h && h.role === 'user')
+        .map(h => h.content || h.text || '')
+        .join(' ');
+    const sample = `${String(text || '')} ${recentHistory}`.trim().toLowerCase();
+    if (!sample) return 'es';
+
+    const spanishSignals = [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde'];
+    const englishSignals = [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how'];
+    const score = (signals) => signals.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
+    
+    const es = score(spanishSignals);
+    const en = score(englishSignals);
+    if (en > es) return 'en';
     return 'es';
+}
+
+function getVoiceForLanguage(lang, configuredVoice) {
+    if (configuredVoice && configuredVoice !== 'nova') return configuredVoice;
+    return lang === 'es' ? 'alloy' : 'nova';
 }
 
 /**
@@ -377,8 +383,10 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         return null;
     }
 
+    const detectedLanguage = detectLanguage(message, history);
     // Force conciseness
     systemPrompt += `\n\nREGLA ESTRICTA: Tu respuesta DEBE tener como MÁXIMO ${maxWords} palabras. Sé muy conciso y directo.`;
+    systemPrompt += `\n\nREGLA DE IDIOMA: Detecta el idioma del usuario y responde en ese idioma. Idioma detectado para este turno: ${detectedLanguage}.`;
 
     // --- QUOTA CHECK ---
     const tenantId = botConfig.tenantId || 'default';
@@ -392,378 +400,61 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         };
     }
 
+    // --- LAYER 7: CASCADE BRAIN (V5 Stable) ---
+    const detectedLanguage = detectLanguage(message, history);
+    systemPrompt += `\n\nResponde en el idioma del usuario. Idioma detectado: ${detectedLanguage}.`;
+    
     let responseText = '';
     let usedModel = '';
-    let tokensUsed = 0;
-    const normalizedUserMsg = String(message || "").trim();
 
-    // --- POLICY ENGINE (Deterministic Security) ---
-    const policyViolations = [];
-    const lowerMsg = normalizedUserMsg.toLowerCase();
-
-    // 1. Detect insults/toxicity (Basic dictionary)
-    const insultRegex = /\b(estupido|idiota|imbecil|put|mierda|cabron|pendejo|tarado|imbécil|estúpido)\b/i;
-    if (insultRegex.test(lowerMsg)) {
-        policyViolations.push("TOXICITY_DETECTED");
-    }
-
-    // 2. Detect explicit PII (e.g. Credit Cards)
-    const ccRegex = /\b(?:\d[ -]*?){13,16}\b/; // Basic CC pattern
-    if (ccRegex.test(normalizedUserMsg)) {
-        policyViolations.push("PII_CREDIT_CARD_DETECTED");
-    }
-
-    if (policyViolations.length > 0) {
-        console.warn(`🛑 [${botName}] Policy Engine bloqueó el mensaje. Motivos:`, policyViolations);
-        return {
-            text: "Por políticas de seguridad corporativa, no puedo procesar tu mensaje. Por favor, evita usar lenguaje ofensivo o compartir datos financieros.",
-            trace: { model: 'policy_engine', timestamp: new Date().toISOString() },
-            botPaused: false
-        };
-    }
-    // ----------------------------------------------
-
-    // --- AI ORCHESTRATOR DECISION ---
-    const startTime = Date.now();
-    const classification = await withTrace('brain.classify', { 'message.len': normalizedUserMsg.length }, () => classifyRequest(normalizedUserMsg, history));
-    const routing = routeToModel(classification);
-
-    // Inject Context Template (Layer 0: Brain Mode Identity)
-    systemPrompt = `${routing.contextTemplate}\n\n${systemPrompt}`;
-
-    // Budget Check: Request-level AND Tenant-level
-    const estimatedCost = (classification.estimatedTokens / 1000) * (MODEL_COST_PER_1K[routing.model] || 0.0001);
-    const tenantRemaining = quotaStatus.data?.plan_limit - (quotaStatus.data?.messages_sent || 0);
-
-    if (estimatedCost > BUDGET_PER_REQUEST) {
-        console.warn(`💸 [BUDGET] Mensaje demasiado costoso ($${estimatedCost}). Bloqueando.`);
-        return {
-            text: "Tu consulta requiere una capacidad de procesamiento superior a la permitida por mensaje. Intenta ser más específico.",
-            trace: { model: 'budget_blocked', cost: estimatedCost },
-            botPaused: false
-        };
-    }
-
-    // Orchestrator Decision Log (Structured JSON)
-    const orchestratorLog = {
-        brain: classification.brain,
-        model: routing.model,
-        reason: routing.reason,
-        language: classification.language,
-        estimated_cost: estimatedCost.toFixed(6),
-        fallback_used: false,
-        fallback_model: null
-    };
-    console.log(`🧠 [ORCHESTRATOR] ${JSON.stringify(orchestratorLog)}`);
-
-    // Generate cache key for response deduplication
-    const cacheKey = `${tenantId}:${normalizedUserMsg.substring(0, 80)}:${routing.model}`;
-
-    const tryCallModel = async (modelName, maxTokens) => {
-        // --- GEMINI ---
-        if (modelName.startsWith('gemini')) {
-            if (!GEMINI_KEY || !circuitBreaker.isAvailable('GEMINI')) throw new Error('GEMINI_UNAVAILABLE');
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`;
-                const contents = (history || []).slice(-20).map(h => ({ 
-                    role: h.role === 'assistant' ? 'model' : 'user', 
-                    parts: [{ text: h.content || h.text || "" }] 
-                }));
-                contents.push({ role: 'user', parts: [{ text: normalizedUserMsg }] });
-                const payload = { contents, generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens }, system_instruction: { parts: [{ text: systemPrompt }] } };
-                const res = await axios.post(url, payload, { timeout: 5000 });
-                const text = res.data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!text) throw new Error('GEMINI_EMPTY_RESPONSE');
-                circuitBreaker.recordSuccess('GEMINI');
-                return { text, model: modelName };
-            } catch (geminiErr) {
-                circuitBreaker.recordFailure('GEMINI');
-                if (geminiErr.response?.status === 429) markProviderDead('GEMINI', 'Quota exceeded (429)');
-                throw geminiErr;
-            }
-        }
-        
-        // --- MINIMAX ---
-        if (modelName.startsWith('minimax')) {
-            if (!MINIMAX_KEY || !circuitBreaker.isAvailable('MINIMAX')) throw new Error('MINIMAX_UNAVAILABLE');
-            const url = `https://api.minimax.chat/v1/text_generation/chat_completion_v2?GroupId=${MINIMAX_GROUP_ID}`;
-            const mmRes = await axios.post(url, {
-                model: 'abab6.5s-chat',
-                messages: [{ role: 'system', content: systemPrompt }, ...(history || []).slice(-20).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })), { role: 'user', content: normalizedUserMsg }],
-                max_tokens: maxTokens
-            }, { headers: { Authorization: `Bearer ${MINIMAX_KEY}`, 'Content-Type': 'application/json' }, timeout: 5000 });
-            const text = mmRes.data.choices?.[0]?.message?.content;
-            if (!text) throw new Error('MINIMAX_EMPTY_RESPONSE');
-            circuitBreaker.recordSuccess('MINIMAX');
-            return { text, model: 'minimax-abab6.5s' };
-        }
-
-        // --- DEEPSEEK ---
-        if (modelName.startsWith('deepseek')) {
-            if (!DEEPSEEK_KEY || !circuitBreaker.isAvailable('DEEPSEEK')) throw new Error('DEEPSEEK_UNAVAILABLE');
-            const dsRes = await axios.post('https://api.deepseek.com/v1/chat/completions', {
-                model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, ...(history || []).slice(-20).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })), { role: 'user', content: normalizedUserMsg }]
-            }, { headers: { Authorization: `Bearer ${DEEPSEEK_KEY}` }, timeout: 5000 });
-            const text = dsRes.data.choices[0].message.content;
-            if (!text) throw new Error('DEEPSEEK_EMPTY_RESPONSE');
-            circuitBreaker.recordSuccess('DEEPSEEK');
-            return { text, model: 'deepseek-chat' };
-        }
-
-        // --- OPENAI ---
-        if (modelName === 'gpt-4o-mini') {
-            if (!OPENAI_KEY || !circuitBreaker.isAvailable('OPENAI')) throw new Error('OPENAI_UNAVAILABLE');
-            const completion = await axios.post('https://api.openai.com/v1/chat/completions', {
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'system', content: systemPrompt }, ...(history || []).slice(-20).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })), { role: 'user', content: normalizedUserMsg }]
-            }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 6000 });
-            const text = completion.data.choices[0].message.content;
-            if (!text) throw new Error('OPENAI_EMPTY_RESPONSE');
-            circuitBreaker.recordSuccess('OPENAI');
-            return { text, model: 'gpt-4o-mini' };
-        }
-
-        // --- CLAUDE (Deep Reasoning Engine) ---
-        if (modelName.startsWith('claude')) {
-            if (!ANTHROPIC_KEY || !circuitBreaker.isAvailable('ANTHROPIC')) throw new Error('CLAUDE_UNAVAILABLE');
-            const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
-                model: modelName,
-                max_tokens: maxTokens,
-                temperature: 0.7,
-                system: systemPrompt,
-                messages: [...(history || []).slice(-20).map(h => ({
-                    role: h.role === 'assistant' ? 'assistant' : 'user',
-                    content: h.content || h.text || ''
-                })), { role: 'user', content: normalizedUserMsg }]
-            }, {
-                headers: {
-                    'x-api-key': ANTHROPIC_KEY,
-                    'anthropic-version': '2023-06-01',
-                    'content-type': 'application/json'
-                },
-                timeout: 8000
-            });
-            const text = claudeRes.data.content?.[0]?.text;
-            if (!text) throw new Error('CLAUDE_EMPTY_RESPONSE');
-            circuitBreaker.recordSuccess('ANTHROPIC');
-            return { text, model: modelName };
-        }
-
-        throw new Error('MODEL_NOT_SUPPORTED');
-    };
-
-    // --- ORCHESTRATOR EXECUTION LOOP ---
+    // Step A: Try Gemini 2.0 (Speed & Efficiency)
     try {
-        const callResult = await withTrace('model.call.primary', { model: routing.model, brain: classification.brain }, () => tryCallModel(routing.model, routing.maxTokens));
-
-        // VALIDATION GATE: Reject empty/irrelevant responses
-        const validation = validateResponse(callResult.text, normalizedUserMsg);
-        if (!validation.valid) {
-            console.warn(`⚠️ [ORCHESTRATOR] Validation failed: ${validation.reason}. Triggering fallback...`);
-            throw new Error(`VALIDATION_FAILED: ${validation.reason}`);
-        }
-
-        responseText = callResult.text;
-        usedModel = callResult.model;
-        tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
-        orchestratorLog.latency_ms = Date.now() - startTime;
-    } catch (err) {
-        console.warn(`⚠️ [ORCHESTRATOR] Primary failed (${routing.model}):`, err.message);
-        // Record failure for circuit breaker
-        const providerName = routing.model.startsWith('gemini') ? 'GEMINI' : routing.model.startsWith('gpt') ? 'OPENAI' : routing.model.startsWith('claude') ? 'ANTHROPIC' : routing.model.startsWith('deepseek') ? 'DEEPSEEK' : 'MINIMAX';
-        circuitBreaker.recordFailure(providerName);
-        const fallbackModel = getOrchestratorFallback(routing.model);
-        orchestratorLog.fallback_used = true;
-        orchestratorLog.fallback_model = fallbackModel;
-
-        if (fallbackModel === 'safeguard') {
-            responseText = ''; // Will trigger safeguard below
-        } else {
-            try {
-                console.log(`🔄 [ORCHESTRATOR] Fallback → ${fallbackModel}...`);
-                const fallbackResult = await withTrace('model.call.fallback', { fallback: fallbackModel, original: routing.model }, () => tryCallModel(fallbackModel, routing.maxTokens));
-                responseText = fallbackResult.text;
-                usedModel = fallbackResult.model;
-                tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
-                orchestratorLog.latency_ms = Date.now() - startTime;
-            } catch (fErr) {
-                console.error(`❌ [ORCHESTRATOR] Fallback failed (${fallbackModel}):`, fErr.message);
-                // Second-level fallback (Constitution: multi-level chain)
-                const secondFallback = getOrchestratorFallback(fallbackModel);
-                if (secondFallback !== 'safeguard') {
-                    try {
-                        console.log(`🔄 [ORCHESTRATOR] Second fallback → ${secondFallback}...`);
-                        const secondResult = await withTrace('model.call.fallback2', { fallback: secondFallback }, () => tryCallModel(secondFallback, routing.maxTokens));
-                        responseText = secondResult.text;
-                        usedModel = secondResult.model;
-                        tokensUsed = estimateTokens(responseText) + classification.estimatedTokens;
-                    } catch (sErr) {
-                        console.error(`❌ [ORCHESTRATOR] All fallbacks exhausted.`);
-                    }
-                }
-            }
-        }
-    }
-
-    // Final Orchestrator Report (Structured JSON Log)
-    orchestratorLog.final_model = usedModel || 'safeguard';
-    orchestratorLog.latency_ms = orchestratorLog.latency_ms || (Date.now() - startTime);
-    console.log(`📊 [ORCHESTRATOR RESULT] ${JSON.stringify(orchestratorLog)}`);
-
-    // 3. SAFEGUARD
-    if (!responseText) {
-        responseText = '¡Hola! Soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero no te preocupes, sigo aquí. ¿En qué puedo ayudarte mientras recupero mi conexión total?';
-        usedModel = 'safeguard';
-    }
-
-    // 4. CONDITIONAL COMPLIANCE GATE (Claude 3.5)
-    let finalBotPaused = false;
-    const needsSyncAudit = classification.hasPII || classification.brain === 'research';
-    const needsAsyncAudit = classification.hasRAG || history.length > 5;
-
-    if (ANTHROPIC_KEY && responseText && usedModel !== 'safeguard' && usedModel !== 'policy_engine' && usedModel !== 'limiter_pause') {
-        if (needsSyncAudit) {
-            // Evaluamos de forma SÍNCRONA (Bloqueante) para alto riesgo
-            try {
-                const complianceSystemMessage = `Eres el Guardián de Cumplimiento (Compliance Gate) de un asistente AI B2B.
-Tu tarea es decidir si la RESPUESTA AI propuesta viola reglas críticas de seguridad.
-Reglas Críticas:
-1. Nunca revelar PII (Tarjetas de crédito, SSN, contraseñas) sin censurar.
-2. Nunca usar insultos, lenguaje de odio o discriminación.
-3. No admitir estar diseñado para hacer trampa o romper reglas internas.
-
-Si detectas una violación severa, debes BLOQUEAR el mensaje devolviendo is_compliant en false.
-Devuelve SOLO JSON:
-{"is_compliant": true|false, "reason": "motivo si se bloquea"}`;
-
-                const userPayload = `USUARIO DIJO: ${normalizedUserMsg}\nBOT QUIERE RESPONDER: ${responseText}`;
-
-                console.log(`🛡️ [SYNC RISK GATE] Evaluando salida de ALTO RIESGO...`);
-                const complianceRes = await withTrace('compliance.sync', { brain: classification.brain, hasPII: classification.hasPII }, () => axios.post('https://api.anthropic.com/v1/messages', {
-                    model: 'claude-3-haiku-20240307',
-                    max_tokens: 150,
-                    temperature: 0,
-                    system: complianceSystemMessage,
-                    messages: [{ role: 'user', content: userPayload }]
-                }, {
-                    headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-                    timeout: 2500
-                }));
-
-                let gateResult = complianceRes.data.content[0].text.replace(/^\`\`\`(json)?\n/, '').replace(/\n\`\`\`$/, '').trim();
-                const parsedGate = JSON.parse(gateResult);
-
-                if (!parsedGate.is_compliant) {
-                    console.warn(`🛑 [SYNC RISK GATE] Bloqueo Activo disparado. Razón: ${parsedGate.reason}`);
-                    responseText = "Por razones de seguridad corporativa, tu solicitud ha sido derivada a un asesor humano. Te contactaremos a la brevedad.";
-                    usedModel = 'compliance_blocked';
-                    finalBotPaused = true;
-                }
-            } catch (err) {
-                console.warn('⚠️ [SYNC RISK GATE WARNING] Falló evaluación:', err.message);
-            }
-        } else if (needsAsyncAudit) {
-            // Auditoría ASÍNCRONA (No bloqueante) para riesgo medio
-            console.log(`🕵️‍♂️ [ASYNC RISK GATE] Lanzando auditoría en segundo plano para ${botName}...`);
-            // Se ejecuta sin await
-            runComplianceAudit({
-                messageContent: normalizedUserMsg,
-                aiResponse: responseText,
-                systemPrompt,
-                tenantId,
-                instanceId: botConfig.instanceId,
-                messageId: `msg_${Date.now()}`,
-                supabase
-            }).catch(e => console.error('Error in async audit:', e.message));
+        const geminiRes = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+            contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
+            generationConfig: { maxOutputTokens: maxWords * 6 }
+        }, { timeout: 5000 });
+        responseText = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
+        usedModel = 'gemini-2.0-flash';
+    } catch (e) {
+        console.warn('⚠️ Gemini Fallback -> Trying OpenAI');
+        // Step B: Try OpenAI GPT-4o-mini (Reliability)
+        try {
+            const openaiRes = await axios.post('https://api.openai.com/v1/chat/completions', {
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
+                max_tokens: maxWords * 6
+            }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
+            responseText = openaiRes.data.choices[0].message.content;
+            usedModel = 'gpt-4o-mini';
+        } catch (e2) {
+            console.error('❌ All AI brains failed');
+            responseText = 'Hola, soy ALEX. Estoy experimentando mucha demanda, ¿en qué puedo ayudarte?';
+            usedModel = 'safeguard';
         }
     }
 
     const result = {
         text: responseText,
-        trace: { model: usedModel, tokens: tokensUsed, timestamp: new Date().toISOString() },
-        botPaused: finalBotPaused
+        trace: { model: usedModel, timestamp: new Date().toISOString() },
+        botPaused: false
     };
 
-    // 4. VOZ (RE-ENABLED - Multi-Provider: OpenAI & MiniMax)
-    if (isAudio && responseText) {
-        let audioGenerated = false;
-
-        // Try OpenAI TTS First (Current Default)
-        if (openai && !deadKeys.has('OPENAI')) {
-            try {
-                console.log(`🎙️ [${botName}] Generando Audio OpenAI (${botConfig.voice || 'nova'})...`);
-                const mp3 = await openai.audio.speech.create({
-                    model: 'tts-1',
-                    voice: botConfig.voice || 'nova',
-                    input: responseText.slice(0, 3500),
-                    response_format: 'opus'
-                });
-                result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
-                result.audioMime = 'audio/ogg; codecs=opus';
-                audioGenerated = true;
-                console.log(`✅ Audio OpenAI generado (${result.audioBuffer.length} bytes).`);
-            } catch (err) {
-                const statusCode = err.status || err.response?.status;
-                const errMsg = err.message || String(err);
-                console.error(`❌ [${botName}] OpenAI TTS Error (${statusCode}):`, errMsg);
-                if (statusCode === 401 || statusCode === 429 || /quota|billing|credit/i.test(errMsg)) {
-                    markProviderDead('OPENAI', `TTS Error: ${errMsg}`);
-                }
-            }
+    // --- VOZ (Respect Always-on mode) ---
+    const forceVoice = String(botConfig.voiceMode || '').toLowerCase() === 'always';
+    if (isAudio || forceVoice) {
+        try {
+            const selectedVoice = getVoiceForLanguage(detectedLanguage, botConfig.voice);
+            const mp3 = await openai.audio.speech.create({
+                model: 'tts-1',
+                voice: selectedVoice,
+                input: responseText.slice(0, 1000)
+            });
+            result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
+            result.audioMime = 'audio/mpeg';
+        } catch (err) {
+            console.error('❌ TTS Error:', err.message);
         }
-
-        // Fallback or Alternative: MiniMax TTS
-        if (!audioGenerated && MINIMAX_KEY && !deadKeys.has('MINIMAX_TTS')) {
-            try {
-                console.log(`🎙️ [${botName}] Generando Audio MiniMax (abab6.5s-tts)...`);
-                const minimaxTtsUrl = `https://api.minimax.chat/v1/t2a_v2?GroupId=${MINIMAX_GROUP_ID}`;
-                
-                // Mapeo de voces si es necesario, o usar una default persuasiva
-                const voiceId = botConfig.minimaxVoice || 'male-qn-qingse'; 
-                
-                const mmTtsRes = await axios.post(minimaxTtsUrl, {
-                    model: "speech-01-turbo",
-                    text: responseText.slice(0, 500), // Límite razonable para WhatsApp
-                    stream: false,
-                    voice_setting: {
-                        voice_id: voiceId,
-                        speed: 1.0,
-                        vol: 1.0,
-                        pitch: 0
-                    },
-                    audio_setting: {
-                        sample_rate: 32000,
-                        bitrate: 128000,
-                        format: "mp3",
-                        channel: 1
-                    }
-                }, { 
-                    headers: { 
-                        Authorization: `Bearer ${MINIMAX_KEY}`, 
-                        'Content-Type': 'application/json' 
-                    }, 
-                    timeout: 8000 
-                });
-
-                if (mmTtsRes.data && mmTtsRes.data.data && mmTtsRes.data.data.audio) {
-                    // MiniMax devuelve hex por defecto o según config. Lo convertimos a buffer.
-                    const audioHex = mmTtsRes.data.data.audio;
-                    result.audioBuffer = Buffer.from(audioHex, 'hex');
-                    result.audioMime = 'audio/mpeg'; // WhatsApp lo convertirá si es necesario
-                    audioGenerated = true;
-                    console.log(`✅ Audio MiniMax generado (${result.audioBuffer.length} bytes).`);
-                    circuitBreaker.recordSuccess('MINIMAX_TTS');
-                } else {
-                    console.warn('⚠️ [MiniMax TTS] Respuesta vacía o error:', mmTtsRes.data);
-                }
-            } catch (err) {
-                console.error(`❌ [${botName}] MiniMax TTS Error:`, err.message);
-                if (err.response?.status === 401 || err.response?.status === 429) {
-                    markProviderDead('MINIMAX_TTS', `TTS Error: ${err.message}`);
-                }
-            }
-        }
+    }
     }
 
     try { if (cacheKey && global.responseCache) global.responseCache.set(cacheKey, result); } catch (_) {}

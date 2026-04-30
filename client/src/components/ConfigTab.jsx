@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff } from 'lucide-react';
+import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert } from 'lucide-react';
+import EnterpriseWizard from './EnterpriseWizard';
 
 const CONFIG_TAB_VERSION = 'v2.0.7.8-STABLE';
 
@@ -130,203 +131,61 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     const [copiedUrl, setCopiedUrl] = useState(false);
     const [copiedToken, setCopiedToken] = useState(false);
     const [showToken, setShowToken] = useState(false);
+    const [channelWizard, setChannelWizard] = useState('instagram');
+
+    // Utility (Mock if missing from context)
+    const pushNotice = (type, msg) => {
+        console.log(`[${type}] ${msg}`);
+        // In a real scenario, this should be passed as prop or use a context
+    };
+
+    const fetchJsonWithApiFallback = async (url, options) => {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        return { response, data };
+    };
+
+    const getAuthHeaders = () => ({
+        'Authorization': `Bearer ${localStorage.getItem('alex_token')}`,
+        'Content-Type': 'application/json'
+    });
 
     // If bot already has a custom prompt, start in advanced mode
     useEffect(() => {
         if (configDraft?.customPrompt?.length > 20) {
             setPhase('advanced');
         } else {
-            setPhase('select');
+            setPhase('enterprise_wizard');
         }
     }, [selected?.id]);
 
-    // ── Phase: SELECT ──────────────────────────────────────────
-    const renderSelect = () => (
-        <div className="space-y-6">
-            <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold mb-2" style={{ color: C.text }}>¿Qué tipo de negocio tenés?</h2>
-                <p style={{ color: C.textMuted }} className="text-sm">Elegí una plantilla y te guiaremos para crear el prompt perfecto para tu bot.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {BUSINESS_TYPES.map(bt => (
-                    <button key={bt.id} onClick={() => { setSelectedType(bt); setPhase('wizard'); setWizardStep(0); setWizardData({}); }}
-                        className="group text-left p-5 rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-                        style={{
-                            background: C.surface,
-                            border: `1px solid ${C.border}`,
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = bt.color; e.currentTarget.style.boxShadow = `0 0 20px ${bt.color}22`; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = 'none'; }}
-                    >
-                        <div className="text-3xl mb-3">{bt.icon}</div>
-                        <h3 className="font-bold text-base mb-1" style={{ color: C.text }}>{bt.title}</h3>
-                        <p className="text-xs" style={{ color: C.textDim }}>{bt.desc}</p>
-                        <div className="mt-3 flex items-center gap-1 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: bt.color }}>
-                            Configurar <ArrowRight size={14} />
-                        </div>
-                    </button>
-                ))}
-            </div>
-            <SupportBanner />
-        </div>
+    const renderEnterpriseWizard = () => (
+        <EnterpriseWizard
+            config={{
+                botName: configDraft.name,
+                systemPrompt: configDraft.customPrompt,
+                voiceEnabled: configDraft.voiceEnabled,
+                voice: configDraft.voice,
+                maxWords: configDraft.maxWords,
+                maxMessages: configDraft.maxMessages
+            }}
+            onSave={(data) => {
+                setConfigDraft(prev => ({
+                    ...prev,
+                    name: data.botName,
+                    customPrompt: data.systemPrompt,
+                    voiceEnabled: data.voiceEnabled,
+                    voice: data.voice,
+                    maxWords: data.maxWords,
+                    maxMessages: data.maxMessages
+                }));
+                setPhase('advanced');
+                onSave();
+            }}
+            onCancel={() => setPhase('advanced')}
+        />
     );
 
-    // ── Phase: WIZARD ──────────────────────────────────────────
-    const renderWizard = () => {
-        const q = WIZARD_QUESTIONS[wizardStep];
-        const progress = ((wizardStep + 1) / WIZARD_QUESTIONS.length) * 100;
-        return (
-            <div className="max-w-lg mx-auto space-y-6">
-                {/* Progress */}
-                <div className="flex items-center gap-3">
-                    <button onClick={() => wizardStep > 0 ? setWizardStep(s => s - 1) : setPhase('select')}
-                        className="p-2 rounded-lg transition-colors" style={{ background: C.surface, color: C.textMuted }}>
-                        <ChevronLeft size={20} />
-                    </button>
-                    <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{ background: C.border }}>
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${C.indigo}, ${C.amber})` }} />
-                    </div>
-                    <span className="text-xs font-bold" style={{ color: C.textDim }}>{wizardStep + 1}/{WIZARD_QUESTIONS.length}</span>
-                </div>
-
-                {/* Question Card */}
-                <div className="rounded-xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 rounded-lg" style={{ background: C.indigoDim, color: C.indigo }}>{q.icon}</div>
-                        <h3 className="font-bold text-lg" style={{ color: C.text }}>{q.label}</h3>
-                    </div>
-
-                    {q.type === 'select' ? (
-                        <div className="grid grid-cols-2 gap-3">
-                            {q.options.map(opt => (
-                                <button key={opt.value} onClick={() => setWizardData(d => ({ ...d, [q.id]: opt.value }))}
-                                    className="text-left p-4 rounded-xl transition-all"
-                                    style={{
-                                        background: wizardData[q.id] === opt.value ? C.indigoDim : C.bg,
-                                        border: `2px solid ${wizardData[q.id] === opt.value ? C.indigo : C.border}`,
-                                    }}>
-                                    <div className="font-bold text-sm mb-0.5" style={{ color: C.text }}>{opt.label}</div>
-                                    <div className="text-xs" style={{ color: C.textDim }}>{opt.desc}</div>
-                                </button>
-                            ))}
-                        </div>
-                    ) : q.multiline ? (
-                        <textarea
-                            className="w-full rounded-xl p-4 text-sm resize-none h-28 focus:outline-none transition-colors"
-                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                            onFocus={e => e.target.style.borderColor = C.indigo}
-                            onBlur={e => e.target.style.borderColor = C.border}
-                            placeholder={q.placeholder}
-                            value={wizardData[q.id] || ''}
-                            onChange={e => setWizardData(d => ({ ...d, [q.id]: e.target.value }))}
-                        />
-                    ) : (
-                        <input
-                            className="w-full rounded-xl p-4 text-sm focus:outline-none transition-colors"
-                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                            onFocus={e => e.target.style.borderColor = C.indigo}
-                            onBlur={e => e.target.style.borderColor = C.border}
-                            placeholder={q.placeholder}
-                            value={wizardData[q.id] || ''}
-                            onChange={e => setWizardData(d => ({ ...d, [q.id]: e.target.value }))}
-                            autoFocus
-                        />
-                    )}
-                </div>
-
-                {/* Navigation */}
-                <div className="flex justify-end">
-                    <button onClick={() => {
-                        if (wizardStep < WIZARD_QUESTIONS.length - 1) {
-                            setWizardStep(s => s + 1);
-                        } else {
-                            // Generate prompt
-                            setPhase('generating');
-                            setTimeout(() => {
-                                const toneMap = { formal: 'profesional y respetuoso', friendly: 'cercano y cálido', casual: 'relajado y joven', expert: 'técnico y detallado' };
-                                const base = selectedType.prompt.replace('{businessName}', wizardData.businessName || 'el negocio');
-                                const extra = [
-                                    wizardData.hours ? `\nHorarios de atención: ${wizardData.hours}.` : '',
-                                    wizardData.keyInfo ? `\nInformación importante: ${wizardData.keyInfo}` : '',
-                                    wizardData.tone ? `\nUsa siempre un tono ${toneMap[wizardData.tone] || 'amigable'}.` : '',
-                                    wizardData.handoff ? `\nDeriva a un agente humano cuando: ${wizardData.handoff}` : '',
-                                    '\nREGLA: Sé conciso (máximo 50 palabras por respuesta). Responde siempre en el idioma del usuario.',
-                                ].join('');
-                                setGeneratedPrompt(base + extra);
-                                setPhase('done');
-                            }, 2000);
-                        }
-                    }}
-                        className="px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
-                        style={{ background: `linear-gradient(135deg, ${C.indigo}, #7c3aed)`, color: '#fff' }}>
-                        {wizardStep < WIZARD_QUESTIONS.length - 1 ? <><span>Siguiente</span><ChevronRight size={16} /></> : <><Sparkles size={16} /><span>Generar Prompt con IA</span></>}
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    // ── Phase: GENERATING ──────────────────────────────────────
-    const renderGenerating = () => (
-        <div className="flex flex-col items-center justify-center py-20 space-y-6">
-            <div className="relative">
-                <div className="w-20 h-20 rounded-2xl flex items-center justify-center animate-pulse" style={{ background: C.indigoDim }}>
-                    <Sparkles size={36} style={{ color: C.indigo }} />
-                </div>
-                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full animate-ping" style={{ background: C.indigo }} />
-            </div>
-            <div className="text-center">
-                <h3 className="text-xl font-bold mb-2" style={{ color: C.text }}>Generando tu prompt personalizado...</h3>
-                <p className="text-sm" style={{ color: C.textMuted }}>La IA está construyendo las instrucciones perfectas para tu bot.</p>
-            </div>
-            <Loader2 size={24} className="animate-spin" style={{ color: C.indigo }} />
-        </div>
-    );
-
-    // ── Phase: DONE ────────────────────────────────────────────
-    const renderDone = () => (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <div className="text-center mb-4">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold mb-3" style={{ background: 'rgba(34,197,94,0.12)', color: C.green }}>
-                    <Check size={16} /> ¡Prompt generado con éxito!
-                </div>
-                <h2 className="text-2xl font-bold" style={{ color: C.text }}>Revisá y ajustá el resultado</h2>
-                <p className="text-sm mt-1" style={{ color: C.textMuted }}>Podés editar el texto antes de aplicarlo a tu bot.</p>
-            </div>
-
-            <div className="rounded-xl p-1" style={{ background: `linear-gradient(135deg, ${C.indigo}44, ${C.amber}44)` }}>
-                <textarea
-                    className="w-full rounded-lg p-5 text-sm resize-none h-56 focus:outline-none"
-                    style={{ background: C.bg, color: C.text }}
-                    value={generatedPrompt}
-                    onChange={e => setGeneratedPrompt(e.target.value)}
-                />
-            </div>
-
-            <div className="flex gap-3">
-                <button onClick={() => { navigator.clipboard.writeText(generatedPrompt); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all"
-                    style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }}>
-                    {copied ? <><Check size={16} /> Copiado!</> : <><Copy size={16} /> Copiar</>}
-                </button>
-                <button onClick={() => {
-                    setConfigDraft(prev => ({ ...prev, customPrompt: generatedPrompt }));
-                    setPhase('advanced');
-                }}
-                    className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
-                    style={{ background: `linear-gradient(135deg, ${C.indigo}, #7c3aed)`, color: '#fff' }}>
-                    <Zap size={16} /> Usar este Prompt
-                </button>
-            </div>
-
-            <button onClick={() => { setPhase('select'); setSelectedType(null); }}
-                className="w-full text-center text-xs py-2 transition-colors" style={{ color: C.textDim }}>
-                ← Volver a elegir tipo de negocio
-            </button>
-        </div>
-    );
-
-    // ── Phase: ADVANCED ────────────────────────────────────────
     const renderAdvanced = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Config Panel */}
@@ -347,16 +206,22 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                         </div>
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Voz IA</label>
-                            <select className="w-full rounded-lg p-3 text-sm focus:outline-none appearance-none"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                value={configDraft.voice || 'nova'} onChange={e => setConfigDraft(p => ({ ...p, voice: e.target.value }))}>
-                                <option value="nova">Nova (Femenina - Natural)</option>
-                                <option value="onyx">Onyx (Masculina - Profunda)</option>
-                                <option value="fable">Fable (Masculina - Animada)</option>
-                                <option value="alloy">Alloy (Andrógina - Directa)</option>
-                                <option value="echo">Echo (Masculina - Suave)</option>
-                                <option value="shimmer">Shimmer (Femenina - Clara)</option>
-                            </select>
+                            <div className="flex gap-2">
+                                <select className="flex-1 rounded-lg p-3 text-sm focus:outline-none appearance-none"
+                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                    value={configDraft.voice || 'nova'} onChange={e => setConfigDraft(p => ({ ...p, voice: e.target.value }))}>
+                                    <option value="nova">Nova</option>
+                                    <option value="alloy">Alloy</option>
+                                    <option value="echo">Echo</option>
+                                    <option value="shimmer">Shimmer</option>
+                                </select>
+                                <button
+                                    onClick={() => setConfigDraft(p => ({ ...p, voiceEnabled: !p.voiceEnabled }))}
+                                    className={`px-4 rounded-lg text-[10px] font-bold uppercase transition-all ${configDraft.voiceEnabled ? 'bg-pink-500 text-white' : 'bg-slate-800 text-slate-500'}`}
+                                >
+                                    {configDraft.voiceEnabled ? 'Activo' : 'Inactivo'}
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Máx. Palabras por Respuesta</label>
@@ -383,10 +248,10 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                         <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: C.text }}>
                             <MessageSquare size={16} style={{ color: C.indigo }} /> Prompt del Bot (Cerebro IA)
                         </h3>
-                        <button onClick={() => { setPhase('select'); setSelectedType(null); }}
+                        <button onClick={() => setPhase('enterprise_wizard')}
                             className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                            style={{ background: C.amberDim, color: C.amber }}>
-                            <Sparkles size={12} className="inline mr-1" /> Regenerar con Wizard
+                            style={{ background: C.indigoDim, color: C.indigo }}>
+                            <Bot size={12} className="inline mr-1" /> Abrir Wizard Ejecutivo
                         </button>
                     </div>
                     <textarea className="w-full rounded-lg p-4 text-sm resize-none h-40 focus:outline-none transition-colors"
@@ -398,43 +263,73 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
 
                 {/* Channel Credentials */}
                 <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <h3 className="font-bold text-sm mb-4 flex items-center justify-between gap-2" style={{ color: C.text }}>
-                        <div className="flex items-center gap-2">
-                            <Key size={16} style={{ color: C.amber }} /> Conexiones y Canales
-                        </div>
-                        <span className="text-[10px] opacity-30 font-mono">{CONFIG_TAB_VERSION}</span>
+                    <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
+                        <Key size={16} style={{ color: C.amber }} /> Conexiones y Canales
                     </h3>
-                    <div className="space-y-6">
-                        <div className="space-y-3">
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-center" style={{ color: C.textDim }}>Selecciona tu Canal de Conexión</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                {[
-                                    { id: 'baileys', name: 'WhatsApp', sub: 'Baileys', icon: <Smartphone size={20} />, color: '#25D366' },
-                                    { id: 'meta', name: 'WhatsApp', sub: 'Cloud API', icon: <Cloud size={20} />, color: '#0080FF' },
-                                    { id: 'discord', name: 'Discord', sub: 'Bot API', icon: <MessageSquare size={20} />, color: '#5865F2' },
-                                    { id: 'tiktok', name: 'TikTok', sub: 'Business', icon: <Music size={20} />, color: '#000000' },
-                                    { id: 'messenger', name: 'Messenger', sub: 'Facebook', icon: <Facebook size={20} />, color: '#0695FF' },
-                                    { id: 'instagram', name: 'Instagram', sub: 'Direct', icon: <Instagram size={20} />, color: '#E4405F' },
-                                    { id: '360dialog', name: '360Dialog', sub: 'WhatsApp', icon: <Globe size={20} />, color: '#6366f1' },
-                                ].map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => setConfigDraft(prev => ({ ...prev, provider: p.id }))}
-                                        className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:scale-105 ${configDraft.provider === p.id ? 'shadow-lg border-indigo-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
-                                        style={{ 
-                                            background: configDraft.provider === p.id ? `${C.indigo}15` : C.bg,
-                                            borderColor: configDraft.provider === p.id ? C.indigo : C.border,
-                                        }}
-                                    >
-                                        <div className="mb-2 p-2 rounded-lg" style={{ background: `${p.color}15`, color: p.color }}>{p.icon}</div>
-                                        <span className="text-[11px] font-bold" style={{ color: C.text }}>{p.name}</span>
-                                        <span className="text-[9px] uppercase opacity-50 font-bold tracking-wider">{p.sub}</span>
-                                    </button>
-                                ))}
-                            </div>
+                    <div className="mb-5">
+                        <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: C.textDim }}>Wizard rápido (2 minutos)</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {[
+                                { id: 'instagram', label: 'Instagram', icon: <Instagram size={15} /> },
+                                { id: 'facebook', label: 'Facebook', icon: <Facebook size={15} /> },
+                                { id: 'tiktok', label: 'TikTok', icon: <Sparkles size={15} /> }
+                            ].map(ch => (
+                                <button key={ch.id} onClick={() => setChannelWizard(ch.id)}
+                                    className="rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                                    style={{
+                                        border: `1px solid ${channelWizard === ch.id ? C.indigo : C.border}`,
+                                        background: channelWizard === ch.id ? C.indigoDim : C.bg,
+                                        color: channelWizard === ch.id ? C.indigo : C.text
+                                    }}>
+                                    {ch.icon} {ch.label}
+                                </button>
+                            ))}
                         </div>
-
+                        <div className="mt-3 rounded-lg p-3 text-xs" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                            {channelWizard === 'instagram' && (
+                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
+                                    <li>Conecta tu Instagram en ManyChat (Settings → Instagram).</li>
+                                    <li>Configura Default Reply hacia: <code>/api/webhooks/manychat</code>.</li>
+                                    <li>Guarda un token en <b>ManyChat Token</b> y publica el flujo.</li>
+                                </ol>
+                            )}
+                            {channelWizard === 'facebook' && (
+                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
+                                    <li>Conecta página de Facebook en ManyChat (Messenger).</li>
+                                    <li>Apunta el webhook a <code>/api/webhooks/manychat</code>.</li>
+                                    <li>Usa el mismo token de seguridad en Authorization Bearer.</li>
+                                </ol>
+                            )}
+                            {channelWizard === 'tiktok' && (
+                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
+                                    <li>Pega tu TikTok Access Token abajo.</li>
+                                    <li>Configura webhook TikTok a <code>/api/webhooks/tiktok</code>.</li>
+                                    <li>Haz prueba enviando DM y revisa Live Chat.</li>
+                                </ol>
+                            )}
+                        </div>
+                    </div>
+                    <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Proveedor WhatsApp Principal</label>
+                                <select className="w-full rounded-lg p-3 text-sm focus:outline-none appearance-none"
+                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                    value={configDraft.provider || 'baileys'} onChange={e => setConfigDraft(p => ({ ...p, provider: e.target.value }))}>
+                                    <option value="baileys">Baileys (QR - Gratis)</option>
+                                    <option value="meta">Meta Cloud API (WhatsApp)</option>
+                                    <option value="360dialog">360Dialog</option>
+                                </select>
+                            </div>
+                            {configDraft.provider === 'meta' && (
+                                <div>
+                                    <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
+                                    <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
+                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                        value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
+                                </div>
+                            )}
+                        </div>
                             {/* Conditional Discord Fields */}
                             {configDraft.provider === 'discord' && (
                                 <div className="sm:col-span-2">
@@ -474,124 +369,77 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                     </div>
                                 </>
                             )}
-                            
-                            {/* Conditional Meta/WA Fields */}
-                            {configDraft.provider === 'meta' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Phone Number ID</label>
-                                        <input className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.phoneNumberId || ''} onChange={e => setConfigDraft(p => ({ ...p, phoneNumberId: e.target.value }))} placeholder="123456789..." />
-                                    </div>
-                                    <div className="sm:col-span-2">
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
-                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
-                                    </div>
-                                </>
-                            )}
+                    </div>
 
-                            {/* Conditional Messenger/IG Fields */}
-                            {(configDraft.provider === 'messenger' || configDraft.provider === 'instagram') && (
-                                <div className="sm:col-span-2">
-                                    <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Page/Account Access Token</label>
-                                    <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                        value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
-                                </div>
-                            )}
-
-                            {/* Conditional TikTok Fields */}
-                            {configDraft.provider === 'tiktok' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>TikTok Seller ID</label>
-                                        <input className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.tiktokSellerId || ''} onChange={e => setConfigDraft(p => ({ ...p, tiktokSellerId: e.target.value }))} placeholder="Seller ID..." />
-                                    </div>
-                                    <div className="sm:col-span-2">
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>TikTok Access Token</label>
-                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.tiktokAccessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, tiktokAccessToken: e.target.value }))} placeholder="Actxxxxxxx..." />
-                                    </div>
-                                </>
-                            )}
+                    {/* ManyChat Bridge (Always visible as it can complement any channel) */}
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: C.border }}>
+                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider flex items-center gap-1" style={{ color: C.textDim }}>
+                            <Zap size={14} className="text-indigo-400" /> Puente ManyChat / External Webhook
+                        </label>
+                        <p className="text-[10px] mb-2" style={{ color: C.textMuted }}>
+                            Configura la **External Request** en ManyChat usando este Request URL y el Token:
+                        </p>
+                        
+                        <div className="relative group mb-3">
+                            <div className="p-2.5 rounded-lg bg-black/20 border border-indigo-500/10 font-mono text-[9px] break-all pr-12" 
+                                 style={{ color: C.indigo }}>
+                                {window.location.origin}/api/webhooks/manychat?tenantId={selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId={selected?.instanceId || selected?.id}
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    const url = `${window.location.origin}/api/webhooks/manychat?tenantId=${selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId=${selected?.instanceId || selected?.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    setCopiedUrl(true);
+                                    setTimeout(() => setCopiedUrl(false), 2000);
+                                }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all hover:bg-white/10"
+                                style={{ color: copiedUrl ? C.green : C.indigo }}
+                                title="Copiar URL"
+                            >
+                                {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
                         </div>
 
-                        {/* ManyChat Bridge (Always visible as it can complement any channel) */}
-                        <div className="mt-4 pt-4 border-t" style={{ borderColor: C.border }}>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider flex items-center gap-1" style={{ color: C.textDim }}>
-                                <Zap size={14} className="text-indigo-400" /> Puente ManyChat / External Webhook
-                            </label>
-                            <p className="text-[10px] mb-2" style={{ color: C.textMuted }}>
-                                Configura la **External Request** en ManyChat usando este Request URL y el Token:
-                            </p>
-                            
-                            <div className="relative group mb-3">
-                                <div className="p-2.5 rounded-lg bg-black/20 border border-indigo-500/10 font-mono text-[9px] break-all pr-12" 
-                                     style={{ color: C.indigo }}>
-                                    {window.location.origin}/api/webhooks/manychat?tenantId={selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId={selected?.instanceId || selected?.id}
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <input type={showToken ? "text" : "password"} className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors pr-20"
+                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                    value={configDraft.manychatToken || ''} 
+                                    onChange={e => setConfigDraft(p => ({ ...p, manychatToken: e.target.value }))} 
+                                    placeholder="Token secreto para Auth Header..." 
+                                />
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    <button 
+                                        onClick={() => setShowToken(!showToken)}
+                                        className="p-1.5 rounded-md transition-all hover:bg-white/5"
+                                        style={{ color: C.textDim }}
+                                        title={showToken ? "Ocultar" : "Mostrar"}
+                                    >
+                                        {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(configDraft.manychatToken || '');
+                                            setCopiedToken(true);
+                                            setTimeout(() => setCopiedToken(false), 2000);
+                                        }}
+                                        className="p-1.5 rounded-md transition-all hover:bg-white/5"
+                                        style={{ color: copiedToken ? C.green : C.textDim }}
+                                        title="Copiar Token"
+                                    >
+                                        {copiedToken ? <Check size={14} /> : <Copy size={14} />}
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => {
-                                        const url = `${window.location.origin}/api/webhooks/manychat?tenantId=${selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId=${selected?.instanceId || selected?.id}`;
-                                        navigator.clipboard.writeText(url);
-                                        setCopiedUrl(true);
-                                        setTimeout(() => setCopiedUrl(false), 2000);
-                                    }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all hover:bg-white/10"
-                                    style={{ color: copiedUrl ? C.green : C.indigo }}
-                                    title="Copiar URL"
-                                >
-                                    {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
-                                </button>
                             </div>
-
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                    <input type={showToken ? "text" : "password"} className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors pr-20"
-                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                        value={configDraft.manychatToken || ''} 
-                                        onChange={e => setConfigDraft(p => ({ ...p, manychatToken: e.target.value }))} 
-                                        placeholder="Token secreto para Auth Header..." 
-                                    />
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                        <button 
-                                            onClick={() => setShowToken(!showToken)}
-                                            className="p-1.5 rounded-md transition-all hover:bg-white/5"
-                                            style={{ color: C.textDim }}
-                                            title={showToken ? "Ocultar" : "Mostrar"}
-                                        >
-                                            {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(configDraft.manychatToken || '');
-                                                setCopiedToken(true);
-                                                setTimeout(() => setCopiedToken(false), 2000);
-                                            }}
-                                            className="p-1.5 rounded-md transition-all hover:bg-white/5"
-                                            style={{ color: copiedToken ? C.green : C.textDim }}
-                                            title="Copiar Token"
-                                        >
-                                            {copiedToken ? <Check size={14} /> : <Copy size={14} />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <button onClick={() => {
-                                    const newToken = 'ALEX_' + Math.random().toString(36).substr(2, 10).toUpperCase();
-                                    setConfigDraft(p => ({ ...p, manychatToken: newToken }));
-                                    setShowToken(true);
-                                }}
-                                    className="px-3 rounded-lg font-bold text-xs transition-all hover:scale-105"
-                                    style={{ background: C.indigoDim, color: C.indigo, border: `1px solid ${C.indigo}44` }}>
-                                    <Sparkles size={14} className="inline mr-1" /> Generar
-                                </button>
-                            </div>
+                            <button onClick={() => {
+                                const newToken = 'ALEX_' + Math.random().toString(36).substr(2, 10).toUpperCase();
+                                setConfigDraft(p => ({ ...p, manychatToken: newToken }));
+                                setShowToken(true);
+                            }}
+                                className="px-3 rounded-lg font-bold text-xs transition-all hover:scale-105"
+                                style={{ background: C.indigoDim, color: C.indigo, border: `1px solid ${C.indigo}44` }}>
+                                <Sparkles size={14} className="inline mr-1" /> Generar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -651,7 +499,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
 
                 <button onClick={async () => {
                     try {
-                        const { response, data } = await fetchJsonWithApiFallback(`/api/saas/test-sync/${instanceId}`, {
+                        const { response, data } = await fetchJsonWithApiFallback(`/api/saas/test-sync/${selected?.instanceId || selected?.id}`, {
                             method: 'POST',
                             headers: { ...getAuthHeaders() }
                         });
@@ -744,10 +592,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     // ── RENDER ─────────────────────────────────────────────────
     return (
         <div className="h-full overflow-y-auto pr-2 pb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {phase === 'select' && renderSelect()}
-            {phase === 'wizard' && renderWizard()}
-            {phase === 'generating' && renderGenerating()}
-            {phase === 'done' && renderDone()}
+            {phase === 'enterprise_wizard' && renderEnterpriseWizard()}
             {phase === 'advanced' && renderAdvanced()}
             <FloatingSupport />
         </div>

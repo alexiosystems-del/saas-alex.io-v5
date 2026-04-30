@@ -223,7 +223,7 @@ const hydrateSessionStatus = async () => {
 
         const { data, error } = await supabase
             .from(sessionsTable)
-            .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email')
+            .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email,voice_enabled,voice,translate_inbound')
             .order('updated_at', { ascending: false })
             .limit(200);
 
@@ -240,7 +240,10 @@ const hydrateSessionStatus = async () => {
                 companyName: row.company_name,
                 provider: null,
                 tenantId: row.tenant_id,
-                ownerEmail: row.owner_email
+                ownerEmail: row.owner_email,
+                voiceEnabled: row.voice_enabled ?? false,
+                voice: row.voice ?? 'nova',
+                translateInboundToSpanish: row.translate_inbound ?? false
             });
 
             // Also hydrate clientConfigs so tenant filtering works in /status
@@ -250,7 +253,10 @@ const hydrateSessionStatus = async () => {
                     tenantId: row.tenant_id,
                     ownerEmail: row.owner_email,
                     companyName: row.company_name,
-                    provider: 'baileys'
+                    provider: 'baileys',
+                    voiceEnabled: row.voice_enabled ?? false,
+                    voice: row.voice ?? 'nova',
+                    translateInboundToSpanish: row.translate_inbound ?? false
                 });
             }
         }
@@ -378,9 +384,15 @@ async function handleQRMessage(sock, msg, instanceId) {
     const config = clientConfigs.get(instanceId) || { companyName: 'ALEX IO' };
     const tenantId = config.tenantId;
 
-    // --- Omni-Language Inbox Translation ---
-    const translationResult = await alexBrain.translateIncomingMessage(text, 'es');
-    const processedText = translationResult.translated || translationResult.original;
+    // --- Conditional Inbox Translation (Based on tenant preference) ---
+    const shouldTranslate = config.translateInboundToSpanish || false;
+    let processedText = text;
+    let translationResult = { original: text, translated: text, model: 'none' };
+
+    if (shouldTranslate) {
+        translationResult = await alexBrain.translateIncomingMessage(text, 'es');
+        processedText = translationResult.translated || translationResult.original;
+    }
 
     if (tenantId && isSupabaseEnabled) {
         supabase.from('messages').insert({
@@ -460,6 +472,7 @@ async function handleQRMessage(sock, msg, instanceId) {
                 bot_name: config.companyName,
                 system_prompt: (config.customPrompt || 'Eres ALEX IO, asistente virtual inteligente.') + "\nRespond in the user's language.",
                 voice: config.voice,
+                voiceMode: config.voiceEnabled ? 'always' : 'standard',
                 tenantId: config.tenantId,
                 instanceId: instanceId
             },
@@ -863,7 +876,7 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 // --- ENDPOINTS ---
 router.post('/connect', async (req, res) => {
     const { 
-        companyName, customPrompt, voice, maxWords, maxMessages, 
+        companyName, customPrompt, voice, maxWords, maxMessages, voiceEnabled,
         provider = 'baileys',
         metaPhoneNumberId, metaAccessToken, metaVerifyToken,
         tiktokAccessToken, discordToken,
@@ -927,6 +940,7 @@ router.post('/connect', async (req, res) => {
         companyName: cleanName,
         customPrompt,
         voice: voice || 'nova',
+        voiceMode: (voiceEnabled || voiceEnabled === 'always') ? 'always' : 'off',
         maxWords: maxWords || 50,
         maxMessages: maxMessages || 10,
         provider,

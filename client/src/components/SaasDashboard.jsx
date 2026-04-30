@@ -10,6 +10,7 @@ import BroadcastCampaign from './BroadcastCampaign';
 import DataCompliance from './DataCompliance';
 import MemoryManager from './MemoryManager';
 import ConfigTab from './ConfigTab';
+import ChannelSelector from './ChannelSelector';
 import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase, getAuthHeaders } from '../api';
 import { supabase } from '../supabaseClient';
 
@@ -656,15 +657,25 @@ function SaasDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1" style={{ color: T.textMuted }}>Plataforma / Canal</label>
-                <select
-                  className="w-full rounded p-2"
-                  style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }}
-                  value={newBotProvider}
-                  onChange={(e) => setNewBotProvider(e.target.value)}
-                >
-                  {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
+                <label className="block text-sm mb-2" style={{ color: T.textMuted }}>Canal de conexión</label>
+                <ChannelSelector
+                  selected={newBotProvider === 'meta' ? 'whatsapp_cloud' : (newBotProvider === '360dialog' ? 'dialog360' : 'whatsapp_baileys')}
+                  onSelect={(ch) => {
+                    const mapping = {
+                      whatsapp_baileys: 'baileys',
+                      whatsapp_cloud: 'meta',
+                      dialog360: '360dialog'
+                    };
+                    if (mapping[ch.id]) {
+                      setNewBotProvider(mapping[ch.id]);
+                    } else {
+                      pushNotice('warning', `El canal ${ch.name} se conecta desde Configuración → Conexiones y Canales (Wizard).`);
+                    }
+                  }}
+                />
+                <p className="text-xs mt-2" style={{ color: T.textMuted }}>
+                  Instagram, Facebook y TikTok se conectan desde <b>Configuración → Conexiones y Canales</b> usando el Wizard rápido.
+                </p>
               </div>
 
               {/* Dynamic Credentials Fields */}
