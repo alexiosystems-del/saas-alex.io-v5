@@ -1,6 +1,8 @@
 require('dotenv').config();
 require('./utils/envValidator').validateEnv(); // FASE 0: Asegura que haya secrets
 const express = require('express');
+// ALEX IO HEARTBEAT - 2026-04-30 02:00
+const BOOT_TIME = new Date().toISOString();
 const cors = require('cors');
 const pino = require('pino');
 const helmet = require('helmet');
