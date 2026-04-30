@@ -454,7 +454,6 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
             console.error('❌ TTS Error:', err.message);
         }
     }
-    }
 
     try { if (cacheKey && global.responseCache) global.responseCache.set(cacheKey, result); } catch (_) {}
 
