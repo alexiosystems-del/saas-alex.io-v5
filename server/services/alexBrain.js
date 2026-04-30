@@ -401,7 +401,6 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     }
 
     // --- LAYER 7: CASCADE BRAIN (V5 Stable) ---
-    const detectedLanguage = detectLanguage(message, history);
     systemPrompt += `\n\nResponde en el idioma del usuario. Idioma detectado: ${detectedLanguage}.`;
     
     let responseText = '';
