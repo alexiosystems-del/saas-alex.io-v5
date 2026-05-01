@@ -246,13 +246,44 @@ function getOrchestratorFallback(model) {
  * Rejects empty, too short, or irrelevant responses.
  */
 function validateResponse(text, originalMessage) {
-    if (!text || text.trim().length < 10) {
-        return { valid: false, reason: 'Response empty or too short' };
+    if (!text || text.trim().length < 1) {
+        return { valid: false, reason: 'Response empty' };
     }
     if (/^(i am an ai|soy una inteligencia artificial|i cannot help|no puedo ayudar)/i.test(text.trim()) && text.length < 60) {
         return { valid: false, reason: 'Generic AI refusal detected' };
     }
     return { valid: true, reason: null };
+}
+
+/**
+ * Call MiniMax API (abab6.5s-chat)
+ */
+async function callMiniMax(systemPrompt, userMessage, maxWords) {
+    if (!MINIMAX_KEY) throw new Error('MINIMAX_KEY not configured');
+    
+    const url = 'https://api.minimax.chat/v1/text/chatcompletion_v2';
+    const payload = {
+        model: 'abab6.5s-chat',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+        ],
+        max_tokens: maxWords * 6,
+        temperature: 0.7
+    };
+
+    const res = await axios.post(url, payload, {
+        headers: {
+            'Authorization': `Bearer ${MINIMAX_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        timeout: 8000
+    });
+
+    if (res.data?.choices?.[0]?.message?.content) {
+        return res.data.choices[0].message.content;
+    }
+    throw new Error('Invalid response from MiniMax');
 }
 
 // --- UTILS ---
@@ -406,17 +437,36 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     let responseText = '';
     let usedModel = '';
 
-    // Step A: Try Gemini 2.0 (Speed & Efficiency)
-    try {
-        const geminiRes = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-            contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
-            generationConfig: { maxOutputTokens: maxWords * 6 }
-        }, { timeout: 5000 });
-        responseText = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
-        usedModel = 'gemini-2.0-flash';
-    } catch (e) {
-        console.warn('⚠️ Gemini Fallback -> Trying OpenAI');
-        // Step B: Try OpenAI GPT-4o-mini (Reliability)
+    // Step A: Try Gemini 2.0 (Primary - Speed & Efficiency)
+    if (circuitBreaker.isAvailable('GEMINI')) {
+        try {
+            const geminiRes = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+                contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
+                generationConfig: { maxOutputTokens: maxWords * 6 }
+            }, { timeout: 5000 });
+            responseText = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
+            usedModel = 'gemini-2.0-flash';
+            circuitBreaker.recordSuccess('GEMINI');
+        } catch (e) {
+            circuitBreaker.recordFailure('GEMINI', e.message);
+            console.warn(`⚠️ [CASCADE] Gemini Fallback (${e.message}) -> Trying MiniMax`);
+        }
+    }
+
+    // Step B: Try MiniMax abab6.5s (Secondary - Enterprise Chinese/Global Model)
+    if (!responseText && circuitBreaker.isAvailable('MINIMAX')) {
+        try {
+            responseText = await callMiniMax(systemPrompt, message, maxWords);
+            usedModel = 'minimax-abab6.5s-chat';
+            circuitBreaker.recordSuccess('MINIMAX');
+        } catch (e2) {
+            circuitBreaker.recordFailure('MINIMAX', e2.message);
+            console.warn(`⚠️ [CASCADE] MiniMax Fallback (${e2.message}) -> Trying OpenAI`);
+        }
+    }
+
+    // Step C: Try OpenAI GPT-4o-mini (Tertiary - Reliability)
+    if (!responseText && circuitBreaker.isAvailable('OPENAI')) {
         try {
             const openaiRes = await axios.post('https://api.openai.com/v1/chat/completions', {
                 model: 'gpt-4o-mini',
@@ -425,8 +475,10 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
             }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
             responseText = openaiRes.data.choices[0].message.content;
             usedModel = 'gpt-4o-mini';
-        } catch (e2) {
-            console.error('❌ All AI brains failed');
+            circuitBreaker.recordSuccess('OPENAI');
+        } catch (e3) {
+            circuitBreaker.recordFailure('OPENAI', e3.message);
+            console.error('❌ [CASCADE] All AI brains failed');
             responseText = 'Hola, soy ALEX. Estoy experimentando mucha demanda, ¿en qué puedo ayudarte?';
             usedModel = 'safeguard';
         }
