@@ -634,9 +634,9 @@ function SaasDashboard() {
       {/* New Bot Modal */}
       {showNewBotModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: T.modalOverlay }}>
-          <div className="rounded-xl p-6 w-full max-w-sm" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+          <div className="rounded-2xl p-8 w-full max-w-2xl relative overflow-hidden" style={{ background: T.card, border: `1px solid ${T.border}` }}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Nuevo Asesor Digital</h3>
+              <h3 className="text-2xl font-bold">Nuevo Asesor Digital</h3>
               <button onClick={() => setShowNewBotModal(false)} className="text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
@@ -645,7 +645,7 @@ function SaasDashboard() {
               <div>
                 <label className="block text-sm mb-1" style={{ color: T.textMuted }}>Nombre del Bot</label>
                 <input
-                  className="w-full rounded p-2"
+                  className="w-full rounded-xl p-4 text-lg font-medium"
                   style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }}
                   placeholder="Ej: Mi Tienda Online"
                   value={newBotName}
@@ -717,9 +717,9 @@ function SaasDashboard() {
               <button
                 onClick={handleCreateNew}
                 disabled={!newBotName.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg disabled:opacity-50"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg transition-all hover:scale-[1.01] shadow-lg shadow-blue-900/30 disabled:opacity-50"
               >
-                Crear Bot
+                Crear Bot <Zap size={18} className="inline ml-1" />
               </button>
             </div>
           </div>
