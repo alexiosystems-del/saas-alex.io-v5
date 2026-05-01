@@ -338,8 +338,21 @@ console.log(`   - DeepSeek: ${mask(DEEPSEEK_KEY)}`);
 console.log(`   - Anthropic/Claude: ${mask(ANTHROPIC_KEY)} (AUDITORÍA DE COMPLIANCE)`);
 
 /**
- * ARCHITECTURE: Smart Router (V6 Hardened)
- * Classifies intent -> Selects optimal model -> Enforces Budget -> Single Fallback
+ * ORCHESTRATOR: Response Quality Evaluator (Hardened V1)
+ */
+function evaluateResponse(text) {
+  let score = 0;
+  if (!text) return 0;
+  if (text.length > 10) score += 0.3;
+  if (!text.toLowerCase().includes("no se")) score += 0.3;
+  if (text.includes(".")) score += 0.2;
+  if (text.length > 30) score += 0.2;
+  return score;
+}
+
+/**
+ * ARCHITECTURE: Smart Router (V6 Hardened - V1 Base)
+ * Classifies intent -> Selects optimal model -> Enforces Budget -> Cascading Models with Confidence
  */
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
@@ -467,57 +480,48 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         };
     }
 
-    // --- LAYER 7: CASCADE BRAIN (V5 Stable) ---
-    systemPrompt += `\n\nResponde en el idioma del usuario. Idioma detectado: ${detectedLanguage}.`;
-    
-    let responseText = '';
-    let usedModel = '';
-
-    // Step A: Try Gemini 2.0 (Primary - Speed & Efficiency)
-    if (circuitBreaker.isAvailable('GEMINI')) {
-        try {
-            const geminiRes = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+    // --- LAYER 7: CASCADE BRAIN (Enterprise Hardened V1) ---
+    const cascadeModels = [
+        { id: 'gemini', call: async () => {
+            const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
                 contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
                 generationConfig: { maxOutputTokens: maxWords * 6 }
             }, { timeout: 5000 });
-            responseText = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
-            usedModel = 'gemini-2.0-flash';
-            circuitBreaker.recordSuccess('GEMINI');
-        } catch (e) {
-            circuitBreaker.recordFailure('GEMINI', e.message);
-            console.warn(`⚠️ [CASCADE] Gemini Fallback (${e.message}) -> Trying MiniMax`);
-        }
-    }
-
-    // Step B: Try MiniMax abab6.5s (Secondary - Enterprise Chinese/Global Model)
-    if (!responseText && circuitBreaker.isAvailable('MINIMAX')) {
-        try {
-            responseText = await callMiniMax(systemPrompt, message, maxWords);
-            usedModel = 'minimax-abab6.5s-chat';
-            circuitBreaker.recordSuccess('MINIMAX');
-        } catch (e2) {
-            circuitBreaker.recordFailure('MINIMAX', e2.message);
-            console.warn(`⚠️ [CASCADE] MiniMax Fallback (${e2.message}) -> Trying OpenAI`);
-        }
-    }
-
-    // Step C: Try OpenAI GPT-4o-mini (Tertiary - Reliability)
-    if (!responseText && circuitBreaker.isAvailable('OPENAI')) {
-        try {
-            const openaiRes = await axios.post('https://api.openai.com/v1/chat/completions', {
+            return res.data.candidates?.[0]?.content?.parts?.[0]?.text;
+        }},
+        { id: 'gpt', call: async () => {
+            const res = await axios.post('https://api.openai.com/v1/chat/completions', {
                 model: 'gpt-4o-mini',
                 messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
                 max_tokens: maxWords * 6
             }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
-            responseText = openaiRes.data.choices[0].message.content;
-            usedModel = 'gpt-4o-mini';
-            circuitBreaker.recordSuccess('OPENAI');
-        } catch (e3) {
-            circuitBreaker.recordFailure('OPENAI', e3.message);
-            console.error('❌ [CASCADE] All AI brains failed');
-            responseText = 'Hola, soy ALEX. Estoy experimentando mucha demanda, ¿en qué puedo ayudarte?';
-            usedModel = 'safeguard';
+            return res.data.choices[0].message.content;
+        }},
+        { id: 'minimax', call: async () => {
+            return await callMiniMax(systemPrompt, message, maxWords);
+        }}
+    ];
+
+    for (const model of cascadeModels) {
+        try {
+            console.log(`🧠 [CASCADE] Intentando con ${model.id}...`);
+            const text = await model.call();
+            const score = evaluateResponse(text);
+            console.log(`📊 [CONFIDENCE] Score para ${model.id}: ${score.toFixed(2)}`);
+
+            if (score >= 0.7 || model.id === 'minimax') {
+                responseText = text;
+                usedModel = model.id;
+                break;
+            }
+        } catch (err) {
+            console.warn(`⚠️ [CASCADE] Error en ${model.id}:`, err.message);
         }
+    }
+
+    if (!responseText) {
+        responseText = 'Hola, soy ALEX. Estoy experimentando mucha demanda, ¿en qué puedo ayudarte?';
+        usedModel = 'safeguard';
     }
 
     const result = {

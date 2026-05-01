@@ -18,7 +18,7 @@ const messageRouterModule = require('../services/messageRouter.js');
 const messageRouter = messageRouterModule.default || messageRouterModule;
 const manychatService = new ManyChatAPI(messageRouter);
 
-const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN || 'ALEX_IO_SECURE_TOKEN';
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || process.env.FB_VERIFY_TOKEN || 'alexio_verify';
 
 /**
  * Discord Signature Verification (Ed25519)
