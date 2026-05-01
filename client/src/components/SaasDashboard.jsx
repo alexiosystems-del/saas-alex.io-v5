@@ -92,39 +92,7 @@ const PROVIDERS = [
   { value: '360dialog', label: 'WhatsApp: 360Dialog' }
 ];
 
-// --- Error Boundary to prevent full page crashes ---
-class ErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, info) {
-    console.error("Dashboard Error Boundary:", error, info);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-8">
-          <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-8 max-w-lg text-center">
-            <AlertTriangle size={48} className="text-red-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Error del Dashboard</h2>
-            <p className="text-red-300 text-sm mb-4">{this.state.error?.message || 'Error inesperado'}</p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-bold"
-            >
-              Reintentar
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+
 
 function SaasDashboard() {
   const { t, i18n } = useTranslation();
