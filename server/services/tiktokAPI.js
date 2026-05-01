@@ -59,8 +59,8 @@ async function getAccessToken() {
 
 // ─── Send message ─────────────────────────────────────────────────────────────
 
-async function sendMessage(recipientId, text) {
-    const token = await getAccessToken();
+async function sendMessage(recipientId, text, overrideToken = null) {
+    const token = overrideToken || await getAccessToken();
 
     const res = await axios.post(
         `${BASE_URL}/business/message/send/`,

@@ -32,7 +32,8 @@ class TikTokAdapter extends MessageAdapter {
     }
 
     async sendMessage(to, text) {
-        return tiktokAPI.sendMessage(to, text);
+        const token = this.config?.credentials?.tiktokAccessToken;
+        return tiktokAPI.sendMessage(to, text, token);
     }
 
     /**

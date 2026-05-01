@@ -106,8 +106,8 @@ const jsonParser = express.json();
 // Stripe y TikTok requieren body crudo para validar firma de webhook (HMAC).
 app.use((req, res, next) => {
     if (req.path === '/api/payments/stripe/webhook') return next();
-    if (req.path === '/api/webhooks/tiktok') {
-        // TikTok HMAC necesita raw body — parseamos manualmente después
+    if (req.path === '/api/webhooks/tiktok' || req.path === '/api/webhooks/discord') {
+        // TikTok/Discord Ed25519 necesitan raw body — parseamos manualmente después
         return express.raw({ type: '*/*' })(req, res, next);
     }
     return jsonParser(req, res, next);
