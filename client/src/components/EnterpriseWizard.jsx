@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap } from 'lucide-react';
+import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap, Music } from 'lucide-react';
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
