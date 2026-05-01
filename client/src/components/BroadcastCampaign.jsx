@@ -61,8 +61,10 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
   const [preflightMsg, setPreflightMsg] = useState("");
   const [sending, setSending]           = useState(false);
   const [progress, setProgress]         = useState(null); // { sent, total, nextDelay, failed }
+  const [showImport, setShowImport]     = useState(false);
   const pollRef                         = useRef(null);
   const campaignIdRef                   = useRef(null);
+  const fileInputRef                    = useRef(null);
 
   // --- Cargar datos iniciales ---
   useEffect(() => {
@@ -198,6 +200,47 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
   };
 
   // --- Polling de status ---
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n').filter(l => l.trim());
+      const importedLeads = lines.slice(1).map(line => {
+        const [phone, name, tag] = line.split(',').map(s => s?.trim());
+        return { phone, name, tags: tag ? [tag] : ['Importado_CSV'] };
+      }).filter(l => l.phone);
+
+      if (importedLeads.length === 0) {
+        alert("No se encontraron datos válidos. El formato debe ser: telefono,nombre,etiqueta");
+        return;
+      }
+
+      if (window.confirm(`¿Importar ${importedLeads.length} leads a la base de datos?`)) {
+        try {
+          const { response, data } = await fetchJsonWithApiFallback('/api/saas/leads/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ leads: importedLeads })
+          });
+          if (response.ok) {
+            alert(`Éxito: ${data.count} leads importados.`);
+            fetchLeads();
+          } else {
+            alert(`Error: ${data.error}`);
+          }
+        } catch (err) {
+          alert("Fallo de conexión al importar.");
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // Reset
+  };
+
+  // --- Polling de status ---
   const pollStatus = () => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -256,7 +299,13 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
                 <Filter size={16} className="text-fuchsia-400" />
                 <span className="text-sm font-bold text-slate-200">Filtrar Base de Datos</span>
             </div>
-            <button onClick={fetchLeads} className="text-[10px] font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors uppercase tracking-widest">Refrescar</button>
+            <div className="flex items-center gap-4">
+                <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+                <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+                    <Plus size={12} /> Importar Base (CSV)
+                </button>
+                <button onClick={fetchLeads} className="text-[10px] font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors uppercase tracking-widest">Refrescar</button>
+            </div>
         </div>
         
         <div className="p-5 space-y-4">

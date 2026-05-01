@@ -180,13 +180,37 @@ router.post('/broadcast', async (req, res) => {
     }
 });
 
-// --- GET /api/saas/broadcast/status/:id ---
-router.get('/broadcast/status/:id', (req, res) => {
-    const job = broadcastJobs.get(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Campaña no encontrada' });
-    
-    const progress = Math.round(((job.sent + job.failed) / job.total) * 100);
-    res.json({ ...job, progress });
+// --- POST /api/saas/leads/bulk (Import External Base) ---
+router.post('/leads/bulk', async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const { leads } = req.body;
+
+        if (!Array.isArray(leads) || leads.length === 0) {
+            return res.status(400).json({ error: 'Formato de leads inválido' });
+        }
+
+        // Sanitizar y preparar para inserción
+        const toInsert = leads.map(l => ({
+            tenant_id: tenantId,
+            phone: String(l.phone).replace(/\D/g, ''),
+            name: l.name || 'Importado',
+            temperature: l.temperature || 'COLD',
+            tags: l.tags || ['Importado_Externo'],
+            instance_id: l.instanceId || null,
+            created_at: new Date().toISOString()
+        })).filter(l => l.phone.length >= 8);
+
+        const { data, error } = await supabase
+            .from('leads')
+            .upsert(toInsert, { onConflict: 'tenant_id,phone' });
+
+        if (error) throw error;
+
+        res.json({ success: true, count: toInsert.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
