@@ -37,11 +37,38 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     manychatToken: config?.manychatToken || ''
   });
 
+  const [validating, setValidating] = useState(null);
+  const [validationStatus, setValidationStatus] = useState({ tiktok: null, discord: null });
+
   const next = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
   const handleChange = (field, value) => {
     setData(prev => ({ ...prev, [field]: value }));
+    // Reset status on change
+    if (field.startsWith('tiktok')) setValidationStatus(s => ({ ...s, tiktok: null }));
+    if (field.startsWith('discord')) setValidationStatus(s => ({ ...s, discord: null }));
+  };
+
+  const handleValidate = async (platform) => {
+    setValidating(platform);
+    try {
+        const payload = platform === 'tiktok' 
+            ? { tiktokAccessToken: data.tiktokAccessToken, tiktokSellerId: data.tiktokSellerId }
+            : { discordToken: data.discordToken };
+        
+        const res = await fetch(`/api/saas/validate-credentials/${platform}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        setValidationStatus(s => ({ ...s, [platform]: result.success ? 'success' : 'error' }));
+    } catch (e) {
+        setValidationStatus(s => ({ ...s, [platform]: 'error' }));
+    } finally {
+        setValidating(null);
+    }
   };
 
   const renderStep = () => {
@@ -79,7 +106,12 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             </div>
             <div className="space-y-4">
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Music size={12} className="text-pink-400" /> TikTok Business Messaging</label>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                        <Music size={12} className="text-pink-400" /> TikTok Business Messaging
+                        {validating === 'tiktok' && <Loader size={10} className="animate-spin text-pink-400" />}
+                        {validationStatus.tiktok === 'success' && <CheckCircle2 size={12} className="text-emerald-400" />}
+                        {validationStatus.tiktok === 'error' && <ShieldAlert size={12} className="text-red-400" />}
+                    </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
                             type="text"
@@ -88,28 +120,54 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                             className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
                             placeholder="Seller ID"
                         />
-                        <input
-                            type="password"
-                            value={data.tiktokAccessToken}
-                            onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
-                            placeholder="Access Token"
-                        />
+                        <div className="relative">
+                            <input
+                                type="password"
+                                value={data.tiktokAccessToken}
+                                onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
+                                placeholder="Access Token"
+                            />
+                            {data.tiktokAccessToken && (
+                                <button 
+                                    onClick={() => handleValidate('tiktok')}
+                                    className="absolute right-2 top-2 px-2 py-1 bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 text-[9px] font-bold rounded border border-pink-500/30 transition-all"
+                                >
+                                    VALIDAR
+                                </button>
+                            )}
+                        </div>
                     </div>
                     <div className="mt-1 text-[9px] text-slate-500">
                         Webhook TikTok: <span className="text-pink-400 font-mono">{window.location.origin}/api/webhooks/tiktok?instanceId={config?.instanceId || 'PENDIENTE'}</span>
                     </div>
                 </div>
+
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><GlobeIcon size={12} className="text-indigo-400" /> Discord Configuration</label>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                        <GlobeIcon size={12} className="text-indigo-400" /> Discord Configuration
+                        {validating === 'discord' && <Loader size={10} className="animate-spin text-indigo-400" />}
+                        {validationStatus.discord === 'success' && <CheckCircle2 size={12} className="text-emerald-400" />}
+                        {validationStatus.discord === 'error' && <ShieldAlert size={12} className="text-red-400" />}
+                    </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input
-                            type="password"
-                            value={data.discordToken}
-                            onChange={(e) => handleChange('discordToken', e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
-                            placeholder="Bot Token"
-                        />
+                        <div className="relative">
+                            <input
+                                type="password"
+                                value={data.discordToken}
+                                onChange={(e) => handleChange('discordToken', e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
+                                placeholder="Bot Token"
+                            />
+                            {data.discordToken && (
+                                <button 
+                                    onClick={() => handleValidate('discord')}
+                                    className="absolute right-2 top-2 px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 text-[9px] font-bold rounded border border-indigo-500/30 transition-all"
+                                >
+                                    VALIDAR
+                                </button>
+                            )}
+                        </div>
                         <input
                             type="text"
                             value={data.discordPublicKey}

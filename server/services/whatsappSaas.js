@@ -2,6 +2,7 @@ const useSupabaseAuthState = require('./useSupabaseAuthState');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const pino = require('pino');
+const axios = require('axios');
 
 // Polyfill for global crypto (Required for Baileys on some Node envs like older Node 18/20)
 if (!global.crypto) {
@@ -2403,6 +2404,55 @@ router.get('/broadcast/status/:campaignId', (req, res) => {
         finishedAt: job.finishedAt,
         errors: job.errors.slice(-10) // Last 10 errors max
     });
+});
+
+// --- CREDENTIAL VALIDATION ---
+router.post('/validate-credentials/discord', async (req, res) => {
+    try {
+        const { discordToken } = req.body;
+        if (!discordToken) return res.status(400).json({ error: 'Token is required' });
+
+        const axios = require('axios');
+        const dRes = await axios.get('https://discord.com/api/v10/users/@me', {
+            headers: { Authorization: `Bot ${discordToken}` },
+            timeout: 5000
+        });
+
+        if (dRes.status === 200) {
+            return res.json({ success: true, bot: dRes.data.username });
+        }
+        res.status(401).json({ success: false });
+    } catch (err) {
+        res.status(err.response?.status || 500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/validate-credentials/tiktok', async (req, res) => {
+    try {
+        const { tiktokAccessToken } = req.body;
+        if (!tiktokAccessToken) return res.status(400).json({ error: 'Token is required' });
+
+        // Basic format check for TikTok (they are long JWT-like strings)
+        if (tiktokAccessToken.length < 20) {
+            return res.status(400).json({ success: false, error: 'Token format invalid' });
+        }
+
+        // Real validation against TikTok API (Business Messaging V2)
+        const axios = require('axios');
+        try {
+            const tRes = await axios.get('https://open.tiktokapis.com/v2/business/get_info/', {
+                headers: { 'Authorization': `Bearer ${tiktokAccessToken}` },
+                timeout: 5000
+            });
+            return res.json({ success: true, data: tRes.data });
+        } catch (e) {
+            // Even if it fails, if it's 401 it means token is invalid, 403 means permission issues
+            // If it's something else, maybe the endpoint changed, but we check if we got a response
+            return res.status(e.response?.status || 500).json({ success: false, error: e.message });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 const restoreSessions = async () => {
