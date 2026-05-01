@@ -155,6 +155,21 @@ router.get('/instagram', (req, res) => {
     return res.status(400).send('Faltan parámetros de verificación');
 });
 
+router.get('/meta', (req, res) => {
+    let mode = req.query['hub.mode'];
+    let token = req.query['hub.verify_token'];
+    let challenge = req.query['hub.challenge'];
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('WEBHOOK_VERIFIED (Meta Cloud API)');
+            return res.status(200).send(challenge);
+        } else {
+            return res.sendStatus(403);
+        }
+    }
+    return res.status(400).send('Faltan parámetros de verificación');
+});
+
 // ============================================
 // RECEPCIÓN DE MENSAJES (POST)
 // ============================================
@@ -213,6 +228,45 @@ router.post('/instagram', async (req, res) => {
         logError('[Webhook] Instagram Error', e);
     }
     res.status(200).send('EVENT_RECEIVED');
+});
+
+router.post('/meta', async (req, res) => {
+    try {
+        const body = req.body;
+        if (body.object === 'whatsapp_business_account') {
+            for (let entry of body.entry) {
+                for (let change of (entry.changes || [])) {
+                    if (change.field === 'messages') {
+                        const value = change.value;
+                        const phoneId = value.metadata?.phone_number_id;
+                        const contact = value.contacts?.[0];
+                        const message = value.messages?.[0];
+
+                        if (message && phoneId) {
+                            const resolvedId = await resolveInstanceId('meta', phoneId);
+                            const text = message.text?.body || '[media]';
+                            
+                            const stdMessage = messageRouterModule.createStandardizedMessage(
+                                'meta',
+                                message.from,
+                                text,
+                                { 
+                                    instanceId: resolvedId || 'multi_meta_default', 
+                                    phoneId, 
+                                    senderName: contact?.profile?.name,
+                                    messageId: message.id 
+                                }
+                            );
+                            await messageRouterModule.handleIncomingMessage(stdMessage);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        logError('[Webhook] Meta Error', e);
+    }
+    res.status(200).send('OK');
 });
 
 router.get('/tiktok', handleTikTokChallenge);

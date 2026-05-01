@@ -6,14 +6,16 @@ const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
   { id: 'voice', title: 'Voz y Audio', icon: Mic, color: '#ec4899' },
   { id: 'limits', title: 'Límites', icon: ShieldAlert, color: '#f59e0b' },
-  { id: 'summary', title: 'Resumen', icon: CheckCircle2, color: '#10b981' }
+  { id: 'summary', title: 'Manifiesto de Despliegue', icon: CheckCircle2, color: '#10b981' }
 ];
 
 const VOICE_OPTIONS = [
   { id: 'alloy', name: 'Alloy', desc: 'Versátil y equilibrada' },
   { id: 'nova', name: 'Nova', desc: 'Enérgica y profesional' },
   { id: 'echo', name: 'Echo', desc: 'Profunda y autoritaria' },
-  { id: 'shimmer', name: 'Shimmer', desc: 'Clara y suave' }
+  { id: 'shimmer', name: 'Shimmer', desc: 'Clara y suave' },
+  { id: 'fable', name: 'Fable', desc: 'Narrativa y expresiva' },
+  { id: 'onyx', name: 'Onyx', desc: 'Robusta y madura' }
 ];
 
 export default function EnterpriseWizard({ config, onSave, onCancel }) {
@@ -96,14 +98,36 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
           </div>
         );
       case 'limits':
-        const wordRisk = data.maxWords > 100;
-        const msgRisk = data.maxMessages > 200;
+        const wordRisk = data.maxWords > 150 ? 'high' : data.maxWords > 80 ? 'med' : 'low';
+        const msgRisk = data.maxMessages > 300 ? 'high' : data.maxMessages > 150 ? 'med' : 'low';
+        
+        const getRiskColor = (risk) => {
+          if (risk === 'high') return 'text-red-400';
+          if (risk === 'med') return 'text-amber-400';
+          return 'text-emerald-400';
+        };
+
+        const getSliderAccent = (risk) => {
+          if (risk === 'high') return 'accent-red-500';
+          if (risk === 'med') return 'accent-amber-500';
+          return 'accent-emerald-500';
+        };
+
         return (
-          <div className="space-y-8 py-4">
-            <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Máximo de Palabras</label>
-                <span className={`text-sm font-mono ${wordRisk ? 'text-amber-400' : 'text-indigo-400'}`}>{data.maxWords}</span>
+          <div className="space-y-10 py-4">
+            <div className="relative">
+              <div className="flex justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Capacidad de Respuesta</label>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                    wordRisk === 'high' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+                    wordRisk === 'med' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                    'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  }`}>
+                    {wordRisk === 'high' ? 'RIESGO ALTO' : wordRisk === 'med' ? 'PRECAUCIÓN' : 'OPTIMIZADO'}
+                  </span>
+                </div>
+                <span className={`text-lg font-mono font-bold ${getRiskColor(wordRisk)}`}>{data.maxWords} <span className="text-[10px] opacity-50 uppercase">palabras</span></span>
               </div>
               <input
                 type="range"
@@ -111,19 +135,37 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 max="300"
                 value={data.maxWords}
                 onChange={(e) => handleChange('maxWords', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className={`w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer transition-all ${getSliderAccent(wordRisk)}`}
               />
-              {wordRisk && (
-                <div className="mt-2 flex items-center gap-2 text-[10px] text-amber-400/80 italic">
-                  <ShieldAlert size={12} /> Cuidado: Respuestas muy largas pueden consumir más tokens y aburrir al cliente.
-                </div>
+              <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
+                <span>CONCISO (10)</span>
+                <span>EXTENSO (300)</span>
+              </div>
+              {wordRisk !== 'low' && (
+                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mt-4 flex items-start gap-2 p-3 bg-white/5 rounded-lg border border-white/5">
+                  <Info size={14} className={getRiskColor(wordRisk)} />
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {wordRisk === 'high' 
+                      ? 'Respuestas superiores a 150 palabras pueden ser ignoradas por los usuarios y aumentar significativamente el costo de tokens.' 
+                      : 'Un límite moderado permite respuestas detalladas pero controladas.'}
+                  </p>
+                </motion.div>
               )}
             </div>
 
-            <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Mensajes por Sesión</label>
-                <span className={`text-sm font-mono ${msgRisk ? 'text-amber-400' : 'text-indigo-400'}`}>{data.maxMessages}</span>
+            <div className="relative">
+              <div className="flex justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Persistencia de Sesión</label>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                    msgRisk === 'high' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+                    msgRisk === 'med' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                    'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  }`}>
+                    {msgRisk === 'high' ? 'RIESGO CRÍTICO' : msgRisk === 'med' ? 'ESTÁNDAR' : 'SEGURO'}
+                  </span>
+                </div>
+                <span className={`text-lg font-mono font-bold ${getRiskColor(msgRisk)}`}>{data.maxMessages} <span className="text-[10px] opacity-50 uppercase">msgs</span></span>
               </div>
               <input
                 type="range"
@@ -131,47 +173,62 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 max="500"
                 value={data.maxMessages}
                 onChange={(e) => handleChange('maxMessages', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className={`w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer transition-all ${getSliderAccent(msgRisk)}`}
               />
-              {msgRisk && (
-                <div className="mt-2 flex items-center gap-2 text-[10px] text-amber-400/80 italic">
-                  <ShieldAlert size={12} /> Recomendado: Mantener bajo 150 para evitar bucles de IA costosos.
-                </div>
-              )}
+              <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
+                <span>TRANSACCIONAL (5)</span>
+                <span>SOPORTE LARGO (500)</span>
+              </div>
             </div>
           </div>
         );
       case 'summary':
+        const items = [
+          { label: 'IDENTIDAD SISTEMA', value: data.botName, status: 'VERIFICADO', icon: <CheckCircle2 size={12} className="text-emerald-400" /> },
+          { label: 'SÍNTESIS DE VOZ', value: data.voiceEnabled ? `OPENAI ${data.voice.toUpperCase()}` : 'DESACTIVADO', status: data.voiceEnabled ? 'ACTIVO' : 'IDLE', icon: <div className={`w-2 h-2 rounded-full ${data.voiceEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} /> },
+          { label: 'CAPACIDAD VERBAL', value: `${data.maxWords} PALABRAS`, status: data.maxWords > 150 ? 'ADVERTENCIA' : 'OPTIMO', color: data.maxWords > 150 ? 'text-amber-400' : 'text-emerald-400' },
+          { label: 'MEMORIA SESIÓN', value: `${data.maxMessages} MENSAJES`, status: 'CONFIGURADO', color: 'text-indigo-400' },
+          { label: 'KERNEL CORE', value: data.systemPrompt.slice(0, 40) + '...', status: 'COMPILADO', icon: <Save size={12} className="text-slate-500" /> }
+        ];
+
         return (
-          <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
-            <table className="w-full text-sm text-left">
-              <tbody className="divide-y divide-white/5">
-                <tr>
-                  <td className="px-4 py-3 text-slate-400 font-medium">Identidad</td>
-                  <td className="px-4 py-3 text-white font-mono">{data.botName}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-slate-400 font-medium">Modo Audio</td>
-                  <td className="px-4 py-3 text-white">
-                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${data.voiceEnabled ? 'bg-pink-500/20 text-pink-400' : 'bg-slate-800 text-slate-500'}`}>
-                      {data.voiceEnabled ? `Activo (${data.voice})` : 'Inactivo'}
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-slate-400 font-medium">Límites</td>
-                  <td className="px-4 py-3 text-white font-mono">
-                    {data.maxWords} palabras / {data.maxMessages} msgs
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-slate-400 font-medium">Prompt</td>
-                  <td className="px-4 py-3 text-white truncate max-w-[200px] italic text-xs">
-                    {data.systemPrompt || '(Sin instrucciones personalizadas)'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="space-y-4">
+            <div className="bg-black/40 rounded-xl border border-white/10 overflow-hidden backdrop-blur-md">
+              <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Manifest_v2.0.deploy</span>
+                <span className="text-[10px] font-mono text-emerald-500/70">CHECKSUM: OK</span>
+              </div>
+              <div className="divide-y divide-white/5">
+                {items.map((item, idx) => (
+                  <motion.div 
+                    key={item.label}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="px-5 py-3.5 flex items-center justify-between group hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mb-0.5">{item.label}</span>
+                      <span className="text-sm font-mono text-white tracking-tight">{item.value}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded bg-white/5 border border-white/5 ${item.color || 'text-slate-400'}`}>
+                        {item.status}
+                      </span>
+                      {item.icon}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+            <div className="p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/10 flex items-center gap-3">
+              <div className="w-8 h-8 rounded bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                <Bot size={16} className="text-indigo-400" />
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Al confirmar, el núcleo de la IA se reiniciará con estos parámetros. Este proceso es instantáneo y no interrumpirá las sesiones activas.
+              </p>
+            </div>
           </div>
         );
       default:
@@ -184,12 +241,20 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
       {/* Header */}
       <div className="bg-slate-900/50 px-6 py-4 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 relative">
             <Bot size={18} className="text-indigo-400" />
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-white font-bold leading-none mb-1">Executive Wizard</h2>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Configuración Premium</p>
+            <h2 className="text-white font-bold leading-none mb-1 flex items-center gap-2">
+              Executive Wizard 
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">V2.0</span>
+            </h2>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Configuración Premium</p>
+              <div className="w-1 h-1 rounded-full bg-slate-700" />
+              <p className="text-[9px] text-indigo-400/70 font-mono animate-pulse">SYSTEM_ONLINE</p>
+            </div>
           </div>
         </div>
         <div className="flex gap-1.5">

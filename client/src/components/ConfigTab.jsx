@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert } from 'lucide-react';
 import EnterpriseWizard from './EnterpriseWizard';
+import MetaWizard from './MetaWizard';
 
 const CONFIG_TAB_VERSION = 'v2.0.7.8-STABLE';
 
@@ -322,11 +323,19 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                 </select>
                             </div>
                             {configDraft.provider === 'meta' && (
-                                <div>
-                                    <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
-                                    <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                        value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
+                                <div className="flex items-end gap-2">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
+                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
+                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                            value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
+                                    </div>
+                                    <button 
+                                        onClick={() => setPhase('meta_wizard')}
+                                        className="h-[46px] px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all flex items-center gap-2"
+                                    >
+                                        <Zap size={14} /> Wizard
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -593,6 +602,24 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     return (
         <div className="h-full overflow-y-auto pr-2 pb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             {phase === 'enterprise_wizard' && renderEnterpriseWizard()}
+            {phase === 'meta_wizard' && (
+                <MetaWizard 
+                    onComplete={(data) => {
+                        setConfigDraft(prev => ({
+                            ...prev,
+                            provider: 'meta',
+                            accessToken: data.accessToken,
+                            phoneNumberId: data.phoneNumberId,
+                            wabaId: data.wabaId,
+                            manychatToken: data.verifyToken, // Reuse manychatToken as verifyToken for simplicity in UI storage
+                            external_mapping_key: data.phoneNumberId
+                        }));
+                        setPhase('advanced');
+                        onSave();
+                    }}
+                    onCancel={() => setPhase('advanced')}
+                />
+            )}
             {phase === 'advanced' && renderAdvanced()}
             <FloatingSupport />
         </div>
