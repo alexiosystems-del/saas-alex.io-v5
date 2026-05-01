@@ -285,9 +285,9 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
   };
 
   return (
-    <div className="bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8">
+    <div className="bg-slate-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8">
       {/* Header */}
-      <div className="bg-slate-900/50 px-6 py-4 border-b border-white/5 flex items-center justify-between">
+      <div className="bg-slate-800/50 px-6 py-4 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 relative">
             <Bot size={18} className="text-indigo-400" />

@@ -7,10 +7,10 @@ const CONFIG_TAB_VERSION = 'v2.0.7.8-STABLE';
 
 // ─── Color Tokens (derived from parent theme or default dark) ─
 const makeTokens = (theme) => ({
-    bg: theme?.bg || '#0e0e16',
-    surface: theme?.card || '#16161e',
-    surfaceHover: theme?.card ? (theme.bg === '#f8fafc' ? '#f1f5f9' : '#1e1e2a') : '#1e1e2a',
-    border: theme?.border || '#2a2a3a',
+    bg: theme?.bg || '#0f172a',
+    surface: theme?.card || '#1e293b',
+    surfaceHover: theme?.card ? (theme.bg === '#e2e8f0' ? '#f1f5f9' : '#334155') : '#334155',
+    border: theme?.border || '#334155',
     borderActive: theme?.accent || '#6366f1',
     indigo: theme?.accent || '#6366f1',
     indigoHover: theme?.accentHover || '#818cf8',

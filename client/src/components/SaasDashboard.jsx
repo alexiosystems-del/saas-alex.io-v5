@@ -28,26 +28,26 @@ if (typeof document !== 'undefined' && !document.getElementById('dm-sans-font'))
 // --- THEME SYSTEM ---
 const themes = {
   dark: {
-    bg: '#050510', bgAlt: '#08081a', card: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)',
-    text: '#e2e8f0', textMuted: '#64748b', textDim: '#94a3b8',
+    bg: '#0f172a', bgAlt: '#1e293b', card: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.08)',
+    text: '#f1f5f9', textMuted: '#94a3b8', textDim: '#cbd5e1',
     accent: '#06b6d4', accentHover: '#22d3ee', accentBg: 'rgba(6,182,212,0.12)', accentBorder: 'rgba(6,182,212,0.25)',
-    inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.08)',
-    modalBg: 'rgba(15,15,30,0.85)', modalOverlay: 'rgba(0,0,0,0.7)',
-    footerBg: 'rgba(5,5,16,0.8)', footerBorder: 'rgba(255,255,255,0.06)',
-    noticeText: '#e2e8f0',
-    glass: 'backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);',
-    sidebarBg: 'rgba(8,8,20,0.6)',
+    inputBg: 'rgba(255,255,255,0.02)', inputBorder: 'rgba(255,255,255,0.1)',
+    modalBg: 'rgba(15,23,42,0.95)', modalOverlay: 'rgba(2,6,23,0.8)',
+    footerBg: 'rgba(15,23,42,0.85)', footerBorder: 'rgba(255,255,255,0.08)',
+    noticeText: '#f1f5f9',
+    glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
+    sidebarBg: 'rgba(30,41,59,0.7)',
   },
   light: {
-    bg: '#f8fafc', bgAlt: '#ffffff', card: 'rgba(255,255,255,0.8)', border: 'rgba(0,0,0,0.08)',
-    text: '#1e293b', textMuted: '#64748b', textDim: '#475569',
-    accent: '#06b6d4', accentHover: '#0891b2', accentBg: 'rgba(6,182,212,0.08)', accentBorder: 'rgba(6,182,212,0.25)',
-    inputBg: 'rgba(241,245,249,0.8)', inputBorder: 'rgba(0,0,0,0.1)',
-    modalBg: 'rgba(255,255,255,0.9)', modalOverlay: 'rgba(0,0,0,0.3)',
-    footerBg: 'rgba(255,255,255,0.85)', footerBorder: 'rgba(0,0,0,0.06)',
-    noticeText: '#1e293b',
-    glass: 'backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);',
-    sidebarBg: 'rgba(255,255,255,0.6)',
+    bg: '#e2e8f0', bgAlt: '#f1f5f9', card: 'rgba(255,255,255,0.5)', border: 'rgba(0,0,0,0.1)',
+    text: '#0f172a', textMuted: '#475569', textDim: '#64748b',
+    accent: '#0891b2', accentHover: '#0e7490', accentBg: 'rgba(8,145,178,0.1)', accentBorder: 'rgba(8,145,178,0.2)',
+    inputBg: 'rgba(255,255,255,0.4)', inputBorder: 'rgba(0,0,0,0.15)',
+    modalBg: 'rgba(241,245,249,0.98)', modalOverlay: 'rgba(15,23,42,0.4)',
+    footerBg: 'rgba(226,232,240,0.9)', footerBorder: 'rgba(0,0,0,0.08)',
+    noticeText: '#0f172a',
+    glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
+    sidebarBg: 'rgba(241,245,249,0.8)',
   }
 };
 
