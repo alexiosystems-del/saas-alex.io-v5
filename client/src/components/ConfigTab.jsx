@@ -574,7 +574,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                 <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-green-400"><MessageSquare size={12}/> WA</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.whatsapp || 0}</span></div>
                                 <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-blue-400"><Facebook size={12}/> FB</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.messenger || 0}</span></div>
                                 <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-pink-400"><Instagram size={12}/> IG</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.instagram || 0}</span></div>
-                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-slate-400"><Globe size={12}/> Web</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.web || 0}</span></div>
+                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-slate-400"><GlobeIcon size={12}/> Web</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.web || 0}</span></div>
                            </div>
                         </div>
                     )}
