@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sparkles, Loader, X, Send, Wand2, Copy, CheckCircle2, History, RotateCcw, Zap, Shield, Globe, MessageSquare, Scissors, Users } from 'lucide-react';
+import { Sparkles, Loader, X, Send, Wand2, Copy, CheckCircle2, History, RotateCcw, Zap, Shield, MessageSquare, Scissors, Users } from 'lucide-react';
 import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
 
 const QUICK_SUGGESTIONS = [

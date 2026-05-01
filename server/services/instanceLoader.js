@@ -38,6 +38,7 @@ const loadInstanceConfig = async (instanceId) => {
             return {
                 instanceId,
                 tenantId: 'default',
+                provider: instanceId.includes('discord') ? 'discord' : (instanceId.includes('tiktok') ? 'tiktok' : 'webchat'),
                 personality: {
                     botName: 'ALEX IO',
                     demoMode: false

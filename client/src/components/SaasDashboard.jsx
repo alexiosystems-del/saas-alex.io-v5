@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, Component } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Shield, Activity, Settings, Smartphone, Plus, PlusCircle, Loader, AlertTriangle, CheckCircle2, X, Wand2, LogOut, MessageCircle, MessageSquare, Send, Globe, Book, Sparkles, Sun, Moon, Trash2, PauseCircle, Play, RefreshCw, Zap } from 'lucide-react';
+import { Shield, Activity, Settings, Smartphone, Plus, PlusCircle, Loader, AlertTriangle, CheckCircle2, X, Wand2, LogOut, MessageCircle, MessageSquare, Send, Globe as GlobeIcon, Book, Sparkles, Sun, Moon, Trash2, PauseCircle, Play, RefreshCw, Zap } from 'lucide-react';
 import PromptWizard from './PromptWizard';
 import PromptCopilot from './PromptCopilot';
 import LiveChat from './LiveChat';
@@ -25,29 +25,59 @@ if (typeof document !== 'undefined' && !document.getElementById('dm-sans-font'))
   document.head.appendChild(link);
 }
 
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1c23] text-white p-10 text-center">
+          <div className="w-20 h-20 bg-red-500/10 rounded-2xl flex items-center justify-center mb-6 border border-red-500/20">
+             <AlertTriangle size={40} className="text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Error de Interfaz Detectado</h2>
+          <p className="text-slate-400 mb-8 max-w-md">ALEX IO detectó una anomalía en el renderizado. El sistema de auto-recuperación está listo.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-900/40"
+          >
+            Reiniciar Dashboard
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // --- THEME SYSTEM ---
 const themes = {
   dark: {
-    bg: '#0f172a', bgAlt: '#1e293b', card: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.08)',
+    bg: '#1a1c23', bgAlt: '#242731', card: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)',
     text: '#f1f5f9', textMuted: '#94a3b8', textDim: '#cbd5e1',
     accent: '#06b6d4', accentHover: '#22d3ee', accentBg: 'rgba(6,182,212,0.12)', accentBorder: 'rgba(6,182,212,0.25)',
-    inputBg: 'rgba(255,255,255,0.02)', inputBorder: 'rgba(255,255,255,0.1)',
-    modalBg: 'rgba(15,23,42,0.95)', modalOverlay: 'rgba(2,6,23,0.8)',
-    footerBg: 'rgba(15,23,42,0.85)', footerBorder: 'rgba(255,255,255,0.08)',
+    inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.12)',
+    modalBg: 'rgba(26,28,35,0.98)', modalOverlay: 'rgba(2,6,23,0.8)',
+    footerBg: 'rgba(26,28,35,0.9)', footerBorder: 'rgba(255,255,255,0.1)',
     noticeText: '#f1f5f9',
     glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
-    sidebarBg: 'rgba(30,41,59,0.7)',
+    sidebarBg: 'rgba(36,39,49,0.85)',
   },
   light: {
-    bg: '#e2e8f0', bgAlt: '#f1f5f9', card: 'rgba(255,255,255,0.5)', border: 'rgba(0,0,0,0.1)',
-    text: '#0f172a', textMuted: '#475569', textDim: '#64748b',
-    accent: '#0891b2', accentHover: '#0e7490', accentBg: 'rgba(8,145,178,0.1)', accentBorder: 'rgba(8,145,178,0.2)',
-    inputBg: 'rgba(255,255,255,0.4)', inputBorder: 'rgba(0,0,0,0.15)',
-    modalBg: 'rgba(241,245,249,0.98)', modalOverlay: 'rgba(15,23,42,0.4)',
-    footerBg: 'rgba(226,232,240,0.9)', footerBorder: 'rgba(0,0,0,0.08)',
+    bg: '#cbd5e1', bgAlt: '#b2becd', card: 'rgba(255,255,255,0.6)', border: 'rgba(0,0,0,0.15)',
+    text: '#0f172a', textMuted: '#334155', textDim: '#475569',
+    accent: '#0891b2', accentHover: '#0e7490', accentBg: 'rgba(8,145,178,0.12)', accentBorder: 'rgba(8,145,178,0.25)',
+    inputBg: 'rgba(255,255,255,0.5)', inputBorder: 'rgba(0,0,0,0.2)',
+    modalBg: 'rgba(203,213,225,0.99)', modalOverlay: 'rgba(15,23,42,0.5)',
+    footerBg: 'rgba(178,190,205,0.95)', footerBorder: 'rgba(0,0,0,0.15)',
     noticeText: '#0f172a',
     glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
-    sidebarBg: 'rgba(241,245,249,0.8)',
+    sidebarBg: 'rgba(178,190,205,0.9)',
   }
 };
 
@@ -659,17 +689,24 @@ function SaasDashboard() {
               <div>
                 <label className="block text-sm mb-2" style={{ color: T.textMuted }}>Canal de conexión</label>
                 <ChannelSelector
-                  selected={newBotProvider === 'meta' ? 'whatsapp_cloud' : (newBotProvider === '360dialog' ? 'dialog360' : 'whatsapp_baileys')}
+                  selected={
+                    newBotProvider === 'meta' ? 'whatsapp_cloud' : 
+                    newBotProvider === '360dialog' ? 'dialog360' : 
+                    newBotProvider === 'baileys' ? 'whatsapp_baileys' : 
+                    newBotProvider
+                  }
                   onSelect={(ch) => {
                     const mapping = {
                       whatsapp_baileys: 'baileys',
                       whatsapp_cloud: 'meta',
-                      dialog360: '360dialog'
+                      dialog360: '360dialog',
+                      discord: 'discord',
+                      tiktok: 'tiktok',
+                      messenger: 'messenger',
+                      instagram: 'instagram'
                     };
                     if (mapping[ch.id]) {
                       setNewBotProvider(mapping[ch.id]);
-                    } else {
-                      pushNotice('warning', `El canal ${ch.name} se conecta desde Configuración → Conexiones y Canales (Wizard).`);
                     }
                   }}
                 />
@@ -790,7 +827,7 @@ function SaasDashboard() {
 
           {/* Language Switcher */}
           <div className="relative group flex items-center gap-1 px-3 py-1.5 rounded-lg cursor-pointer transition-colors" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <Globe size={16} style={{ color: T.textMuted }} />
+            <GlobeIcon size={16} style={{ color: T.textMuted }} />
             <select
               className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer appearance-none pl-1 pr-3"
               style={{ color: T.textDim }}

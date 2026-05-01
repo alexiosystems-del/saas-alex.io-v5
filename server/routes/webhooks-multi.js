@@ -13,6 +13,7 @@ const { logInfo, logError } = require('../utils/logger');
 const { resolveInstanceId } = require('../services/webhookBroker');
 
 const ManyChatAPI = require('../services/manychatAPI.js');
+const { loadInstanceConfig } = require('../services/instanceLoader');
 const messageRouterModule = require('../services/messageRouter.js');
 const messageRouter = messageRouterModule.default || messageRouterModule;
 const manychatService = new ManyChatAPI(messageRouter);
@@ -26,35 +27,26 @@ const verifyDiscordSignature = (req, publicKey) => {
     const crypto = require('crypto');
     const signature = req.headers['x-signature-ed25519'];
     const timestamp = req.headers['x-signature-timestamp'];
-    const body = req.body.toString(); // raw body from middleware
+    // For Discord, we need the RAW body
+    const body = req.rawBody || req.body.toString();
 
     if (!signature || !timestamp || !body) return false;
 
     try {
+        // Native Node 18.x+ verification
         return crypto.verify(
-            null,
+            'ed25519',
             Buffer.from(timestamp + body),
             {
                 key: Buffer.from(publicKey, 'hex'),
-                format: 'der', // Ed25519 is implicitly raw or der depending on implementation, but Node's verify for Ed25519 usually expects the key in a specific format.
+                format: 'der',
                 type: 'public',
             },
             Buffer.from(signature, 'hex')
         );
     } catch (e) {
-        // Fallback: Using manual verify if native verify is tricky with raw hex keys in older Node
-        try {
-            const nacl = require('tweetnacl'); // Check if available
-            return nacl.sign.detached.verify(
-                Buffer.from(timestamp + body),
-                Buffer.from(signature, 'hex'),
-                Buffer.from(publicKey, 'hex')
-            );
-        } catch (err) {
-            console.error('[Discord] Signature verification failed or tweetnacl missing:', err.message);
-            // In MVP, we might skip if crypto setup is complex, but for "Premium" we try.
-            return false;
-        }
+        console.warn('[Discord] Verification failed:', e.message);
+        return false;
     }
 };
 

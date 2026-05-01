@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, ArrowLeft, Globe, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Globe as GlobeIcon, Mail } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Login() {
@@ -165,7 +165,7 @@ export default function Login() {
                 {/* Logo */}
                 <div className="flex justify-center mb-7">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center shimmer-border" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.15), rgba(139,92,246,0.15))' }}>
-                        <Globe className="text-cyan-400 w-8 h-8" />
+                        <GlobeIcon className="text-cyan-400 w-8 h-8" />
                     </div>
                 </div>
 

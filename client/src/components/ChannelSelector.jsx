@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 const CHANNELS = [
   { id: 'whatsapp_baileys', name: 'WhatsApp', sub: 'BAILEYS', available: true },
   { id: 'whatsapp_cloud', name: 'WhatsApp', sub: 'CLOUD API', available: true },
-  { id: 'discord', name: 'Discord', sub: 'BOT API', available: false },
-  { id: 'tiktok', name: 'TikTok', sub: 'BUSINESS', available: false, badge: 'Próximamente' },
-  { id: 'messenger', name: 'Messenger', sub: 'FACEBOOK', available: false },
-  { id: 'instagram', name: 'Instagram', sub: 'DIRECT', available: false },
+  { id: 'discord', name: 'Discord', sub: 'BOT API', available: true },
+  { id: 'tiktok', name: 'TikTok', sub: 'BUSINESS', available: true },
+  { id: 'messenger', name: 'Messenger', sub: 'FACEBOOK', available: true },
+  { id: 'instagram', name: 'Instagram', sub: 'DIRECT', available: true },
   { id: 'dialog360', name: '360Dialog', sub: 'WHATSAPP', available: true },
 ];
 

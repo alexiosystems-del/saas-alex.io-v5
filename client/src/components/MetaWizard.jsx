@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Smartphone, Globe, Check, ChevronRight, ShieldCheck, Zap, Copy, AlertCircle } from 'lucide-react';
+import { Key, Smartphone, Globe as GlobeIcon, Check, ChevronRight, ShieldCheck, Zap, Copy, AlertCircle } from 'lucide-react';
 
 const STEPS = [
-  { id: 'app', title: 'Portal de Meta', icon: <Globe size={20} /> },
+  { id: 'app', title: 'Portal de Meta', icon: <GlobeIcon size={20} /> },
   { id: 'keys', title: 'Credenciales', icon: <Key size={20} /> },
   { id: 'webhook', title: 'Webhook Sync', icon: <Zap size={20} /> }
 ];
@@ -66,7 +66,7 @@ export default function MetaWizard({ onComplete, onCancel }) {
             <div className="grid grid-cols-1 gap-4">
                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 group hover:border-blue-500/50 transition-all cursor-pointer">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                    <Globe size={20} />
+                    <GlobeIcon size={20} />
                   </div>
                   <div className="flex-1">
                     <p className="text-white font-medium text-sm">Crear App en Meta</p>
@@ -159,7 +159,7 @@ export default function MetaWizard({ onComplete, onCancel }) {
             <div className="p-5 rounded-xl bg-blue-600/5 border border-blue-500/20">
               <div className="flex justify-between items-start mb-3">
                 <h4 className="text-blue-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-                  <Globe size={14} /> Callback URL
+                  <GlobeIcon size={14} /> Callback URL
                 </h4>
                 <button onClick={() => copyToClipboard(webhookUrl)} className="text-slate-500 hover:text-white transition-colors">
                   {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert } from 'lucide-react';
+import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert } from 'lucide-react';
 import EnterpriseWizard from './EnterpriseWizard';
 import MetaWizard from './MetaWizard';
 
@@ -39,7 +39,7 @@ const BUSINESS_TYPES = [
 
 // ─── Wizard Questions ──────────────────────────────────────────
 const WIZARD_QUESTIONS = [
-    { id: 'businessName', label: '¿Cuál es el nombre de tu negocio?', placeholder: 'Ej: TechStore Argentina', icon: <Globe size={20} /> },
+    { id: 'businessName', label: '¿Cuál es el nombre de tu negocio?', placeholder: 'Ej: TechStore Argentina', icon: <GlobeIcon size={20} /> },
     { id: 'hours', label: '¿Cuáles son tus horarios de atención?', placeholder: 'Ej: Lunes a Viernes 9-18hs, Sábados 10-14hs', icon: <Clock size={20} /> },
     { id: 'keyInfo', label: '¿Qué información clave debe saber el bot?', placeholder: 'Ej: Hacemos envíos a todo el país. Aceptamos Mercado Pago y transferencia. Tenemos garantía de 12 meses.', icon: <MessageSquare size={20} />, multiline: true },
     {
@@ -221,6 +221,9 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                     <option value="alloy">Alloy</option>
                                     <option value="echo">Echo</option>
                                     <option value="shimmer">Shimmer</option>
+                                    <option value="minimax-hd">MiniMax HD (Global)</option>
+                                    <option value="minimax-zh">MiniMax CN (Nativo)</option>
+                                    <option value="onyx">Onyx</option>
                                 </select>
                                 <button
                                     onClick={() => setConfigDraft(p => ({ ...p, voiceEnabled: !p.voiceEnabled }))}

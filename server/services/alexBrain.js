@@ -142,7 +142,8 @@ function detectLanguage(text = '', history = []) {
 }
 
 function getVoiceForLanguage(lang, configuredVoice) {
-    if (configuredVoice && configuredVoice !== 'nova') return configuredVoice;
+    if (configuredVoice && configuredVoice !== 'nova' && !configuredVoice.startsWith('minimax-')) return configuredVoice;
+    if (configuredVoice && configuredVoice.startsWith('minimax-')) return configuredVoice; // Let the TTS handler deal with it
     return lang === 'es' ? 'alloy' : 'nova';
 }
 
@@ -277,13 +278,48 @@ async function callMiniMax(systemPrompt, userMessage, maxWords) {
             'Authorization': `Bearer ${MINIMAX_KEY}`,
             'Content-Type': 'application/json'
         },
-        timeout: 8000
+        timeout: 10000
     });
 
     if (res.data?.choices?.[0]?.message?.content) {
         return res.data.choices[0].message.content;
     }
     throw new Error('Invalid response from MiniMax');
+}
+
+/**
+ * Call MiniMax T2A V2 (High Fidelity Speech)
+ */
+async function callMiniMaxTTS(text, voiceId = 'male-en-beauty') {
+    if (!MINIMAX_KEY) throw new Error('MINIMAX_KEY not configured for TTS');
+    
+    const url = 'https://api.minimax.chat/v1/t2a_v2';
+    const payload = {
+        model: 'speech-01-hd', // Premium HD Model
+        text,
+        voice_setting: {
+            voice_id: voiceId.replace('minimax-', ''),
+            speed: 1.0,
+            vol: 1.0,
+            pitch: 0
+        },
+        audio_setting: {
+            sample_rate: 32000,
+            bitrate: 128000,
+            format: 'mp3'
+        }
+    };
+
+    const res = await axios.post(url, payload, {
+        headers: {
+            'Authorization': `Bearer ${MINIMAX_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        responseType: 'arraybuffer',
+        timeout: 15000
+    });
+
+    return Buffer.from(res.data);
 }
 
 // --- UTILS ---
@@ -495,13 +531,25 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     if (isAudio || forceVoice) {
         try {
             const selectedVoice = getVoiceForLanguage(detectedLanguage, botConfig.voice);
-            const mp3 = await openai.audio.speech.create({
-                model: 'tts-1',
-                voice: selectedVoice,
-                input: responseText.slice(0, 1000)
-            });
-            result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
-            result.audioMime = 'audio/mpeg';
+            console.log(`🎙️ [VOICE] Generando audio con voz: ${selectedVoice}`);
+
+            if (selectedVoice.startsWith('minimax-')) {
+                // MiniMax Premium TTS
+                const voiceId = selectedVoice === 'minimax-zh' ? 'female-zh-beauty' : 'male-en-beauty';
+                result.audioBuffer = await callMiniMaxTTS(responseText.slice(0, 500), voiceId);
+                result.audioMime = 'audio/mpeg';
+                console.log(`✅ [VOICE] MiniMax HD generado.`);
+            } else {
+                // Default OpenAI TTS
+                const mp3 = await openai.audio.speech.create({
+                    model: 'tts-1',
+                    voice: selectedVoice,
+                    input: responseText.slice(0, 1000)
+                });
+                result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
+                result.audioMime = 'audio/mpeg';
+                console.log(`✅ [VOICE] OpenAI TTS generado.`);
+            }
         } catch (err) {
             console.error('❌ TTS Error:', err.message);
         }

@@ -66,6 +66,7 @@ const handleIncomingMessage = async (standardizedMessage) => {
 };
 
 const processMessageWithAI = async (msg) => {
+    const start = Date.now();
     const tenantId = msg.metadata?.tenantId || 'global-tenant';
     const instanceId = msg.metadata?.instanceId || msg.metadata?.instance_id || msg.metadata?.botId || `multi_${msg.platform}_${msg.metadata?.pageId || msg.senderId}`;
     const userLang = detectUserLanguage(msg.text);
@@ -128,6 +129,17 @@ const processMessageWithAI = async (msg) => {
         
         const answer = result.text || 'No pude procesar tu mensaje.';
         
+        // Log AI Cascade for monitoring (Async)
+        if (isSupabaseEnabled && result.trace) {
+            supabase.from('ai_cascade_logs').insert({
+                tenant_id: tenantId,
+                instance_id: instanceId,
+                model_used: result.trace.model,
+                reason: result.trace.reason || 'Primary choice',
+                latency_ms: Date.now() - start
+            }).catch(e => console.warn('⚠️ [CascadeLog] Error saving:', e.message));
+        }
+
         logToDB('OUTBOUND', answer);
         
         const fullHistoryContext = [...history, { role: 'assistant', content: answer }];

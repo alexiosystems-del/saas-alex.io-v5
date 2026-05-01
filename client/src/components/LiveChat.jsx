@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe, Smartphone } from 'lucide-react';
+import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe as GlobeIcon, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
 
@@ -7,7 +7,7 @@ const getPlatformIcon = (content, size = 14) => {
     if (!content) return <MessageCircle size={size} />;
     if (content.startsWith('[messenger]')) return <Facebook size={size} />;
     if (content.startsWith('[instagram]')) return <Instagram size={size} />;
-    if (content.startsWith('[web]')) return <Globe size={size} />;
+    if (content.startsWith('[web]')) return <GlobeIcon size={size} />;
     if (content.startsWith('[tiktok]')) return <Smartphone size={size} />;
     return <MessageCircle size={size} />; // Default WhatsApp
 };

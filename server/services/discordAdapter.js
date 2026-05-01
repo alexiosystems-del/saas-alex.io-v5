@@ -18,7 +18,7 @@ class DiscordAdapter extends MessageAdapter {
         super();
         this.instanceId = instanceId;
         this.config = config;
-        this.token = config.credentials?.discordBotToken || config.credentials?.botToken || process.env.DISCORD_BOT_TOKEN;
+        this.token = config.credentials?.discordToken || config.credentials?.discordBotToken || config.credentials?.botToken || config.credentials?.token || process.env.DISCORD_BOT_TOKEN;
         this.baseUrl = 'https://discord.com/api/v10';
     }
 

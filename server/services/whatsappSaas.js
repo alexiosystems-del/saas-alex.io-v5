@@ -207,7 +207,14 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
             .upsert(dbPayload, { onConflict: 'instance_id' });
 
         if (error) {
-            console.warn(`⚠️ Supabase session sync failed for ${instanceId} (schema issue?):`, error.message);
+            if (error.message.includes('column') && error.message.includes('does not exist')) {
+                // FALLBACK: Schema mismatch, try without new columns
+                const { voice_enabled, voice, translate_inbound, ...safePayload } = dbPayload;
+                await supabase.from(sessionsTable).upsert(safePayload, { onConflict: 'instance_id' });
+                console.warn(`⚠️ [${instanceId}] Schema mismatch detected. Saved basic session info only.`);
+            } else {
+                console.warn(`⚠️ Supabase session sync failed for ${instanceId}:`, error.message);
+            }
         }
     } catch (err) {
         console.error(`❌ Unexpected crash during Supabase sync for ${instanceId}:`, err.message);
@@ -221,14 +228,26 @@ const hydrateSessionStatus = async () => {
             return;
         }
 
-        const { data, error } = await supabase
+        // Try primary query with all columns
+        let { data, error } = await supabase
             .from(sessionsTable)
             .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email,voice_enabled,voice,translate_inbound')
             .order('updated_at', { ascending: false })
             .limit(200);
 
+        if (error && error.message.includes('column') && error.message.includes('does not exist')) {
+            console.warn('⚠️ Schema mismatch (voice/translation columns missing). Falling back to basic hydration.');
+            const fallback = await supabase
+                .from(sessionsTable)
+                .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email')
+                .order('updated_at', { ascending: false })
+                .limit(200);
+            data = fallback.data;
+            error = fallback.error;
+        }
+
         if (error) {
-            console.warn('⚠️ Could not hydrate session status from Supabase (schema mismatch?):', error.message);
+            console.warn('⚠️ Could not hydrate session status from Supabase:', error.message);
             return;
         }
 
@@ -246,7 +265,6 @@ const hydrateSessionStatus = async () => {
                 translateInboundToSpanish: row.translate_inbound ?? false
             });
 
-            // Also hydrate clientConfigs so tenant filtering works in /status
             if (row.tenant_id) {
                 clientConfigs.set(row.instance_id, {
                     ...(clientConfigs.get(row.instance_id) || {}),

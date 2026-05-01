@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe, Smartphone, Zap } from 'lucide-react';
+import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap } from 'lucide-react';
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
-  { id: 'channels', title: 'Conectores', icon: Globe, color: '#0ea5e9' },
+  { id: 'channels', title: 'Conectores', icon: GlobeIcon, color: '#0ea5e9' },
   { id: 'voice', title: 'Voz y Audio', icon: Mic, color: '#ec4899' },
   { id: 'limits', title: 'Límites', icon: ShieldAlert, color: '#f59e0b' },
   { id: 'summary', title: 'Manifiesto de Despliegue', icon: CheckCircle2, color: '#10b981' }
 ];
 
 const VOICE_OPTIONS = [
-  { id: 'alloy', name: 'Alloy', desc: 'Versátil y equilibrada' },
   { id: 'nova', name: 'Nova', desc: 'Enérgica y profesional' },
+  { id: 'alloy', name: 'Alloy', desc: 'Versátil y equilibrada' },
   { id: 'echo', name: 'Echo', desc: 'Profunda y autoritaria' },
   { id: 'shimmer', name: 'Shimmer', desc: 'Clara y suave' },
-  { id: 'fable', name: 'Fable', desc: 'Narrativa y expresiva' },
+  { id: 'minimax-hd', name: 'MiniMax HD', desc: 'Premium, alta fidelidad (Global)' },
+  { id: 'minimax-zh', name: 'MiniMax CN', desc: 'Nativo Asiático (Ultra Realista)' },
   { id: 'onyx', name: 'Onyx', desc: 'Robusta y madura' }
 ];
 
@@ -29,7 +30,10 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     maxWords: config?.maxWords || 50,
     maxMessages: config?.maxMessages || 100,
     discordToken: config?.discordToken || '',
+    discordPublicKey: config?.discordPublicKey || '',
+    discordAppId: config?.discordAppId || '',
     tiktokAccessToken: config?.tiktokAccessToken || '',
+    tiktokSellerId: config?.tiktokSellerId || '',
     manychatToken: config?.manychatToken || ''
   });
 
@@ -75,24 +79,48 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             </div>
             <div className="space-y-4">
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Smartphone size={12} className="text-pink-500" /> TikTok Business Token</label>
-                    <input
-                        type="password"
-                        value={data.tiktokAccessToken}
-                        onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-sm font-mono"
-                        placeholder="tt_v2_xxxxxxxxxx"
-                    />
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Music size={12} className="text-pink-400" /> TikTok Business Messaging</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                            type="text"
+                            value={data.tiktokSellerId}
+                            onChange={(e) => handleChange('tiktokSellerId', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
+                            placeholder="Seller ID"
+                        />
+                        <input
+                            type="password"
+                            value={data.tiktokAccessToken}
+                            onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
+                            placeholder="Access Token"
+                        />
+                    </div>
+                    <div className="mt-1 text-[9px] text-slate-500">
+                        Webhook TikTok: <span className="text-pink-400 font-mono">{window.location.origin}/api/webhooks/tiktok?instanceId={config?.instanceId || 'PENDIENTE'}</span>
+                    </div>
                 </div>
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Globe size={12} className="text-indigo-400" /> Discord Bot Token</label>
-                    <input
-                        type="password"
-                        value={data.discordToken}
-                        onChange={(e) => handleChange('discordToken', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-mono"
-                        placeholder="MTEyN..."
-                    />
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><GlobeIcon size={12} className="text-indigo-400" /> Discord Configuration</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                            type="password"
+                            value={data.discordToken}
+                            onChange={(e) => handleChange('discordToken', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
+                            placeholder="Bot Token"
+                        />
+                        <input
+                            type="text"
+                            value={data.discordPublicKey}
+                            onChange={(e) => handleChange('discordPublicKey', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
+                            placeholder="Public Key (Hex)"
+                        />
+                    </div>
+                    <div className="mt-1 text-[9px] text-slate-500">
+                        Webhook URL: <span className="text-indigo-400 font-mono">{window.location.origin}/api/webhooks/discord?instanceId={config?.instanceId || 'PENDIENTE'}</span>
+                    </div>
                 </div>
                 <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Zap size={12} className="text-amber-400" /> ManyChat Integration Token (IG/FB)</label>
