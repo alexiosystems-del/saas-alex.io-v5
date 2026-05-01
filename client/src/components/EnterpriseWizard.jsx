@@ -4,6 +4,7 @@ import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info 
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
+  { id: 'channels', title: 'Conectores', icon: Globe, color: '#0ea5e9' },
   { id: 'voice', title: 'Voz y Audio', icon: Mic, color: '#ec4899' },
   { id: 'limits', title: 'Límites', icon: ShieldAlert, color: '#f59e0b' },
   { id: 'summary', title: 'Manifiesto de Despliegue', icon: CheckCircle2, color: '#10b981' }
@@ -26,7 +27,10 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     voiceEnabled: config?.voiceEnabled || false,
     voice: config?.voice || 'nova',
     maxWords: config?.maxWords || 50,
-    maxMessages: config?.maxMessages || 100
+    maxMessages: config?.maxMessages || 100,
+    discordToken: config?.discordToken || '',
+    tiktokAccessToken: config?.tiktokAccessToken || '',
+    manychatToken: config?.manychatToken || ''
   });
 
   const next = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
@@ -60,6 +64,46 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all resize-none text-sm leading-relaxed"
                 placeholder="Define cómo debe comportarse el bot..."
               />
+            </div>
+          </div>
+        );
+      case 'channels':
+        return (
+          <div className="space-y-4">
+            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10 mb-4">
+                <p className="text-[11px] text-indigo-400 font-medium">Configura las credenciales de tus canales externos. Si no usas alguno, déjalo vacío.</p>
+            </div>
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Smartphone size={12} className="text-pink-500" /> TikTok Business Token</label>
+                    <input
+                        type="password"
+                        value={data.tiktokAccessToken}
+                        onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-sm font-mono"
+                        placeholder="tt_v2_xxxxxxxxxx"
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Globe size={12} className="text-indigo-400" /> Discord Bot Token</label>
+                    <input
+                        type="password"
+                        value={data.discordToken}
+                        onChange={(e) => handleChange('discordToken', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-mono"
+                        placeholder="MTEyN..."
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Zap size={12} className="text-amber-400" /> ManyChat Integration Token (IG/FB)</label>
+                    <input
+                        type="password"
+                        value={data.manychatToken}
+                        onChange={(e) => handleChange('manychatToken', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-sm font-mono"
+                        placeholder="ALEX_XXXXX"
+                    />
+                </div>
             </div>
           </div>
         );
@@ -195,30 +239,34 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
           <div className="space-y-4">
             <div className="bg-black/40 rounded-xl border border-white/10 overflow-hidden backdrop-blur-md">
               <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Manifest_v2.0.deploy</span>
-                <span className="text-[10px] font-mono text-emerald-500/70">CHECKSUM: OK</span>
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Enterprise_Manifest_v2.5</span>
+                <span className="text-[10px] font-mono text-emerald-500/70">SECURITY: HARDENED</span>
               </div>
-              <div className="divide-y divide-white/5">
-                {items.map((item, idx) => (
-                  <motion.div 
-                    key={item.label}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="px-5 py-3.5 flex items-center justify-between group hover:bg-white/5 transition-colors"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mb-0.5">{item.label}</span>
-                      <span className="text-sm font-mono text-white tracking-tight">{item.value}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded bg-white/5 border border-white/5 ${item.color || 'text-slate-400'}`}>
-                        {item.status}
-                      </span>
-                      {item.icon}
-                    </div>
-                  </motion.div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                    <thead>
+                        <tr className="border-b border-white/5 bg-white/2">
+                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Parámetro</th>
+                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Valor Configurado</th>
+                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {[
+                            { label: 'Core Identity', value: data.botName, status: 'Verificado', color: 'text-emerald-400' },
+                            { label: 'Omni-Channels', value: [data.discordToken ? 'Discord' : '', data.tiktokAccessToken ? 'TikTok' : '', data.manychatToken ? 'Meta' : ''].filter(Boolean).join(', ') || 'WA Only', status: 'Cripto-Link', color: 'text-indigo-400' },
+                            { label: 'Voice Synthesis', value: data.voiceEnabled ? data.voice.toUpperCase() : 'Inactive', status: data.voiceEnabled ? 'Always-On' : 'Disabled', color: data.voiceEnabled ? 'text-pink-400' : 'text-slate-500' },
+                            { label: 'Word Limiter', value: `${data.maxWords} words`, status: wordRisk === 'high' ? 'High Risk' : 'Safe', color: wordRisk === 'high' ? 'text-red-400' : 'text-emerald-400' },
+                            { label: 'Session Max', value: `${data.maxMessages} msgs`, status: 'Configured', color: 'text-emerald-400' }
+                        ].map((item, idx) => (
+                            <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-3 font-bold text-slate-400">{item.label}</td>
+                                <td className="px-4 py-3 text-white font-mono">{item.value}</td>
+                                <td className={`px-4 py-3 font-bold ${item.color}`}>{item.status}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
               </div>
             </div>
             <div className="p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/10 flex items-center gap-3">

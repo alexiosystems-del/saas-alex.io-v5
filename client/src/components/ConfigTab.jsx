@@ -168,7 +168,10 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                 voiceEnabled: configDraft.voiceEnabled,
                 voice: configDraft.voice,
                 maxWords: configDraft.maxWords,
-                maxMessages: configDraft.maxMessages
+                maxMessages: configDraft.maxMessages,
+                discordToken: configDraft.discordToken,
+                tiktokAccessToken: configDraft.tiktokAccessToken,
+                manychatToken: configDraft.manychatToken
             }}
             onSave={(data) => {
                 setConfigDraft(prev => ({
@@ -178,7 +181,10 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     voiceEnabled: data.voiceEnabled,
                     voice: data.voice,
                     maxWords: data.maxWords,
-                    maxMessages: data.maxMessages
+                    maxMessages: data.maxMessages,
+                    discordToken: data.discordToken,
+                    tiktokAccessToken: data.tiktokAccessToken,
+                    manychatToken: data.manychatToken
                 }));
                 setPhase('advanced');
                 onSave();
@@ -569,6 +575,30 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                            </div>
                         </div>
                     )}
+
+                    <div className="mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
+                        <h5 className="text-[10px] uppercase font-bold mb-3 flex items-center gap-1" style={{ color: C.textMuted }}><Zap size={12}/> SLA / Latencia IA</h5>
+                        <div className="space-y-3">
+                            <div>
+                                <div className="flex justify-between text-[10px] mb-1">
+                                    <span style={{ color: C.textDim }}>Capa 1: Gemini 2.0</span>
+                                    <span style={{ color: C.green }}>~850ms</span>
+                                </div>
+                                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-green-500 w-[20%]" />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-[10px] mb-1">
+                                    <span style={{ color: C.textDim }}>Capa 2: MiniMax 6.5s</span>
+                                    <span style={{ color: C.amber }}>~1.4s</span>
+                                </div>
+                                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-amber-500 w-[45%]" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="space-y-4">
                         {[
