@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap, Music } from 'lucide-react';
+import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap, Music, Cloud, MessageSquare, Loader } from 'lucide-react';
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
@@ -29,6 +29,8 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     voice: config?.voice || 'nova',
     maxWords: config?.maxWords || 50,
     maxMessages: config?.maxMessages || 100,
+    provider: config?.provider || 'baileys',
+    accessToken: config?.accessToken || '',
     discordToken: config?.discordToken || '',
     discordPublicKey: config?.discordPublicKey || '',
     discordAppId: config?.discordAppId || '',
@@ -38,14 +40,13 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
   });
 
   const [validating, setValidating] = useState(null);
-  const [validationStatus, setValidationStatus] = useState({ tiktok: null, discord: null });
+  const [validationStatus, setValidationStatus] = useState({ tiktok: null, discord: null, whatsapp: null });
 
   const next = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
   const handleChange = (field, value) => {
     setData(prev => ({ ...prev, [field]: value }));
-    // Reset status on change
     if (field.startsWith('tiktok')) setValidationStatus(s => ({ ...s, tiktok: null }));
     if (field.startsWith('discord')) setValidationStatus(s => ({ ...s, discord: null }));
   };
@@ -100,17 +101,84 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
         );
       case 'channels':
         return (
-          <div className="space-y-4">
-            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10 mb-4">
-                <p className="text-[11px] text-indigo-400 font-medium">Configura las credenciales de tus canales externos. Si no usas alguno, déjalo vacío.</p>
+          <div className="space-y-6">
+            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10">
+                <p className="text-[11px] text-indigo-400 font-medium">Configura las credenciales de tus canales principales y secundarios.</p>
             </div>
-            <div className="space-y-4">
+
+            {/* WhatsApp - THE CORE */}
+            <div className="space-y-3">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <MessageSquare size={12} className="text-emerald-400" /> WhatsApp Business Core
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button 
+                        onClick={() => handleChange('provider', 'baileys')}
+                        className={`p-4 rounded-xl border text-left transition-all ${data.provider === 'baileys' ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-white/5 border-white/10 opacity-60'}`}
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <Smartphone size={16} className={data.provider === 'baileys' ? 'text-indigo-400' : 'text-slate-500'} />
+                            {data.provider === 'baileys' && <CheckCircle2 size={12} className="text-indigo-400" />}
+                        </div>
+                        <div className="text-xs font-bold text-white">Baileys</div>
+                        <div className="text-[9px] text-slate-500 mt-1">Directo QR. Gratis.</div>
+                    </button>
+                    <button 
+                        onClick={() => handleChange('provider', 'meta')}
+                        className={`p-4 rounded-xl border text-left transition-all ${data.provider === 'meta' ? 'bg-blue-500/10 border-blue-500/50' : 'bg-white/5 border-white/10 opacity-60'}`}
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <Cloud size={16} className={data.provider === 'meta' ? 'text-blue-400' : 'text-slate-500'} />
+                            {data.provider === 'meta' && <CheckCircle2 size={12} className="text-blue-400" />}
+                        </div>
+                        <div className="text-xs font-bold text-white">Meta Cloud</div>
+                        <div className="text-[9px] text-slate-500 mt-1">Oficial. Escalable.</div>
+                    </button>
+                    <button 
+                        onClick={() => handleChange('provider', '360dialog')}
+                        className={`p-4 rounded-xl border text-left transition-all ${data.provider === '360dialog' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-white/5 border-white/10 opacity-60'}`}
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <GlobeIcon size={16} className={data.provider === '360dialog' ? 'text-emerald-400' : 'text-slate-500'} />
+                            {data.provider === '360dialog' && <CheckCircle2 size={12} className="text-emerald-400" />}
+                        </div>
+                        <div className="text-xs font-bold text-white">360Dialog</div>
+                        <div className="text-[9px] text-slate-500 mt-1">Premium BSP.</div>
+                    </button>
+                </div>
+                
+                {data.provider === 'meta' && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                         <input
+                            type="password"
+                            value={data.accessToken}
+                            onChange={(e) => handleChange('accessToken', e.target.value)}
+                            className="w-full bg-white/5 border border-blue-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-xs font-mono"
+                            placeholder="Meta Access Token"
+                        />
+                    </motion.div>
+                )}
+
+                {data.provider === '360dialog' && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                         <input
+                            type="password"
+                            value={data.d360ApiKey}
+                            onChange={(e) => handleChange('d360ApiKey', e.target.value)}
+                            className="w-full bg-white/5 border border-emerald-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-xs font-mono"
+                            placeholder="360Dialog API Key"
+                        />
+                    </motion.div>
+                )}
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-white/5">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Canales Secundarios (Omnicanalidad)</label>
+                
+                {/* TikTok */}
                 <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
-                        <Music size={12} className="text-pink-400" /> TikTok Business Messaging
-                        {validating === 'tiktok' && <Loader size={10} className="animate-spin text-pink-400" />}
-                        {validationStatus.tiktok === 'success' && <CheckCircle2 size={12} className="text-emerald-400" />}
-                        {validationStatus.tiktok === 'error' && <ShieldAlert size={12} className="text-red-400" />}
+                        <Music size={12} className="text-pink-400" /> TikTok
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
@@ -120,68 +188,35 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                             className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
                             placeholder="Seller ID"
                         />
-                        <div className="relative">
-                            <input
-                                type="password"
-                                value={data.tiktokAccessToken}
-                                onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
-                                placeholder="Access Token"
-                            />
-                            {data.tiktokAccessToken && (
-                                <button 
-                                    onClick={() => handleValidate('tiktok')}
-                                    className="absolute right-2 top-2 px-2 py-1 bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 text-[9px] font-bold rounded border border-pink-500/30 transition-all"
-                                >
-                                    VALIDAR
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    <div className="mt-1 text-[9px] text-slate-500">
-                        Webhook TikTok: <span className="text-pink-400 font-mono">{window.location.origin}/api/webhooks/tiktok?instanceId={config?.instanceId || 'PENDIENTE'}</span>
+                        <input
+                            type="password"
+                            value={data.tiktokAccessToken}
+                            onChange={(e) => handleChange('tiktokAccessToken', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
+                            placeholder="Access Token"
+                        />
                     </div>
                 </div>
 
+                {/* Discord */}
                 <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
-                        <GlobeIcon size={12} className="text-indigo-400" /> Discord Configuration
-                        {validating === 'discord' && <Loader size={10} className="animate-spin text-indigo-400" />}
-                        {validationStatus.discord === 'success' && <CheckCircle2 size={12} className="text-emerald-400" />}
-                        {validationStatus.discord === 'error' && <ShieldAlert size={12} className="text-red-400" />}
+                        <GlobeIcon size={12} className="text-indigo-400" /> Discord
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="relative">
-                            <input
-                                type="password"
-                                value={data.discordToken}
-                                onChange={(e) => handleChange('discordToken', e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
-                                placeholder="Bot Token"
-                            />
-                            {data.discordToken && (
-                                <button 
-                                    onClick={() => handleValidate('discord')}
-                                    className="absolute right-2 top-2 px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 text-[9px] font-bold rounded border border-indigo-500/30 transition-all"
-                                >
-                                    VALIDAR
-                                </button>
-                            )}
-                        </div>
-                        <input
-                            type="text"
-                            value={data.discordPublicKey}
-                            onChange={(e) => handleChange('discordPublicKey', e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
-                            placeholder="Public Key (Hex)"
-                        />
-                    </div>
-                    <div className="mt-1 text-[9px] text-slate-500">
-                        Webhook URL: <span className="text-indigo-400 font-mono">{window.location.origin}/api/webhooks/discord?instanceId={config?.instanceId || 'PENDIENTE'}</span>
-                    </div>
+                    <input
+                        type="password"
+                        value={data.discordToken}
+                        onChange={(e) => handleChange('discordToken', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
+                        placeholder="Bot Token"
+                    />
                 </div>
+
+                {/* ManyChat */}
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2"><Zap size={12} className="text-amber-400" /> ManyChat Integration Token (IG/FB)</label>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                        <Zap size={12} className="text-amber-400" /> ManyChat Integration (IG/FB)
+                    </label>
                     <input
                         type="password"
                         value={data.manychatToken}
@@ -229,35 +264,14 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
         );
       case 'limits':
         const wordRisk = data.maxWords > 150 ? 'high' : data.maxWords > 80 ? 'med' : 'low';
-        const msgRisk = data.maxMessages > 300 ? 'high' : data.maxMessages > 150 ? 'med' : 'low';
-        
-        const getRiskColor = (risk) => {
-          if (risk === 'high') return 'text-red-400';
-          if (risk === 'med') return 'text-amber-400';
-          return 'text-emerald-400';
-        };
-
-        const getSliderAccent = (risk) => {
-          if (risk === 'high') return 'accent-red-500';
-          if (risk === 'med') return 'accent-amber-500';
-          return 'accent-emerald-500';
-        };
-
         return (
           <div className="space-y-10 py-4">
             <div className="relative">
               <div className="flex justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Capacidad de Respuesta</label>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                    wordRisk === 'high' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
-                    wordRisk === 'med' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                    'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  }`}>
-                    {wordRisk === 'high' ? 'RIESGO ALTO' : wordRisk === 'med' ? 'PRECAUCIÓN' : 'OPTIMIZADO'}
-                  </span>
                 </div>
-                <span className={`text-lg font-mono font-bold ${getRiskColor(wordRisk)}`}>{data.maxWords} <span className="text-[10px] opacity-50 uppercase">palabras</span></span>
+                <span className={`text-lg font-mono font-bold ${wordRisk === 'high' ? 'text-red-400' : 'text-emerald-400'}`}>{data.maxWords} <span className="text-[10px] opacity-50 uppercase">palabras</span></span>
               </div>
               <input
                 type="range"
@@ -265,37 +279,20 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 max="300"
                 value={data.maxWords}
                 onChange={(e) => handleChange('maxWords', parseInt(e.target.value))}
-                className={`w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer transition-all ${getSliderAccent(wordRisk)}`}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
-                <span>CONCISO (10)</span>
-                <span>EXTENSO (300)</span>
+                <span>CONCISO</span>
+                <span>EXTENSO</span>
               </div>
-              {wordRisk !== 'low' && (
-                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mt-4 flex items-start gap-2 p-3 bg-white/5 rounded-lg border border-white/5">
-                  <Info size={14} className={getRiskColor(wordRisk)} />
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    {wordRisk === 'high' 
-                      ? 'Respuestas superiores a 150 palabras pueden ser ignoradas por los usuarios y aumentar significativamente el costo de tokens.' 
-                      : 'Un límite moderado permite respuestas detalladas pero controladas.'}
-                  </p>
-                </motion.div>
-              )}
             </div>
 
             <div className="relative">
               <div className="flex justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Persistencia de Sesión</label>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                    msgRisk === 'high' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
-                    msgRisk === 'med' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                    'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  }`}>
-                    {msgRisk === 'high' ? 'RIESGO CRÍTICO' : msgRisk === 'med' ? 'ESTÁNDAR' : 'SEGURO'}
-                  </span>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Memoria de Sesión</label>
                 </div>
-                <span className={`text-lg font-mono font-bold ${getRiskColor(msgRisk)}`}>{data.maxMessages} <span className="text-[10px] opacity-50 uppercase">msgs</span></span>
+                <span className="text-lg font-mono font-bold text-indigo-400">{data.maxMessages} <span className="text-[10px] opacity-50 uppercase">msgs</span></span>
               </div>
               <input
                 type="range"
@@ -303,64 +300,37 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 max="500"
                 value={data.maxMessages}
                 onChange={(e) => handleChange('maxMessages', parseInt(e.target.value))}
-                className={`w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer transition-all ${getSliderAccent(msgRisk)}`}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
               />
-              <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
-                <span>TRANSACCIONAL (5)</span>
-                <span>SOPORTE LARGO (500)</span>
-              </div>
             </div>
           </div>
         );
       case 'summary':
-        const items = [
-          { label: 'IDENTIDAD SISTEMA', value: data.botName, status: 'VERIFICADO', icon: <CheckCircle2 size={12} className="text-emerald-400" /> },
-          { label: 'SÍNTESIS DE VOZ', value: data.voiceEnabled ? `OPENAI ${data.voice.toUpperCase()}` : 'DESACTIVADO', status: data.voiceEnabled ? 'ACTIVO' : 'IDLE', icon: <div className={`w-2 h-2 rounded-full ${data.voiceEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} /> },
-          { label: 'CAPACIDAD VERBAL', value: `${data.maxWords} PALABRAS`, status: data.maxWords > 150 ? 'ADVERTENCIA' : 'OPTIMO', color: data.maxWords > 150 ? 'text-amber-400' : 'text-emerald-400' },
-          { label: 'MEMORIA SESIÓN', value: `${data.maxMessages} MENSAJES`, status: 'CONFIGURADO', color: 'text-indigo-400' },
-          { label: 'KERNEL CORE', value: data.systemPrompt.slice(0, 40) + '...', status: 'COMPILADO', icon: <Save size={12} className="text-slate-500" /> }
-        ];
-
         return (
           <div className="space-y-4">
             <div className="bg-black/40 rounded-xl border border-white/10 overflow-hidden backdrop-blur-md">
               <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Enterprise_Manifest_v2.5</span>
-                <span className="text-[10px] font-mono text-emerald-500/70">SECURITY: HARDENED</span>
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Enterprise_Manifest_v3.0</span>
+                <span className="text-[10px] font-mono text-emerald-500/70">READY_FOR_DEPLOY</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                    <thead>
-                        <tr className="border-b border-white/5 bg-white/2">
-                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Parámetro</th>
-                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Valor Configurado</th>
-                            <th className="px-4 py-2 text-[9px] font-bold text-slate-500 uppercase">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {[
-                            { label: 'Core Identity', value: data.botName, status: 'Verificado', color: 'text-emerald-400' },
-                            { label: 'Omni-Channels', value: [data.discordToken ? 'Discord' : '', data.tiktokAccessToken ? 'TikTok' : '', data.manychatToken ? 'Meta' : ''].filter(Boolean).join(', ') || 'WA Only', status: 'Cripto-Link', color: 'text-indigo-400' },
-                            { label: 'Voice Synthesis', value: data.voiceEnabled ? data.voice.toUpperCase() : 'Inactive', status: data.voiceEnabled ? 'Always-On' : 'Disabled', color: data.voiceEnabled ? 'text-pink-400' : 'text-slate-500' },
-                            { label: 'Word Limiter', value: `${data.maxWords} words`, status: wordRisk === 'high' ? 'High Risk' : 'Safe', color: wordRisk === 'high' ? 'text-red-400' : 'text-emerald-400' },
-                            { label: 'Session Max', value: `${data.maxMessages} msgs`, status: 'Configured', color: 'text-emerald-400' }
-                        ].map((item, idx) => (
-                            <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 font-bold text-slate-400">{item.label}</td>
-                                <td className="px-4 py-3 text-white font-mono">{item.value}</td>
-                                <td className={`px-4 py-3 font-bold ${item.color}`}>{item.status}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+              <div className="p-4 space-y-3">
+                {[
+                  { label: 'Identidad', value: data.botName },
+                  { label: 'Canal Principal', value: data.provider === 'baileys' ? 'WhatsApp (QR)' : 'WhatsApp (Meta)' },
+                  { label: 'Voz IA', value: data.voiceEnabled ? data.voice.toUpperCase() : 'Desactivado' },
+                  { label: 'Límites', value: `${data.maxWords} palabras / ${data.maxMessages} mensajes` }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-xs border-b border-white/5 pb-2">
+                    <span className="text-slate-400 font-bold">{item.label}</span>
+                    <span className="text-white font-mono">{item.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/10 flex items-center gap-3">
-              <div className="w-8 h-8 rounded bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-                <Bot size={16} className="text-indigo-400" />
-              </div>
+            <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-start gap-3">
+              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
               <p className="text-[11px] text-slate-400 leading-tight">
-                Al confirmar, el núcleo de la IA se reiniciará con estos parámetros. Este proceso es instantáneo y no interrumpirá las sesiones activas.
+                Configuración validada. Al guardar, los cambios se aplicarán instantáneamente a todas las instancias activas del bot.
               </p>
             </div>
           </div>
@@ -371,45 +341,34 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
   };
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8">
+    <div className="bg-slate-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8 animate-in zoom-in-95">
       {/* Header */}
       <div className="bg-slate-800/50 px-6 py-4 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 relative">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
             <Bot size={18} className="text-indigo-400" />
-            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-white font-bold leading-none mb-1 flex items-center gap-2">
-              Executive Wizard 
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">V2.0</span>
-            </h2>
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Configuración Premium</p>
-              <div className="w-1 h-1 rounded-full bg-slate-700" />
-              <p className="text-[9px] text-indigo-400/70 font-mono animate-pulse">SYSTEM_ONLINE</p>
-            </div>
+            <h2 className="text-white font-bold leading-none mb-1">Executive Wizard</h2>
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest">Enterprise Edition</p>
           </div>
         </div>
         <div className="flex gap-1.5">
           {STEPS.map((s, i) => (
             <div
               key={s.id}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${i <= step ? 'bg-indigo-500' : 'bg-slate-700'}`}
-              style={{ boxShadow: i === step ? '0 0 10px #6366f1' : 'none' }}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${i <= step ? 'bg-indigo-500 shadow-[0_0_8px_#6366f1]' : 'bg-slate-700'}`}
             />
           ))}
         </div>
       </div>
 
       {/* Body */}
-      <div className="p-8 min-h-[360px] relative">
+      <div className="p-8 min-h-[400px]">
         <div className="flex items-center gap-4 mb-8">
-          {React.createElement(STEPS[step].icon, { 
-            size: 24, 
-            className: "text-white", 
-            style: { color: STEPS[step].color } 
-          })}
+          <div className="p-2 rounded-lg" style={{ background: `${STEPS[step].color}20`, color: STEPS[step].color }}>
+            {React.createElement(STEPS[step].icon, { size: 20 })}
+          </div>
           <h3 className="text-xl font-bold text-white">{STEPS[step].title}</h3>
         </div>
 
@@ -439,16 +398,14 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
           onClick={step === STEPS.length - 1 ? () => onSave(data) : next}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
             step === STEPS.length - 1 
-            ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20' 
-            : 'bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-500/20'
+            ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+            : 'bg-indigo-500 text-white hover:bg-indigo-600'
           }`}
         >
-          {step === STEPS.length - 1 ? <><Save size={16} /> Finalizar y Guardar</> : <>Siguiente <ArrowRight size={16} /></>}
+          {step === STEPS.length - 1 ? <><Save size={16} /> Finalizar</> : <>Siguiente <ArrowRight size={16} /></>}
         </button>
       </div>
-
-      {/* Decorative Terminal Line */}
-      <div className="h-1 w-full bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
     </div>
   );
 }
+

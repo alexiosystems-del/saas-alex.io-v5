@@ -16,7 +16,9 @@ import {
   Target,
   RefreshCw,
   AlertCircle,
-  Trash2
+  Trash2,
+  Send,
+  Cloud
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
@@ -25,6 +27,8 @@ import EnterpriseWizard from './EnterpriseWizard';
 import OnboardingFlow from './OnboardingFlow';
 import CrmProTab from './CrmProTab';
 import SettingsTab from './SettingsTab';
+import LiveChat from './LiveChat';
+import BroadcastCampaign from './BroadcastCampaign';
 import { supabase } from '../supabaseClient';
 
 const SaasDashboard = () => {
@@ -33,12 +37,15 @@ const SaasDashboard = () => {
   const [bots, setBots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedBotId, setSelectedBotId] = useState(null);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'livechat', label: 'Live Chat', icon: MessageSquare },
     { id: 'intelligence', label: 'Intelligence', icon: BarChart3 },
     { id: 'leads', label: 'CRM Leads', icon: Target },
-    { id: 'automations', label: 'Automations', icon: Zap },
+    { id: 'campaigns', label: 'Campaña Broadcast', icon: Send },
+    { id: 'config', label: 'Conectores (Cloud/Baileys)', icon: Cloud },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -58,6 +65,9 @@ const SaasDashboard = () => {
 
       if (sbError) throw sbError;
       setBots(data || []);
+      if (data && data.length > 0 && !selectedBotId) {
+        setSelectedBotId(data[0].instance_id);
+      }
     } catch (err) {
       console.error('Error fetching bots:', err);
       setError(err.message);
@@ -86,6 +96,65 @@ const SaasDashboard = () => {
         return <BillingTab />;
       case 'settings':
         return <SettingsTab />;
+      case 'livechat':
+        return <LiveChat instanceId={selectedBotId} />;
+      case 'campaigns':
+        return <BroadcastCampaign instanceId={selectedBotId} />;
+      case 'config':
+        const currentBot = bots.find(b => b.instance_id === selectedBotId);
+        return (
+          <ConfigTab 
+            selected={currentBot} 
+            configDraft={currentBot || {}} 
+            setConfigDraft={(newData) => {
+              // Functional update to local state
+              setBots(prev => prev.map(b => 
+                b.instance_id === selectedBotId 
+                ? { ...b, ...newData } 
+                : b
+              ));
+            }}
+            onSave={async () => {
+              try {
+                const draft = bots.find(b => b.instance_id === selectedBotId);
+                if (!draft) return;
+
+                // Sync with bot_configs table
+                const { error: saveError } = await supabase
+                  .from('bot_configs')
+                  .upsert({
+                    instance_id: draft.instance_id,
+                    name: draft.name || draft.company_name,
+                    custom_prompt: draft.customPrompt,
+                    voice_enabled: draft.voiceEnabled,
+                    voice_provider: draft.voice,
+                    provider: draft.provider,
+                    access_token: draft.accessToken,
+                    manychat_token: draft.manychatToken,
+                    d360_api_key: draft.d360ApiKey,
+                    d360_url: draft.d360Url,
+                    updated_at: new Date()
+                  });
+
+                if (saveError) throw saveError;
+                
+                // Also update whatsapp_sessions if needed (e.g. for provider)
+                await supabase
+                  .from('whatsapp_sessions')
+                  .update({ 
+                    provider: draft.provider,
+                    company_name: draft.name || draft.company_name
+                  })
+                  .eq('instance_id', draft.instance_id);
+
+                alert('Configuración sincronizada con el Kernel exitosamente.');
+              } catch (e) {
+                console.error('Error saving config:', e);
+                alert('Error al guardar: ' + e.message);
+              }
+            }}
+          />
+        );
       case 'dashboard':
         return (
           <div className="p-8 space-y-8 animate-in fade-in duration-500">
@@ -115,7 +184,11 @@ const SaasDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {bots.map((bot) => (
-                  <div key={bot.instance_id} className="group bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-8 hover:border-blue-500/40 transition-all duration-300 relative overflow-hidden backdrop-blur-sm">
+                  <div 
+                    key={bot.instance_id} 
+                    onClick={() => setSelectedBotId(bot.instance_id)}
+                    className={`group bg-slate-900/40 border ${selectedBotId === bot.instance_id ? 'border-blue-500' : 'border-white/5'} rounded-[2.5rem] p-8 hover:border-blue-500/40 transition-all duration-300 relative overflow-hidden backdrop-blur-sm cursor-pointer`}
+                  >
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     
                     <div className="flex justify-between items-start mb-8">
@@ -148,11 +221,14 @@ const SaasDashboard = () => {
                     </div>
 
                     <div className="flex gap-3">
-                      <button className="flex-1 py-3 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-blue-500/20">
-                        Settings
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setActiveTab('config'); }}
+                        className="flex-1 py-3 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-blue-500/20"
+                      >
+                        Config
                       </button>
                       <button 
-                        onClick={() => handleDeleteBot(bot.instance_id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteBot(bot.instance_id); }}
                         className="p-3 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl transition-all border border-rose-500/20"
                       >
                         <Trash2 size={18} />
@@ -190,7 +266,7 @@ const SaasDashboard = () => {
           </div>
         </div>
 
-        <nav className="flex-1 px-6 space-y-2">
+        <nav className="flex-1 px-6 space-y-2 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
             <button
               key={item.id}
@@ -256,8 +332,14 @@ const SaasDashboard = () => {
           </div>
         </div>
       )}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+      `}} />
     </div>
   );
 };
 
 export default SaasDashboard;
+

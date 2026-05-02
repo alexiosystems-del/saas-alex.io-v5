@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert } from 'lucide-react';
+import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert, Wand2 } from 'lucide-react';
 import EnterpriseWizard from './EnterpriseWizard';
 import MetaWizard from './MetaWizard';
+import PromptWizard from './PromptWizard';
+import PromptCopilot from './PromptCopilot';
 
-const CONFIG_TAB_VERSION = 'v2.0.7.8-STABLE';
+const CONFIG_TAB_VERSION = 'v2.1.0-STABLE';
 
-// ─── Color Tokens (derived from parent theme or default dark) ─
+// ─── Color Tokens ─
 const makeTokens = (theme) => ({
     bg: theme?.bg || '#0f172a',
     surface: theme?.card || '#1e293b',
@@ -24,8 +26,6 @@ const makeTokens = (theme) => ({
     textDim: theme?.textMuted || '#64748b',
 });
 
-const C = makeTokens(); // Global fallback tokens
-
 // ─── Business Type Cards ───────────────────────────────────────
 const BUSINESS_TYPES = [
     { id: 'aesthetic', icon: '💎', title: 'Clínica de Estética', desc: 'Pre-calificación de pacientes, dudas de procedimientos, agendamiento', color: '#a855f7', prompt: 'Eres un Concierge Médico Experto de {businessName}. Tu objetivo es pre-calificar al paciente, responder dudas sobre procedimientos estéticos usando nuestra base de conocimiento, generar confianza y agendar una cita de valoración. NO das diagnósticos. Tono: Profesional, empático, clínico y persuasivo.' },
@@ -33,608 +33,376 @@ const BUSINESS_TYPES = [
     { id: 'realestate', icon: '🏠', title: 'Agencia Inmobiliaria', desc: 'Pre-calificación de compradores, propiedades, visitas', color: '#f59e0b', prompt: 'Eres un Agente de Pre-Venta Inmobiliario de {businessName}. Calificás al interesado (presupuesto, zona, tipo de propiedad), respondés consultas sobre disponibilidad y agendás visitas con un asesor. Tono profesional y orientado a la conversión.' },
     { id: 'medconsult', icon: '🩺', title: 'Consultorio Médico', desc: 'Agendamiento, pre-consulta, derivaciones', color: '#22c55e', prompt: 'Eres el Asistente Virtual del consultorio {businessName}. Recibís consultas de pacientes, pre-filtras síntomas para aclarar la urgencia, agendas turnos y enviás recordatorios. Tono empático, profesional y tranquilizador. Derivás a urgencias ante señales de alarma.' },
     { id: 'professional', icon: '⚖️', title: 'Servicios Profesionales', desc: 'Abogados, contadores, asesores financieros', color: '#6366f1', prompt: 'Eres el Asistente Virtual de {businessName}. Pre-calificás consultas de clientes potenciales, respondés preguntas frecuentes sobre servicios y honorarios, y agendás una reunión de diagnóstico con el profesional a cargo. Tono formal, experto y confiable.' },
-    { id: 'custom', icon: '⚙️', title: 'Personalizado', desc: 'Configura todo desde cero a tu medida', color: C.amber, prompt: '' },
+    { id: 'custom', icon: '⚙️', title: 'Personalizado', desc: 'Configura todo desde cero a tu medida', color: '#f59e0b', prompt: '' },
 ];
 
-
-// ─── Wizard Questions ──────────────────────────────────────────
-const WIZARD_QUESTIONS = [
-    { id: 'businessName', label: '¿Cuál es el nombre de tu negocio?', placeholder: 'Ej: TechStore Argentina', icon: <GlobeIcon size={20} /> },
-    { id: 'hours', label: '¿Cuáles son tus horarios de atención?', placeholder: 'Ej: Lunes a Viernes 9-18hs, Sábados 10-14hs', icon: <Clock size={20} /> },
-    { id: 'keyInfo', label: '¿Qué información clave debe saber el bot?', placeholder: 'Ej: Hacemos envíos a todo el país. Aceptamos Mercado Pago y transferencia. Tenemos garantía de 12 meses.', icon: <MessageSquare size={20} />, multiline: true },
-    {
-        id: 'tone', label: '¿Qué tono debe usar el bot?', type: 'select', icon: <Volume2 size={20} />, options: [
-            { value: 'formal', label: '🏢 Formal', desc: 'Profesional y respetuoso' },
-            { value: 'friendly', label: '😊 Amigable', desc: 'Cercano y cálido' },
-            { value: 'casual', label: '😎 Casual', desc: 'Relajado y joven' },
-            { value: 'expert', label: '🧠 Experto', desc: 'Técnico y detallado' },
-        ]
-    },
-    { id: 'handoff', label: '¿Cuándo debe derivar a un humano?', placeholder: 'Ej: Cuando el cliente pide hablar con un asesor, cuando hay un reclamo, o después de 5 mensajes sin resolución.', icon: <Users size={20} />, multiline: true },
-];
-
-// ─── Video Slot Component ──────────────────────────────────────
-function VideoSlot({ url, title = 'Tutorial' }) {
-    if (!url) return null;
-    const embedUrl = url.includes('youtube') ? url.replace('watch?v=', 'embed/') :
-        url.includes('youtu.be') ? `https://www.youtube.com/embed/${url.split('/').pop()}` :
-            url.includes('vimeo') ? url.replace('vimeo.com', 'player.vimeo.com/video') :
-                url.includes('loom') ? url.replace('loom.com/share', 'loom.com/embed') : null;
-    if (!embedUrl) return null;
-    return (
-        <div className="rounded-xl overflow-hidden border" style={{ borderColor: C.border }}>
-            <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold" style={{ background: C.surface, color: C.textMuted }}>
-                <Play size={12} /> {title}
-            </div>
-            <iframe src={embedUrl} className="w-full aspect-video" allow="autoplay; fullscreen" allowFullScreen title={title} />
-        </div>
-    );
-}
-
-// ─── Support Banner ────────────────────────────────────────────
-function SupportBanner({ text = '¿Necesitas ayuda configurando tu bot?' }) {
-    return (
-        <div className="rounded-xl p-4 flex items-center justify-between gap-3" style={{ background: C.amberDim, border: `1px solid ${C.amber}33` }}>
-            <div className="flex items-center gap-3">
-                <HelpCircle size={20} style={{ color: C.amber }} />
-                <span className="text-sm font-medium" style={{ color: C.amber }}>{text}</span>
-            </div>
-            <a href="https://www.youtube.com/@AlexIOSaaS/playlists" target="_blank" rel="noreferrer"
-                className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all hover:scale-105"
-                style={{ background: C.amber, color: '#000' }}>
-                Ver Tutoriales
-            </a>
-        </div>
-    );
-}
-
-// ─── Floating Support ──────────────────────────────────────────
-function FloatingSupport() {
-    const [open, setOpen] = useState(false);
-    return (
-        <div className="fixed bottom-6 right-6 z-50">
-            {open && (
-                <div className="mb-3 rounded-xl p-4 shadow-2xl w-64 animate-in slide-in-from-bottom-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <p className="text-sm font-bold mb-3" style={{ color: C.text }}>¿Necesitas ayuda?</p>
-                    <div className="space-y-2">
-                        <a href="https://www.youtube.com/@AlexIOSaaS/videos" target="_blank" rel="noreferrer"
-                            className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg transition-colors"
-                            style={{ background: C.indigoDim, color: C.indigo }}>
-                            <Play size={16} /> Tutoriales YouTube
-                        </a>
-                        <a href="#" className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg transition-colors"
-                            style={{ background: C.amberDim, color: C.amber }}>
-                            <ExternalLink size={16} /> Centro de Ayuda
-                        </a>
-                    </div>
-                </div>
-            )}
-            <button onClick={() => setOpen(!open)}
-                className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110"
-                style={{ background: `linear-gradient(135deg, ${C.amber}, #d97706)` }}>
-                <HelpCircle size={22} color="#000" />
-            </button>
-        </div>
-    );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ██  CONFIGTAB — Main Component
-// ═══════════════════════════════════════════════════════════════
 export default function ConfigTab({ selected, configDraft, setConfigDraft, onSave, analytics, connectionStatus, theme }) {
     const C = makeTokens(theme);
-    const [phase, setPhase] = useState('select'); // select | wizard | generating | done | advanced
-    const [selectedType, setSelectedType] = useState(null);
-    const [wizardStep, setWizardStep] = useState(0);
-    const [wizardData, setWizardData] = useState({});
-    const [generatedPrompt, setGeneratedPrompt] = useState('');
-    const [copied, setCopied] = useState(false);
+    const [phase, setPhase] = useState('select'); // select | wizard | generating | advanced | copilot
+    const [showCopilot, setShowCopilot] = useState(false);
+    const [showPromptWizard, setShowPromptWizard] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState(false);
     const [copiedToken, setCopiedToken] = useState(false);
     const [showToken, setShowToken] = useState(false);
     const [channelWizard, setChannelWizard] = useState('instagram');
 
-    // Utility (Mock if missing from context)
-    const pushNotice = (type, msg) => {
-        console.log(`[${type}] ${msg}`);
-        // In a real scenario, this should be passed as prop or use a context
-    };
-
-    const fetchJsonWithApiFallback = async (url, options) => {
-        const response = await fetch(url, options);
-        const data = await response.json();
-        return { response, data };
-    };
-
-    const getAuthHeaders = () => ({
-        'Authorization': `Bearer ${localStorage.getItem('alex_token')}`,
-        'Content-Type': 'application/json'
-    });
-
-    // If bot already has a custom prompt, start in advanced mode
     useEffect(() => {
-        if (configDraft?.customPrompt?.length > 20) {
+        if (configDraft?.customPrompt?.length > 50) {
             setPhase('advanced');
         } else {
-            setPhase('enterprise_wizard');
+            setPhase('select');
         }
     }, [selected?.id]);
 
-    const renderEnterpriseWizard = () => (
-        <EnterpriseWizard
-            config={{
-                botName: configDraft.name,
-                systemPrompt: configDraft.customPrompt,
-                voiceEnabled: configDraft.voiceEnabled,
-                voice: configDraft.voice,
-                maxWords: configDraft.maxWords,
-                maxMessages: configDraft.maxMessages,
-                discordToken: configDraft.discordToken,
-                tiktokAccessToken: configDraft.tiktokAccessToken,
-                manychatToken: configDraft.manychatToken
-            }}
-            onSave={(data) => {
-                setConfigDraft(prev => ({
-                    ...prev,
-                    name: data.botName,
-                    customPrompt: data.systemPrompt,
-                    voiceEnabled: data.voiceEnabled,
-                    voice: data.voice,
-                    maxWords: data.maxWords,
-                    maxMessages: data.maxMessages,
-                    discordToken: data.discordToken,
-                    tiktokAccessToken: data.tiktokAccessToken,
-                    manychatToken: data.manychatToken
-                }));
-                setPhase('advanced');
-                onSave();
-            }}
-            onCancel={() => setPhase('advanced')}
-        />
+    const renderSelect = () => (
+        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
+            <div className="text-center space-y-3">
+                <h2 className="text-3xl font-black text-white tracking-tight">Kernel de Inteligencia</h2>
+                <p className="text-slate-400 max-w-lg mx-auto">Selecciona una arquitectura base para tu agente o construye una desde cero con nuestro asistente guiado.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {BUSINESS_TYPES.map(type => (
+                    <button key={type.id} 
+                        onClick={() => {
+                            if (type.id === 'custom') {
+                                setShowPromptWizard(true);
+                            } else {
+                                setConfigDraft(p => ({ ...p, customPrompt: type.prompt }));
+                                setPhase('advanced');
+                            }
+                        }}
+                        className="group relative p-6 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98] text-left overflow-hidden"
+                        style={{ background: C.surface, borderColor: C.border }}>
+                        <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-10 transition-opacity" style={{ from: type.color, to: 'transparent' }} />
+                        <div className="text-3xl mb-4">{type.icon}</div>
+                        <h4 className="font-bold text-white mb-2">{type.title}</h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">{type.desc}</p>
+                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: type.color }}>
+                            Seleccionar <ArrowRight size={14} />
+                        </div>
+                    </button>
+                ))}
+            </div>
+
+            <div className="p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-6">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xl shadow-indigo-600/20">
+                    <Sparkles size={32} />
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                    <h3 className="text-xl font-bold text-white mb-1">Asistente de Implementación IA</h3>
+                    <p className="text-slate-400 text-sm">¿No sabes por dónde empezar? Deja que nuestra IA cree el prompt perfecto basado en 7 preguntas clave sobre tu negocio.</p>
+                </div>
+                <button 
+                    onClick={() => setShowPromptWizard(true)}
+                    className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-indigo-50 transition-all shadow-xl"
+                >
+                    Iniciar Wizard
+                </button>
+            </div>
+        </div>
     );
 
     const renderAdvanced = () => (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
             {/* Main Config Panel */}
             <div className="lg:col-span-2 space-y-5">
                 {/* Bot Name + Voice */}
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <div className="rounded-2xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                     <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
-                        <Settings size={16} style={{ color: C.indigo }} /> Identidad del Bot
+                        <Bot size={16} style={{ color: C.indigo }} /> Identidad del Bot
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Nombre</label>
-                            <input className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
+                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Nombre Público</label>
+                            <input className="w-full rounded-xl p-3 text-sm focus:outline-none transition-all"
                                 style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                onFocus={e => e.target.style.borderColor = C.indigo}
-                                onBlur={e => e.target.style.borderColor = C.border}
                                 value={configDraft.name || ''} onChange={e => setConfigDraft(p => ({ ...p, name: e.target.value }))} />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Voz IA</label>
+                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Voz y Síntesis</label>
                             <div className="flex gap-2">
-                                <select className="flex-1 rounded-lg p-3 text-sm focus:outline-none appearance-none"
+                                <select className="flex-1 rounded-xl p-3 text-sm focus:outline-none appearance-none"
                                     style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
                                     value={configDraft.voice || 'nova'} onChange={e => setConfigDraft(p => ({ ...p, voice: e.target.value }))}>
-                                    <option value="nova">Nova</option>
+                                    <option value="nova">Nova (Default)</option>
                                     <option value="alloy">Alloy</option>
-                                    <option value="echo">Echo</option>
-                                    <option value="shimmer">Shimmer</option>
-                                    <option value="minimax-hd">MiniMax HD (Global)</option>
-                                    <option value="minimax-zh">MiniMax CN (Nativo)</option>
-                                    <option value="onyx">Onyx</option>
+                                    <option value="minimax-hd">MiniMax HD</option>
                                 </select>
                                 <button
                                     onClick={() => setConfigDraft(p => ({ ...p, voiceEnabled: !p.voiceEnabled }))}
-                                    className={`px-4 rounded-lg text-[10px] font-bold uppercase transition-all ${configDraft.voiceEnabled ? 'bg-pink-500 text-white' : 'bg-slate-800 text-slate-500'}`}
+                                    className={`px-4 rounded-xl text-[10px] font-bold uppercase transition-all ${configDraft.voiceEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500'}`}
                                 >
-                                    {configDraft.voiceEnabled ? 'Activo' : 'Inactivo'}
+                                    {configDraft.voiceEnabled ? 'ON' : 'OFF'}
                                 </button>
                             </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Máx. Palabras por Respuesta</label>
-                            <input type="number" min="10" max="500" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                onFocus={e => e.target.style.borderColor = C.indigo}
-                                onBlur={e => e.target.style.borderColor = C.border}
-                                value={configDraft.maxWords || 50} onChange={e => setConfigDraft(p => ({ ...p, maxWords: parseInt(e.target.value) || 50 }))} />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Máx. Mensajes antes de Derivar</label>
-                            <input type="number" min="1" max="100" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                onFocus={e => e.target.style.borderColor = C.indigo}
-                                onBlur={e => e.target.style.borderColor = C.border}
-                                value={configDraft.maxMessages || 10} onChange={e => setConfigDraft(p => ({ ...p, maxMessages: parseInt(e.target.value) || 10 }))} />
                         </div>
                     </div>
                 </div>
 
-                {/* Prompt */}
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                {/* Prompt Editor */}
+                <div className="rounded-2xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: C.text }}>
-                            <MessageSquare size={16} style={{ color: C.indigo }} /> Prompt del Bot (Cerebro IA)
+                            <MessageSquare size={16} style={{ color: C.indigo }} /> System Prompt (Instrucciones)
                         </h3>
-                        <button onClick={() => setPhase('enterprise_wizard')}
-                            className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                            style={{ background: C.indigoDim, color: C.indigo }}>
-                            <Bot size={12} className="inline mr-1" /> Abrir Wizard Ejecutivo
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowCopilot(true)}
+                                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1.5">
+                                <Sparkles size={12} /> Co-Piloto AI
+                            </button>
+                            <button onClick={() => setPhase('select')}
+                                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-all">
+                                <RotateCcw size={12} className="inline mr-1" /> Reset
+                            </button>
+                        </div>
+                    </div>
+                    <textarea className="w-full rounded-xl p-4 text-sm resize-none h-64 focus:outline-none font-mono leading-relaxed"
+                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                        value={configDraft.customPrompt || ''} onChange={e => setConfigDraft(p => ({ ...p, customPrompt: e.target.value }))} />
+                    <div className="mt-3 flex justify-between items-center">
+                        <p className="text-[10px] text-slate-500 italic">Este prompt define la personalidad, límites y objetivos comerciales de tu bot.</p>
+                        <span className="text-[10px] font-bold text-slate-600">{(configDraft.customPrompt || '').length} caracteres</span>
+                    </div>
+                </div>
+
+                {/* WhatsApp Engine Hub - NIVEL DIOS */}
+                <div className="rounded-2xl p-8 space-y-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                                <Zap size={22} className="text-amber-400 fill-amber-400/20" /> WhatsApp Engine Hub
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">Seleccioná el motor de comunicación que impulsará tu bot.</p>
+                        </div>
+                        <div className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Multi-Engine Active
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Baileys Card */}
+                        <button 
+                            onClick={() => setConfigDraft(p => ({ ...p, provider: 'baileys' }))}
+                            className={`group relative p-5 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98] text-left overflow-hidden ${configDraft.provider === 'baileys' ? 'ring-2 ring-indigo-500 ring-offset-4 ring-offset-slate-900 shadow-2xl' : ''}`}
+                            style={{ background: configDraft.provider === 'baileys' ? 'linear-gradient(135deg, #312e81 0%, #1e1b4b 100%)' : C.bg, borderColor: configDraft.provider === 'baileys' ? '#6366f1' : C.border }}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className={`p-3 rounded-2xl ${configDraft.provider === 'baileys' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                    <Smartphone size={20} />
+                                </div>
+                                <span className="text-[9px] font-black px-2 py-1 rounded-md bg-slate-800 text-slate-500 uppercase tracking-tighter">Community</span>
+                            </div>
+                            <h4 className="font-bold text-white mb-1">Baileys (QR)</h4>
+                            <p className="text-[10px] text-slate-500 leading-tight mb-4">Conexión directa vía código QR. 100% Gratis sin costos de Meta.</p>
+                            <ul className="space-y-1.5 mb-2">
+                                {['Zero Costs', 'High Speed', 'Easy Scan'].map(feat => (
+                                    <li key={feat} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400">
+                                        <Check size={10} className="text-emerald-500" /> {feat}
+                                    </li>
+                                ))}
+                            </ul>
+                        </button>
+
+                        {/* Meta Cloud Card */}
+                        <button 
+                            onClick={() => setConfigDraft(p => ({ ...p, provider: 'meta' }))}
+                            className={`group relative p-5 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98] text-left overflow-hidden ${configDraft.provider === 'meta' ? 'ring-2 ring-blue-500 ring-offset-4 ring-offset-slate-900 shadow-2xl' : ''}`}
+                            style={{ background: configDraft.provider === 'meta' ? 'linear-gradient(135deg, #1e3a8a 0%, #172554 100%)' : C.bg, borderColor: configDraft.provider === 'meta' ? '#3b82f6' : C.border }}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className={`p-3 rounded-2xl ${configDraft.provider === 'meta' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                    <Cloud size={20} />
+                                </div>
+                                <span className="text-[9px] font-black px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 uppercase tracking-tighter">Official</span>
+                            </div>
+                            <h4 className="font-bold text-white mb-1">Meta Cloud API</h4>
+                            <p className="text-[10px] text-slate-500 leading-tight mb-4">La solución oficial de Meta. Estable, escalable y profesional.</p>
+                            <ul className="space-y-1.5 mb-2">
+                                {['Unlimited Scale', 'Stable Webhooks', 'Official Support'].map(feat => (
+                                    <li key={feat} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400">
+                                        <Check size={10} className="text-blue-400" /> {feat}
+                                    </li>
+                                ))}
+                            </ul>
+                        </button>
+
+                        {/* 360Dialog Card */}
+                        <button 
+                            onClick={() => setConfigDraft(p => ({ ...p, provider: '360dialog' }))}
+                            className={`group relative p-5 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98] text-left overflow-hidden ${configDraft.provider === '360dialog' ? 'ring-2 ring-emerald-500 ring-offset-4 ring-offset-slate-900 shadow-2xl' : ''}`}
+                            style={{ background: configDraft.provider === '360dialog' ? 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)' : C.bg, borderColor: configDraft.provider === '360dialog' ? '#10b981' : C.border }}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className={`p-3 rounded-2xl ${configDraft.provider === '360dialog' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                    <GlobeIcon size={20} />
+                                </div>
+                                <span className="text-[9px] font-black px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 uppercase tracking-tighter">Premium BSP</span>
+                            </div>
+                            <h4 className="font-bold text-white mb-1">360Dialog Pro</h4>
+                            <p className="text-[10px] text-slate-500 leading-tight mb-4">El BSP #1 para integración con bots. Máxima fiabilidad europea.</p>
+                            <ul className="space-y-1.5 mb-2">
+                                {['Low Latency', 'High Uptime', 'GDPR Ready'].map(feat => (
+                                    <li key={feat} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400">
+                                        <Check size={10} className="text-emerald-400" /> {feat}
+                                    </li>
+                                ))}
+                            </ul>
                         </button>
                     </div>
-                    <textarea className="w-full rounded-lg p-4 text-sm resize-none h-40 focus:outline-none transition-colors"
-                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                        onFocus={e => e.target.style.borderColor = C.indigo}
-                        onBlur={e => e.target.style.borderColor = C.border}
-                        value={configDraft.customPrompt || ''} onChange={e => setConfigDraft(p => ({ ...p, customPrompt: e.target.value }))} />
-                </div>
 
-                {/* Channel Credentials */}
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
-                        <Key size={16} style={{ color: C.amber }} /> Conexiones y Canales
-                    </h3>
-                    <div className="mb-5">
-                        <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: C.textDim }}>Wizard rápido (2 minutos)</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            {[
-                                { id: 'instagram', label: 'Instagram', icon: <Instagram size={15} /> },
-                                { id: 'facebook', label: 'Facebook', icon: <Facebook size={15} /> },
-                                { id: 'tiktok', label: 'TikTok', icon: <Sparkles size={15} /> }
-                            ].map(ch => (
-                                <button key={ch.id} onClick={() => setChannelWizard(ch.id)}
-                                    className="rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-center gap-2 transition-all"
-                                    style={{
-                                        border: `1px solid ${channelWizard === ch.id ? C.indigo : C.border}`,
-                                        background: channelWizard === ch.id ? C.indigoDim : C.bg,
-                                        color: channelWizard === ch.id ? C.indigo : C.text
-                                    }}>
-                                    {ch.icon} {ch.label}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="mt-3 rounded-lg p-3 text-xs" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
-                            {channelWizard === 'instagram' && (
-                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
-                                    <li>Conecta tu Instagram en ManyChat (Settings → Instagram).</li>
-                                    <li>Configura Default Reply hacia: <code>/api/webhooks/manychat</code>.</li>
-                                    <li>Guarda un token en <b>ManyChat Token</b> y publica el flujo.</li>
-                                </ol>
-                            )}
-                            {channelWizard === 'facebook' && (
-                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
-                                    <li>Conecta página de Facebook en ManyChat (Messenger).</li>
-                                    <li>Apunta el webhook a <code>/api/webhooks/manychat</code>.</li>
-                                    <li>Usa el mismo token de seguridad en Authorization Bearer.</li>
-                                </ol>
-                            )}
-                            {channelWizard === 'tiktok' && (
-                                <ol className="list-decimal pl-4 space-y-1" style={{ color: C.textMuted }}>
-                                    <li>Pega tu TikTok Access Token abajo.</li>
-                                    <li>Configura webhook TikTok a <code>/api/webhooks/tiktok</code>.</li>
-                                    <li>Haz prueba enviando DM y revisa Live Chat.</li>
-                                </ol>
-                            )}
-                        </div>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Proveedor WhatsApp Principal</label>
-                                <select className="w-full rounded-lg p-3 text-sm focus:outline-none appearance-none"
-                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                    value={configDraft.provider || 'baileys'} onChange={e => setConfigDraft(p => ({ ...p, provider: e.target.value }))}>
-                                    <option value="baileys">Baileys (QR - Gratis)</option>
-                                    <option value="meta">Meta Cloud API (WhatsApp)</option>
-                                    <option value="360dialog">360Dialog</option>
-                                </select>
+                {/* Dynamic Config Fields */}
+                <AnimatePresence mode="wait">
+                    {configDraft.provider === 'meta' && (
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="pt-4 border-t border-white/5">
+                            <div className="flex justify-between items-center mb-4">
+                                <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Meta Cloud Configuration</p>
+                                <button onClick={() => setPhase('meta_wizard')} className="text-[10px] font-black text-white px-3 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-all">Launch Meta Wizard</button>
                             </div>
-                            {configDraft.provider === 'meta' && (
-                                <div className="flex items-end gap-2">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>WA Cloud Access Token</label>
-                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} placeholder="EAAxxxxxxx..." />
-                                    </div>
-                                    <button 
-                                        onClick={() => setPhase('meta_wizard')}
-                                        className="h-[46px] px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all flex items-center gap-2"
-                                    >
-                                        <Zap size={14} /> Wizard
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                            {/* Conditional Discord Fields */}
-                            {configDraft.provider === 'discord' && (
-                                <div className="sm:col-span-2">
-                                    <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Discord Bot Token</label>
-                                    <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                        value={configDraft.discordToken || ''} onChange={e => setConfigDraft(p => ({ ...p, discordToken: e.target.value }))} placeholder="MTEyN..." />
-                                </div>
-                            )}
-
-                            {/* Conditional Reddit Fields */}
-                            {configDraft.provider === 'reddit' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Reddit Client ID</label>
-                                        <input className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.redditClientId || ''} onChange={e => setConfigDraft(p => ({ ...p, redditClientId: e.target.value }))} placeholder="Client ID..." />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Reddit Client Secret</label>
-                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.redditClientSecret || ''} onChange={e => setConfigDraft(p => ({ ...p, redditClientSecret: e.target.value }))} placeholder="Secret..." />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Reddit Username</label>
-                                        <input className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.redditUsername || ''} onChange={e => setConfigDraft(p => ({ ...p, redditUsername: e.target.value }))} placeholder="u/alexbot..." />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Reddit Password</label>
-                                        <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none"
-                                            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                            value={configDraft.redditPassword || ''} onChange={e => setConfigDraft(p => ({ ...p, redditPassword: e.target.value }))} placeholder="Password..." />
-                                    </div>
-                                </>
-                            )}
-                    </div>
-
-                    {/* ManyChat Bridge (Always visible as it can complement any channel) */}
-                    <div className="mt-4 pt-4 border-t" style={{ borderColor: C.border }}>
-                        <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider flex items-center gap-1" style={{ color: C.textDim }}>
-                            <Zap size={14} className="text-indigo-400" /> Puente ManyChat / External Webhook
-                        </label>
-                        <p className="text-[10px] mb-2" style={{ color: C.textMuted }}>
-                            Configura la **External Request** en ManyChat usando este Request URL y el Token:
-                        </p>
-                        
-                        <div className="relative group mb-3">
-                            <div className="p-2.5 rounded-lg bg-black/20 border border-indigo-500/10 font-mono text-[9px] break-all pr-12" 
-                                 style={{ color: C.indigo }}>
-                                {window.location.origin}/api/webhooks/manychat?tenantId={selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId={selected?.instanceId || selected?.id}
-                            </div>
-                            <button 
-                                onClick={() => {
-                                    const url = `${window.location.origin}/api/webhooks/manychat?tenantId=${selected?.tenantId || selected?.tenant_id || configDraft.tenantId || 'TU_TENANT_ID'}&instanceId=${selected?.instanceId || selected?.id}`;
-                                    navigator.clipboard.writeText(url);
-                                    setCopiedUrl(true);
-                                    setTimeout(() => setCopiedUrl(false), 2000);
-                                }}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all hover:bg-white/10"
-                                style={{ color: copiedUrl ? C.green : C.indigo }}
-                                title="Copiar URL"
-                            >
-                                {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
-                            </button>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <input type={showToken ? "text" : "password"} className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors pr-20"
-                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                    value={configDraft.manychatToken || ''} 
-                                    onChange={e => setConfigDraft(p => ({ ...p, manychatToken: e.target.value }))} 
-                                    placeholder="Token secreto para Auth Header..." 
-                                />
-                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                    <button 
-                                        onClick={() => setShowToken(!showToken)}
-                                        className="p-1.5 rounded-md transition-all hover:bg-white/5"
-                                        style={{ color: C.textDim }}
-                                        title={showToken ? "Ocultar" : "Mostrar"}
-                                    >
-                                        {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(configDraft.manychatToken || '');
-                                            setCopiedToken(true);
-                                            setTimeout(() => setCopiedToken(false), 2000);
-                                        }}
-                                        className="p-1.5 rounded-md transition-all hover:bg-white/5"
-                                        style={{ color: copiedToken ? C.green : C.textDim }}
-                                        title="Copiar Token"
-                                    >
-                                        {copiedToken ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-                            </div>
-                            <button onClick={() => {
-                                const newToken = 'ALEX_' + Math.random().toString(36).substr(2, 10).toUpperCase();
-                                setConfigDraft(p => ({ ...p, manychatToken: newToken }));
-                                setShowToken(true);
-                            }}
-                                className="px-3 rounded-lg font-bold text-xs transition-all hover:scale-105"
-                                style={{ background: C.indigoDim, color: C.indigo, border: `1px solid ${C.indigo}44` }}>
-                                <Sparkles size={14} className="inline mr-1" /> Generar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CRM Integrations */}
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
-                        <Users size={16} style={{ color: C.green }} /> Integraciones CRM
-                    </h3>
-                    <div className="space-y-4">
-                        {/* HubSpot */}
-                        <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>HubSpot - Private App Token</label>
-                            <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                onFocus={e => e.target.style.borderColor = C.indigo}
-                                onBlur={e => e.target.style.borderColor = C.border}
-                                value={configDraft.hubspotAccessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, hubspotAccessToken: e.target.value }))} placeholder="pat-na1-xxxx-xxxx..." />
-                        </div>
-                        {/* GoHighLevel */}
-                        <div>
-                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>GoHighLevel - API Key (v2)</label>
-                            <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                onFocus={e => e.target.style.borderColor = C.indigo}
-                                onBlur={e => e.target.style.borderColor = C.border}
-                                value={configDraft.ghlApiKey || ''} onChange={e => setConfigDraft(p => ({ ...p, ghlApiKey: e.target.value }))} placeholder="pit-xxxx..." />
-                        </div>
-                        {/* Copper */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Copper - API Key</label>
-                                <input type="password" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                    onFocus={e => e.target.style.borderColor = C.indigo}
-                                    onBlur={e => e.target.style.borderColor = C.border}
-                                    value={configDraft.copperApiKey || ''} onChange={e => setConfigDraft(p => ({ ...p, copperApiKey: e.target.value }))} placeholder="xxxx-xxxx-xxxx" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: C.textDim }}>Copper - User Email</label>
-                                <input type="email" className="w-full rounded-lg p-3 text-sm focus:outline-none transition-colors"
-                                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                                    onFocus={e => e.target.style.borderColor = C.indigo}
-                                    onBlur={e => e.target.style.borderColor = C.border}
-                                    value={configDraft.copperUserEmail || ''} onChange={e => setConfigDraft(p => ({ ...p, copperUserEmail: e.target.value }))} placeholder="user@company.com" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Save + Support */}
-                <button onClick={onSave}
-                    className="w-full py-3.5 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] hover:shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${C.indigo}, #7c3aed)`, color: '#fff', boxShadow: `0 4px 20px ${C.indigo}44` }}>
-                    💾 Guardar Configuración
-                </button>
-
-                <button onClick={async () => {
-                    try {
-                        const { response, data } = await fetchJsonWithApiFallback(`/api/saas/test-sync/${selected?.instanceId || selected?.id}`, {
-                            method: 'POST',
-                            headers: { ...getAuthHeaders() }
-                        });
-                        if (response.ok) pushNotice('success', data.message);
-                        else throw new Error(data.error);
-                    } catch (e) {
-                         pushNotice('error', e.message);
-                    }
-                }}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs transition-all opacity-80 hover:opacity-100 mt-2"
-                    style={{ border: `1px dashed ${C.indigo}`, color: C.indigo }}>
-                    🧪 Test HubSpot (SRE)
-                </button>
-                <SupportBanner text="¿Dudas sobre la configuración avanzada?" />
-            </div>
-
-            {/* Stats Sidebar */}
-            <div className="space-y-5">
-                {/* Connection Status */}
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <h4 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: C.textDim }}>Estado de Conexión</h4>
-                    <div className="flex items-center gap-3">
-                        {connectionStatus === 'online' ? (
-                            <>
-                                <div className="relative">
-                                    <Wifi size={20} style={{ color: C.green }} />
-                                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: C.green }} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Access Token</label>
+                                    <input type="password" value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono" placeholder="EAAXXXX..." />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold" style={{ color: C.green }}>Conectado</p>
-                                    <p className="text-xs" style={{ color: C.textDim }}>WhatsApp activo</p>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Phone Number ID</label>
+                                    <input type="text" value={configDraft.phoneNumberId || ''} onChange={e => setConfigDraft(p => ({ ...p, phoneNumberId: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all" placeholder="105xxxxxxx" />
                                 </div>
-                            </>
-                        ) : (
-                            <>
-                                <WifiOff size={20} style={{ color: C.red }} />
-                                <div>
-                                    <p className="text-sm font-bold" style={{ color: C.red }}>Desconectado</p>
-                                    <p className="text-xs" style={{ color: C.textDim }}>Escanea el QR para conectar</p>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                    <h4 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: C.textDim }}>Analítica (7 días)</h4>
-
-                    {/* Channel Distribution */}
-                    {analytics?.channels && (
-                        <div className="mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
-                           <h5 className="text-[10px] uppercase font-bold mb-2 flex items-center gap-1" style={{ color: C.textMuted }}><BarChart3 size={12}/> Uso por Canal</h5>
-                           <div className="grid grid-cols-2 gap-2">
-                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-green-400"><MessageSquare size={12}/> WA</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.whatsapp || 0}</span></div>
-                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-blue-400"><Facebook size={12}/> FB</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.messenger || 0}</span></div>
-                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-pink-400"><Instagram size={12}/> IG</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.instagram || 0}</span></div>
-                                <div className="text-xs flex justify-between"><span className="flex items-center gap-1 text-slate-400"><GlobeIcon size={12}/> Web</span> <span className="font-bold" style={{ color: C.text }}>{analytics.channels.web || 0}</span></div>
-                           </div>
-                        </div>
+                            </div>
+                        </motion.div>
                     )}
 
-                    <div className="mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
-                        <h5 className="text-[10px] uppercase font-bold mb-3 flex items-center gap-1" style={{ color: C.textMuted }}><Zap size={12}/> SLA / Latencia IA</h5>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between text-[10px] mb-1">
-                                    <span style={{ color: C.textDim }}>Capa 1: Gemini 2.0</span>
-                                    <span style={{ color: C.green }}>~850ms</span>
+                    {configDraft.provider === '360dialog' && (
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="pt-4 border-t border-white/5">
+                            <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4">360Dialog Pro Configuration</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">D360 API Key</label>
+                                    <input type="password" value={configDraft.d360ApiKey || ''} onChange={e => setConfigDraft(p => ({ ...p, d360ApiKey: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono" placeholder="Your 360Dialog API Key..." />
                                 </div>
-                                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-500 w-[20%]" />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] mb-1">
-                                    <span style={{ color: C.textDim }}>Capa 2: MiniMax 6.5s</span>
-                                    <span style={{ color: C.amber }}>~1.4s</span>
-                                </div>
-                                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-amber-500 w-[45%]" />
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Base URL (WABA)</label>
+                                    <select value={configDraft.d360Url || 'https://waba.360dialog.io'} onChange={e => setConfigDraft(p => ({ ...p, d360Url: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none appearance-none">
+                                        <option value="https://waba.360dialog.io">Standard (waba.360dialog.io)</option>
+                                        <option value="https://waba-v2.360dialog.io">v2 Performance (Global)</option>
+                                    </select>
                                 </div>
                             </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* SRE Hardening Status - NIVEL DIOS */}
+                <div className="pt-8 mt-4 border-t border-white/5">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+                            <Shield className="text-blue-400 animate-pulse" size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-white tracking-tight uppercase">SRE Hardening Status</h3>
+                            <p className="text-[9px] font-black text-blue-500 tracking-[0.3em]">NIVEL DIOS • PRODUCTION READY</p>
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {[
-                            { label: 'Mensajes recibidos', value: analytics?.messages_received || 0, icon: <MessageSquare size={14} />, color: C.indigo },
-                            { label: 'Respuestas IA', value: analytics?.ai_responses || 0, icon: <Sparkles size={14} />, color: '#8b5cf6' },
-                            { label: 'Leads detectados', value: analytics?.leads_detected || 0, icon: <Star size={14} />, color: C.amber },
-                            { label: 'Derivaciones humanas', value: analytics?.human_handoffs || 0, icon: <Users size={14} />, color: C.green },
-                        ].map(stat => (
-                            <div key={stat.label} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1.5 rounded-lg" style={{ background: `${stat.color}18`, color: stat.color }}>{stat.icon}</div>
-                                    <span className="text-xs" style={{ color: C.textMuted }}>{stat.label}</span>
+                            { label: 'CRM Pro', status: 'Hardened', icon: Target, color: 'text-emerald-400' },
+                            { label: 'AI Cascade', status: 'Active', icon: Zap, color: 'text-amber-400' },
+                            { label: 'Multi-Engine', status: 'Synced', icon: RefreshCw, color: 'text-blue-400' },
+                            { label: 'Memory Grid', status: 'Secure', icon: Bot, color: 'text-purple-400' }
+                        ].map((item, i) => (
+                            <div key={i} className="p-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <item.icon size={12} className={item.color} />
+                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">{item.label}</span>
                                 </div>
-                                <span className="font-bold text-sm" style={{ color: C.text }}>{stat.value}</span>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-white">{item.status}</span>
+                                    <div className={`w-1 h-1 rounded-full ${item.color.replace('text', 'bg')} animate-pulse`} />
+                                </div>
                             </div>
                         ))}
                     </div>
+
+                    <button onClick={onSave}
+                        className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:scale-[1.02] active:scale-[0.98] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-2xl shadow-blue-600/30">
+                        Deploy Final Configuration
+                    </button>
+                    <p className="text-center text-[8px] text-slate-600 mt-3 font-mono">ALEX IO SRE CORE • V5.1.2-GOLD • LATENCY: 42MS</p>
+                </div>
+            </div>
+
+            {/* Sidebar Stats */}
+            <div className="space-y-6">
+                <div className="rounded-2xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4">Neural Health</h4>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-400">Estado</span>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                                <span className={`text-xs font-bold ${connectionStatus === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {connectionStatus === 'online' ? 'ONLINE' : 'OFFLINE'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="w-full h-1 bg-slate-800 rounded-full mt-2 overflow-hidden">
+                            <div className="h-full bg-indigo-500" style={{ width: '85%' }} />
+                        </div>
+                    </div>
                 </div>
 
-                {/* Compliance Badge */}
-                <div className="rounded-xl p-4 text-center" style={{ background: C.indigoDim, border: `1px solid ${C.indigo}33` }}>
-                    <Shield size={20} className="mx-auto mb-2" style={{ color: C.indigo }} />
-                    <p className="text-xs font-bold" style={{ color: C.indigo }}>GDPR Compliant</p>
-                    <p className="text-[10px] mt-1" style={{ color: C.textDim }}>Datos encriptados end-to-end</p>
+                <div className="rounded-2xl p-6 bg-gradient-to-br from-indigo-600/20 to-transparent border border-indigo-500/20">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-4">Enterprise Tools</h4>
+                    <div className="space-y-2">
+                        <button onClick={() => setPhase('enterprise_wizard')} className="w-full p-3 rounded-xl bg-white/5 border border-white/5 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all text-left flex items-center justify-between">
+                            Ajustes Avanzados <ChevronRight size={14} />
+                        </button>
+                        <button onClick={() => setShowPromptWizard(true)} className="w-full p-3 rounded-xl bg-white/5 border border-white/5 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all text-left flex items-center justify-between">
+                            Regenerar Kernel <RotateCcw size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 
-    // ── RENDER ─────────────────────────────────────────────────
     return (
-        <div className="h-full overflow-y-auto pr-2 pb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {phase === 'enterprise_wizard' && renderEnterpriseWizard()}
+        <div className="h-full max-w-6xl mx-auto px-4 py-8 relative">
+            {phase === 'select' && renderSelect()}
+            {phase === 'advanced' && renderAdvanced()}
+            
+            {phase === 'enterprise_wizard' && (
+                <EnterpriseWizard
+                    config={{
+                        botName: configDraft.name,
+                        systemPrompt: configDraft.customPrompt,
+                        voiceEnabled: configDraft.voiceEnabled,
+                        voice: configDraft.voice,
+                        maxWords: configDraft.maxWords,
+                        maxMessages: configDraft.maxMessages,
+                        discordToken: configDraft.discordToken,
+                        tiktokAccessToken: configDraft.tiktokAccessToken,
+                        manychatToken: configDraft.manychatToken
+                    }}
+                    onSave={(data) => {
+                        setConfigDraft(prev => ({
+                            ...prev,
+                            name: data.botName,
+                            customPrompt: data.systemPrompt,
+                            voiceEnabled: data.voiceEnabled,
+                            voice: data.voice,
+                            maxWords: data.maxWords,
+                            maxMessages: data.maxMessages,
+                            discordToken: data.discordToken,
+                            tiktokAccessToken: data.tiktokAccessToken,
+                            manychatToken: data.manychatToken
+                        }));
+                        setPhase('advanced');
+                        onSave();
+                    }}
+                    onCancel={() => setPhase('advanced')}
+                />
+            )}
+
             {phase === 'meta_wizard' && (
                 <MetaWizard 
                     onComplete={(data) => {
@@ -644,8 +412,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                             accessToken: data.accessToken,
                             phoneNumberId: data.phoneNumberId,
                             wabaId: data.wabaId,
-                            manychatToken: data.verifyToken, // Reuse manychatToken as verifyToken for simplicity in UI storage
-                            external_mapping_key: data.phoneNumberId
+                            manychatToken: data.verifyToken
                         }));
                         setPhase('advanced');
                         onSave();
@@ -653,8 +420,34 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     onCancel={() => setPhase('advanced')}
                 />
             )}
-            {phase === 'advanced' && renderAdvanced()}
-            <FloatingSupport />
+
+            {showPromptWizard && (
+                <PromptWizard 
+                    instanceName={configDraft.name || selected?.company_name}
+                    onClose={() => setShowPromptWizard(false)}
+                    onPromptGenerated={(prompt) => {
+                        setConfigDraft(p => ({ ...p, customPrompt: prompt }));
+                        setPhase('advanced');
+                        setShowPromptWizard(false);
+                    }}
+                />
+            )}
+
+            {showCopilot && (
+                <PromptCopilot 
+                    currentPrompt={configDraft.customPrompt}
+                    onClose={() => setShowCopilot(false)}
+                    onPromptImproved={(prompt) => {
+                        setConfigDraft(p => ({ ...p, customPrompt: prompt }));
+                        setShowCopilot(false);
+                    }}
+                />
+            )}
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                .text-glow { text-shadow: 0 0 20px rgba(99,102,241,0.4); }
+            `}} />
         </div>
     );
 }
+

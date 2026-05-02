@@ -410,6 +410,7 @@ function chooseModel(inputLength) {
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
+    const provider = botConfig.provider || 'baileys';
     const normalizedUserMsg = String(message || '').trim().toLowerCase();
     
     // --- LAYER 1: SYSTEM CORE (Identity) ---
@@ -661,6 +662,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         text: responseText,
         trace: { 
             model: usedModel, 
+            provider: provider,
             timestamp: new Date().toISOString(), 
             score: finalScore, 
             leadScore,
