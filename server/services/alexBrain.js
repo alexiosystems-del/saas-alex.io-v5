@@ -410,6 +410,7 @@ function chooseModel(inputLength) {
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
+    const normalizedUserMsg = String(message || '').trim().toLowerCase();
     
     // --- LAYER 1: SYSTEM CORE (Identity) ---
     let systemCore = `Actúa como ALEX IO, un agente de cierre de ventas por chat altamente efectivo.`;
@@ -530,9 +531,9 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     }
 
     // --- QUOTA CHECK ---
-    const quotaStatus = await checkQuota(tenantId);
+    const quotaStatus = await checkQuota(botConfig.tenantId || 'default');
     if (!quotaStatus.allowed) {
-        console.warn(`🛑 [${botName}] Quota BLOQUEADA para ${tenantId}.`);
+        console.warn(`🛑 [${botName}] Quota BLOQUEADA para ${botConfig.tenantId || 'default'}.`);
         return {
             text: "He alcanzado el límite de mi capacidad operativa mensual bajo tu plan actual. Por favor, contacta con soporte o mejora tu plan para continuar.",
             trace: { model: 'quota_blocked', timestamp: new Date().toISOString() },
