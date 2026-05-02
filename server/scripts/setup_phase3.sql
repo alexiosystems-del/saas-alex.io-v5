@@ -1,7 +1,12 @@
--- ALEX IO Phase 3: Infrastructure Setup
+-- ALEX IO Phase 3: Infrastructure Setup (CLEAN SLATE)
+-- WARNING: This will drop existing tables to ensure a clean Enterprise V5 state.
+
+DROP TABLE IF EXISTS analytics CASCADE;
+DROP TABLE IF EXISTS leads CASCADE;
+DROP TABLE IF EXISTS memory CASCADE;
 
 -- 1. Memory Table
-CREATE TABLE IF NOT EXISTS memory (
+CREATE TABLE memory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id TEXT NOT NULL,
     user_phone TEXT NOT NULL,
@@ -10,8 +15,8 @@ CREATE TABLE IF NOT EXISTS memory (
     UNIQUE(business_id, user_phone)
 );
 
--- 2. Leads Table (Enhanced)
-CREATE TABLE IF NOT EXISTS leads (
+-- 2. Leads Table
+CREATE TABLE leads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id TEXT NOT NULL,
     phone TEXT NOT NULL,
@@ -23,7 +28,7 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 
 -- 3. Analytics Table
-CREATE TABLE IF NOT EXISTS analytics (
+CREATE TABLE analytics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id TEXT NOT NULL,
     latency FLOAT,
@@ -33,7 +38,7 @@ CREATE TABLE IF NOT EXISTS analytics (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indices for performance
-CREATE INDEX IF NOT EXISTS idx_memory_business_phone ON memory(business_id, user_phone);
-CREATE INDEX IF NOT EXISTS idx_leads_business_phone ON leads(business_id, phone);
-CREATE INDEX IF NOT EXISTS idx_analytics_business_time ON analytics(business_id, created_at);
+-- 4. Indices
+CREATE INDEX idx_memory_business_phone ON memory(business_id, user_phone);
+CREATE INDEX idx_leads_business_phone ON leads(business_id, phone);
+CREATE INDEX idx_analytics_business_time ON analytics(business_id, created_at);

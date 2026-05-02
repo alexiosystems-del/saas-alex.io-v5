@@ -14,6 +14,9 @@ const { withTrace } = require('./observability');
 const { saveMemory, getMemory } = require('./memoryService');
 const { upsertLead } = require('./crmService');
 const { logAnalytics } = require('./analyticsService');
+const { scoreLead } = require('./scoringService');
+const { salesAgent, optimizerAgent, expansionAgent } = require('./agentService');
+const { triggerAutomation } = require('./automationService');
 
 /**
  * Get Semantic Embedding (1536d)
@@ -539,6 +542,16 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     const preferredModel = chooseModel(message.length);
     console.log(`💰 [CostOptimizer] Sugerencia inicial: ${preferredModel}`);
 
+    // --- PHASE 4: LEAD SCORING ---
+    const leadScore = scoreLead(message);
+    console.log(`🎯 [Scoring] Lead Score: ${leadScore.toFixed(2)}`);
+
+    // --- PHASE 5: AUTONOMOUS AGENT (Strategic Analysis) ---
+    const agentDecision = await salesAgent({ phone: customerId, score: leadScore });
+    if (agentDecision.action === 'offer_premium') {
+        systemPrompt += `\n\nESTRATEGIA AGENTE: El usuario es un Lead Calificado. PRIORIZA el cierre Premium y el link: ${ctaLink}`;
+    }
+
     // --- LAYER 7: CASCADE BRAIN (Enterprise Phase 3) ---
     const cascadeDefinitions = {
         gemini: { id: 'gemini', call: async () => {
@@ -595,11 +608,11 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         usedModel = 'safeguard';
     }
 
-    // --- PHASE 3: POST-RESPONSE AUTOMATION (Memory, CRM, Analytics) ---
+    // --- PHASE 3/4/5: POST-RESPONSE AUTOMATION (Memory, CRM, Analytics, Automations) ---
     const latency = Date.now() - start;
     
     // Fire-and-forget background tasks
-    saveMemory(business_id, customerId, { lastMessage: message }).catch(() => {});
+    saveMemory(business_id, customerId, { lastMessage: message, score: leadScore }).catch(() => {});
     upsertLead(business_id, customerId, message).catch(() => {});
     logAnalytics({
         business_id,
@@ -609,9 +622,18 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         cost: usedModel === 'gpt' ? 0.0005 : 0.0001 // Estimated
     }).catch(() => {});
 
+    // Phase 4: Automation Trigger
+    if (leadScore > 0.7) triggerAutomation('high_intent', { phone: customerId, botConfig });
+
     const result = {
         text: responseText,
-        trace: { model: usedModel, timestamp: new Date().toISOString(), score: finalScore, latency },
+        trace: { 
+            model: usedModel, 
+            timestamp: new Date().toISOString(), 
+            score: finalScore, 
+            leadScore,
+            latency 
+        },
         botPaused: false
     };
 
