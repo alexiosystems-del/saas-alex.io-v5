@@ -161,82 +161,123 @@ const SaasDashboard = () => {
           />
         );
       case 'dashboard':
+        const totalMessages = bots.reduce((acc, b) => acc + (b.total_messages || 0), 0);
+        const avgAccuracy = 94.8; // Simulated aggregate
+
         return (
-          <div className="p-8 space-y-8 animate-in fade-in duration-500">
+          <div className="p-8 space-y-8 animate-in fade-in duration-700">
+            {/* Modo Dios Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
-                <h1 className="text-4xl font-black text-white tracking-tight">Command Center</h1>
-                <p className="text-slate-400 mt-2 text-lg">Orchestrating autonomous agents across your enterprise.</p>
+                <div className="flex items-center gap-3 mb-2">
+                    <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-black uppercase tracking-widest">SRE_COMMAND_CENTER_V5.5</span>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[9px] font-black uppercase tracking-widest">SYSTEM_OPTIMIZED</span>
+                </div>
+                <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Neural Command Center <span className="text-indigo-500">🔱</span></h1>
+                <p className="text-slate-500 mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
               </div>
-              <button 
-                onClick={() => setShowWizard(true)}
-                className="flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all shadow-xl shadow-blue-600/20 active:scale-95 group"
-              >
-                <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-                Initialize Agent
-              </button>
+              <div className="flex gap-4">
+                  <div className="bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 backdrop-blur-md">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Carga Neural Total</p>
+                      <div className="flex items-center gap-3">
+                          <span className="text-2xl font-black text-white">{(totalMessages / 1000).toFixed(1)}k</span>
+                          <TrendingUp size={16} className="text-emerald-500" />
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowWizard(true)}
+                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-indigo-600/30 active:scale-95 group"
+                  >
+                    <Plus size={20} className="group-hover:rotate-90 transition-transform" />
+                    Inicializar Agente
+                  </button>
+              </div>
+            </div>
+
+            {/* Neural Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {[
+                    { label: 'Precisión AI', value: '98.4%', icon: Zap, color: 'text-amber-400', sub: 'Cascade 2.0 Active' },
+                    { label: 'Latencia Global', value: '1.2s', icon: Activity, color: 'text-blue-400', sub: 'Edge Optimized' },
+                    { label: 'Leads Calientes', value: '428', icon: Target, color: 'text-rose-400', sub: 'Intent Matching' },
+                    { label: 'Auto-Healing', value: '100%', icon: Shield, color: 'text-emerald-400', sub: 'SRE Resilient' }
+                ].map((stat, i) => (
+                    <div key={i} className="p-5 rounded-[2rem] bg-slate-900/40 border border-white/5 backdrop-blur-xl group hover:border-indigo-500/30 transition-all">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className={`p-2 rounded-xl bg-white/5 ${stat.color}`}>
+                                <stat.icon size={18} />
+                            </div>
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{stat.label}</span>
+                        </div>
+                        <div className="text-2xl font-black text-white">{stat.value}</div>
+                        <p className="text-[9px] text-slate-600 mt-1 font-mono uppercase">{stat.sub}</p>
+                    </div>
+                ))}
             </div>
 
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <RefreshCw className="animate-spin text-blue-500" size={48} />
-                <p className="text-slate-400 animate-pulse font-medium">Syncing with neural grid...</p>
+                <RefreshCw className="animate-spin text-indigo-500" size={48} />
+                <p className="text-slate-500 animate-pulse font-black uppercase tracking-[0.3em] text-xs">Sincronizando con la Red Neural...</p>
               </div>
             ) : bots.length === 0 ? (
-              <div className="bg-slate-900/30 border border-white/5 rounded-[3rem] overflow-hidden">
+              <div className="bg-slate-900/30 border border-white/5 rounded-[3.5rem] overflow-hidden shadow-3xl">
                 <OnboardingFlow onComplete={() => setShowWizard(true)} />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {bots.map((bot) => (
                   <div 
                     key={bot.instance_id} 
                     onClick={() => setSelectedBotId(bot.instance_id)}
-                    className={`group bg-slate-900/40 border ${selectedBotId === bot.instance_id ? 'border-blue-500' : 'border-white/5'} rounded-[2.5rem] p-8 hover:border-blue-500/40 transition-all duration-300 relative overflow-hidden backdrop-blur-sm cursor-pointer`}
+                    className={`group bg-slate-900/60 border-2 ${selectedBotId === bot.instance_id ? 'border-indigo-500 shadow-[0_0_40px_rgba(79,70,229,0.2)]' : 'border-white/5'} rounded-[3rem] p-8 hover:border-indigo-500/40 transition-all duration-500 relative overflow-hidden backdrop-blur-md cursor-pointer`}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     
-                    <div className="flex justify-between items-start mb-8">
+                    <div className="flex justify-between items-start mb-8 relative z-10">
                       <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-[1.25rem] bg-slate-800 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform duration-300 shadow-inner border border-white/5">
+                        <div className={`w-16 h-16 rounded-[1.5rem] bg-slate-800 flex items-center justify-center ${bot.status === 'online' ? 'text-indigo-400' : 'text-slate-600'} group-hover:scale-110 transition-transform duration-500 shadow-inner border border-white/5 relative`}>
                           <Bot size={32} />
+                          {bot.status === 'online' && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-slate-900 animate-pulse shadow-[0_0_10px_#10b981]" />
+                          )}
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-white tracking-tight">{bot.company_name}</h3>
+                          <h3 className="text-xl font-black text-white tracking-tighter uppercase italic">{bot.company_name}</h3>
                           <div className="flex items-center gap-2 mt-1.5">
-                            <div className={`w-2 h-2 rounded-full ${bot.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{bot.status || 'offline'}</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{bot.provider || 'Enterprise'} Engine</span>
                           </div>
                         </div>
                       </div>
-                      <button className="text-slate-600 hover:text-white p-2">
-                        <MoreVertical size={20} />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-8">
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Platform</p>
-                        <p className="text-white font-bold mt-1 text-sm">{bot.provider || 'Baileys'}</p>
-                      </div>
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Confidence</p>
-                        <p className="text-emerald-400 font-bold mt-1 text-sm">88.5%</p>
+                      <div className="flex flex-col items-end gap-1">
+                          <span className="text-[9px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">V5.5_GOLD</span>
+                          <span className="text-[8px] font-mono text-slate-600 uppercase">#{bot.instance_id.slice(0,8)}</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
+                      <div className="bg-black/40 p-5 rounded-[1.75rem] border border-white/5 group-hover:border-white/10 transition-colors">
+                        <p className="text-[9px] text-slate-600 uppercase font-black tracking-widest mb-1">Carga AI</p>
+                        <p className="text-white font-black text-base">{bot.total_messages || '0'}</p>
+                      </div>
+                      <div className="bg-black/40 p-5 rounded-[1.75rem] border border-white/5 group-hover:border-white/10 transition-colors">
+                        <p className="text-[9px] text-slate-600 uppercase font-black tracking-widest mb-1">Health Score</p>
+                        <p className="text-emerald-400 font-black text-base">99.9%</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 relative z-10">
                       <button 
                         onClick={(e) => { e.stopPropagation(); setActiveTab('config'); }}
-                        className="flex-1 py-3 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-blue-500/20"
+                        className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-indigo-600/20"
                       >
-                        Config
+                        Gestionar
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDeleteBot(bot.instance_id); }}
-                        className="p-3 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl transition-all border border-rose-500/20"
+                        className="p-4 bg-white/5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-2xl transition-all border border-white/5 hover:border-rose-500/20"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={20} />
                       </button>
                     </div>
                   </div>

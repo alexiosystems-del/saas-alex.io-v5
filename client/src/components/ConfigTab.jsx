@@ -290,21 +290,14 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     )}
                 </AnimatePresence>
 
-                {/* SRE Hardening Status - NIVEL DIOS */}
-                <div className="pt-8 mt-4 border-t border-white/5">
+                {/* MODO DIOS: SRE Hardening Status */}
+                <div className="bg-slate-900/60 border-2 border-indigo-500/20 rounded-[2.5rem] p-8 backdrop-blur-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
+                      <Shield size={120} className="text-indigo-400" />
+                  </div>
+                  
+                  <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
-                            <Shield className="text-blue-400 animate-pulse" size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-white tracking-tight uppercase">SRE Hardening Status</h3>
-                            <p className="text-[9px] font-black text-blue-500 tracking-[0.3em]">NIVEL DIOS • PRODUCTION READY</p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                            { label: 'CRM Pro', status: 'Hardened', icon: Target, color: 'text-emerald-400' },
                             { label: 'AI Cascade', status: 'Active', icon: Zap, color: 'text-amber-400' },
                             { label: 'Multi-Engine', status: 'Synced', icon: RefreshCw, color: 'text-blue-400' },
                             { label: 'Memory Grid', status: 'Secure', icon: Bot, color: 'text-purple-400' }

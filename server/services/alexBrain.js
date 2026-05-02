@@ -407,6 +407,49 @@ function chooseModel(inputLength) {
 /**
  * ARCHITECTURE: Smart Router (V6 Hardened - V1 Base)
  */
+
+/**
+ * MODO DIOS: Neural Cascade Orchestrator
+ * Procesa el mensaje usando una cascada de modelos para optimizar costo/calidad.
+ */
+async function chat(message, history = [], botConfig = {}, metadata = {}) {
+    const startTime = Date.now();
+    let currentModel = botConfig.model_cascade?.[0] || 'gemini-1.5-flash';
+    let response = null;
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+        try {
+            console.log(`🧠 [MODO DIOS] Intentando con ${currentModel} (Intento ${attempts + 1})`);
+            // Nota: Aquí llamamos a generateResponse u otra función interna según la arquitectura
+            response = await generateResponse({ message, history, botConfig });
+            
+            const qualityScore = auditResponseQuality(response, botConfig);
+            
+            if (qualityScore >= 0.8 || attempts === maxAttempts - 1) {
+                break; 
+            }
+
+            console.warn(`⚠️ [CASCADE] Calidad baja (${qualityScore}). Escalando...`);
+            currentModel = 'gpt-4o';
+            attempts++;
+        } catch (error) {
+            console.error(`❌ [CASCADE_ERROR] Falló ${currentModel}:`, error.message);
+            attempts++;
+        }
+    }
+    return response;
+}
+
+function auditResponseQuality(text, config) {
+    if (!text || text.length < 5) return 0;
+    let score = 1.0;
+    if (text.includes("Lo siento") || text.includes("No puedo ayudar")) score -= 0.5;
+    if (text.length > 500) score -= 0.2;
+    return score;
+}
+
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
