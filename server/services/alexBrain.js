@@ -11,6 +11,9 @@ const { sendPagerAlert } = require('../utils/pager');
 const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
+const { saveMemory, getMemory } = require('./memoryService');
+const { upsertLead } = require('./crmService');
+const { logAnalytics } = require('./analyticsService');
 
 /**
  * Get Semantic Embedding (1536d)
@@ -351,8 +354,53 @@ function evaluateResponse(text) {
 }
 
 /**
+ * ORCHESTRATOR: Confidence AI (Hardened V1 - Phase 3)
+ * Use a stronger model (GPT-4o) to evaluate the response from the primary model.
+ */
+async function evaluateAI(input, output) {
+  if (!OPENAI_KEY) return { score: 0.5, decision: 'accept' };
+  
+  try {
+    const prompt = `
+      Evaluate this AI response for an enterprise sales bot:
+      
+      User Message: "${input}"
+      AI Response: "${output}"
+      
+      Score from 0 to 1 based on clarity, relevance, and correctness. 
+      If the response is a generic "I don't know" or has errors, score < 0.5.
+      
+      Return ONLY a JSON object:
+      { "score": number, "decision": "accept" | "retry" }
+    `;
+
+    const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: 'You are a quality assurance auditor for AI sales agents. Output JSON only.' }, { role: 'user', content: prompt }],
+        response_format: { type: 'json_object' }
+    }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 5000 });
+
+    const result = JSON.parse(res.data.choices[0].message.content);
+    console.log(`🛡️ [ConfidenceAI] GPT Eval: ${result.score} -> ${result.decision}`);
+    return result;
+  } catch (err) {
+    console.error('⚠️ [ConfidenceAI] Error during evaluation:', err.message);
+    return { score: 0.5, decision: 'accept' }; // Fail-safe
+  }
+}
+
+/**
+ * ORCHESTRATOR: Cost Optimizer (Phase 3)
+ * Selects the starting model based on input complexity to save margin.
+ */
+function chooseModel(inputLength) {
+  if (inputLength < 50) return 'gemini';
+  if (inputLength < 200) return 'minimax';
+  return 'gpt';
+}
+
+/**
  * ARCHITECTURE: Smart Router (V6 Hardened - V1 Base)
- * Classifies intent -> Selects optimal model -> Enforces Budget -> Cascading Models with Confidence
  */
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
@@ -468,8 +516,15 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     systemPrompt += `\n\nREGLA ESTRICTA: Tu respuesta DEBE tener como MÁXIMO ${maxWords} palabras. Sé muy conciso y directo.`;
     systemPrompt += `\n\nREGLA DE IDIOMA: Detecta el idioma del usuario y responde en ese idioma. Idioma detectado para este turno: ${detectedLanguage}.`;
 
+    // --- PHASE 3: MEMORY RETRIEVAL ---
+    const start = Date.now();
+    const business_id = botConfig.business_id || botConfig.tenantId || 'default';
+    const memory = await getMemory(business_id, customerId);
+    if (memory.lastMessage) {
+        systemPrompt += `\n\n--- MEMORIA RECIENTE ---\nÚltimo mensaje del usuario: ${memory.lastMessage}`;
+    }
+
     // --- QUOTA CHECK ---
-    const tenantId = botConfig.tenantId || 'default';
     const quotaStatus = await checkQuota(tenantId);
     if (!quotaStatus.allowed) {
         console.warn(`🛑 [${botName}] Quota BLOQUEADA para ${tenantId}.`);
@@ -480,16 +535,20 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         };
     }
 
-    // --- LAYER 7: CASCADE BRAIN (Enterprise Hardened V1) ---
-    const cascadeModels = [
-        { id: 'gemini', call: async () => {
+    // --- PHASE 3: COST OPTIMIZER (Initial Model Selection) ---
+    const preferredModel = chooseModel(message.length);
+    console.log(`💰 [CostOptimizer] Sugerencia inicial: ${preferredModel}`);
+
+    // --- LAYER 7: CASCADE BRAIN (Enterprise Phase 3) ---
+    const cascadeDefinitions = {
+        gemini: { id: 'gemini', call: async () => {
             const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
                 contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
                 generationConfig: { maxOutputTokens: maxWords * 6 }
             }, { timeout: 5000 });
             return res.data.candidates?.[0]?.content?.parts?.[0]?.text;
         }},
-        { id: 'gpt', call: async () => {
+        gpt: { id: 'gpt', call: async () => {
             const res = await axios.post('https://api.openai.com/v1/chat/completions', {
                 model: 'gpt-4o-mini',
                 messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
@@ -497,22 +556,34 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
             }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
             return res.data.choices[0].message.content;
         }},
-        { id: 'minimax', call: async () => {
+        minimax: { id: 'minimax', call: async () => {
             return await callMiniMax(systemPrompt, message, maxWords);
         }}
-    ];
+    };
+
+    // Reorder cascade based on cost optimizer
+    const modelOrder = [preferredModel, ...(['gemini', 'gpt', 'minimax'].filter(m => m !== preferredModel))];
+    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]);
+
+    let responseText = '';
+    let usedModel = '';
+    let finalScore = 0;
 
     for (const model of cascadeModels) {
         try {
             console.log(`🧠 [CASCADE] Intentando con ${model.id}...`);
             const text = await model.call();
-            const score = evaluateResponse(text);
-            console.log(`📊 [CONFIDENCE] Score para ${model.id}: ${score.toFixed(2)}`);
+            
+            // --- PHASE 3: CONFIDENCE AI (REAL EVALUATION) ---
+            const evalResult = await evaluateAI(message, text);
+            finalScore = evalResult.score;
 
-            if (score >= 0.7 || model.id === 'minimax') {
+            if (evalResult.decision === 'accept' || model.id === 'minimax') {
                 responseText = text;
                 usedModel = model.id;
                 break;
+            } else {
+                console.warn(`🔄 [ConfidenceAI] Decisión: RETRY. Score: ${evalResult.score}`);
             }
         } catch (err) {
             console.warn(`⚠️ [CASCADE] Error en ${model.id}:`, err.message);
@@ -524,9 +595,23 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         usedModel = 'safeguard';
     }
 
+    // --- PHASE 3: POST-RESPONSE AUTOMATION (Memory, CRM, Analytics) ---
+    const latency = Date.now() - start;
+    
+    // Fire-and-forget background tasks
+    saveMemory(business_id, customerId, { lastMessage: message }).catch(() => {});
+    upsertLead(business_id, customerId, message).catch(() => {});
+    logAnalytics({
+        business_id,
+        latency,
+        score: finalScore,
+        model: usedModel,
+        cost: usedModel === 'gpt' ? 0.0005 : 0.0001 // Estimated
+    }).catch(() => {});
+
     const result = {
         text: responseText,
-        trace: { model: usedModel, timestamp: new Date().toISOString() },
+        trace: { model: usedModel, timestamp: new Date().toISOString(), score: finalScore, latency },
         botPaused: false
     };
 
