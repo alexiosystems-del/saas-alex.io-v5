@@ -398,7 +398,9 @@ async function evaluateAI(input, output) {
  */
 function chooseModel(inputLength) {
   if (inputLength < 50) return 'gemini';
-  if (inputLength < 200) return 'minimax';
+  if (inputLength < 100) return 'claude';
+  if (inputLength < 200) return 'deepseek';
+  if (inputLength < 400) return 'minimax';
   return 'gpt';
 }
 
@@ -569,13 +571,34 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
             }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
             return res.data.choices[0].message.content;
         }},
+        claude: { id: 'claude', call: async () => {
+            const res = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: 'claude-3-haiku-20240307',
+                max_tokens: maxWords * 6,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: message }]
+            }, { headers: { 
+                'x-api-key': ANTHROPIC_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+            }, timeout: 8000 });
+            return res.data.content[0].text;
+        }},
+        deepseek: { id: 'deepseek', call: async () => {
+            const res = await axios.post('https://api.deepseek.com/chat/completions', {
+                model: 'deepseek-chat',
+                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
+                max_tokens: maxWords * 6
+            }, { headers: { Authorization: `Bearer ${DEEPSEEK_KEY}` }, timeout: 8000 });
+            return res.data.choices[0].message.content;
+        }},
         minimax: { id: 'minimax', call: async () => {
             return await callMiniMax(systemPrompt, message, maxWords);
         }}
     };
 
     // Reorder cascade based on cost optimizer
-    const modelOrder = [preferredModel, ...(['gemini', 'gpt', 'minimax'].filter(m => m !== preferredModel))];
+    const modelOrder = [preferredModel, ...(['gemini', 'gpt', 'claude', 'deepseek', 'minimax'].filter(m => m !== preferredModel))];
     const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]);
 
     let responseText = '';

@@ -22,10 +22,11 @@ const SettingsTab = () => {
   const [showKeys, setShowKeys] = useState({});
   const [poolStatus, setPoolStatus] = useState([]);
   const [config, setConfig] = useState({
-    // API Keys
     openai_key: '',
     gemini_key: '',
     minimax_key: '',
+    anthropic_key: '',
+    deepseek_key: '',
     stripe_key: '',
     meta_token: '',
     // General
@@ -129,6 +130,8 @@ const SettingsTab = () => {
       <Section title="API Keys" icon={Key}>
         <KeyInput label="OpenAI API Key" configKey="openai_key" placeholder="sk-..." />
         <KeyInput label="Gemini API Key" configKey="gemini_key" placeholder="AIza..." />
+        <KeyInput label="Anthropic API Key (Claude)" configKey="anthropic_key" placeholder="sk-ant-..." />
+        <KeyInput label="DeepSeek API Key" configKey="deepseek_key" placeholder="sk-..." />
         <KeyInput label="MiniMax API Key" configKey="minimax_key" placeholder="eyJ..." />
         <KeyInput label="Stripe Secret Key" configKey="stripe_key" placeholder="sk_live_..." />
         <KeyInput label="Meta / WhatsApp Token" configKey="meta_token" placeholder="EAAG..." />
