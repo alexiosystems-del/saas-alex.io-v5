@@ -24,6 +24,7 @@ import ConfigTab from './ConfigTab';
 import EnterpriseWizard from './EnterpriseWizard';
 import OnboardingFlow from './OnboardingFlow';
 import CrmProTab from './CrmProTab';
+import SettingsTab from './SettingsTab';
 import { supabase } from '../supabaseClient';
 
 const SaasDashboard = () => {
@@ -83,6 +84,8 @@ const SaasDashboard = () => {
         return <CrmProTab />;
       case 'billing':
         return <BillingTab />;
+      case 'settings':
+        return <SettingsTab />;
       case 'dashboard':
         return (
           <div className="p-8 space-y-8 animate-in fade-in duration-500">
