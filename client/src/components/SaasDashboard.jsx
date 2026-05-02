@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Trash2,
   Send,
-  Cloud
+  Cloud,
+  Book
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
@@ -31,6 +32,8 @@ import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
 import { supabase } from '../supabaseClient';
 
+import KnowledgeTab from './KnowledgeTab';
+
 const SaasDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showWizard, setShowWizard] = useState(false);
@@ -40,14 +43,14 @@ const SaasDashboard = () => {
   const [selectedBotId, setSelectedBotId] = useState(null);
 
   const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'livechat', label: 'Live Chat', icon: MessageSquare },
-    { id: 'intelligence', label: 'Intelligence', icon: BarChart3 },
-    { id: 'leads', label: 'CRM Leads', icon: Target },
-    { id: 'campaigns', label: 'Campaña Broadcast', icon: Send },
-    { id: 'config', label: 'Conectores (Cloud/Baileys)', icon: Cloud },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+    { id: 'livechat', label: 'Live Chat (Gold)', icon: MessageSquare },
+    { id: 'knowledge', label: 'Knowledge (RAG)', icon: Book },
+    { id: 'leads', label: 'CRM PRO Pipeline', icon: Target },
+    { id: 'campaigns', label: 'Growth Campaigns', icon: Send },
+    { id: 'intelligence', label: 'Analytics SRE', icon: BarChart3 },
+    { id: 'config', label: 'Connectors', icon: Cloud },
+    { id: 'billing', label: 'Premium Billing', icon: CreditCard },
   ];
 
   useEffect(() => {
@@ -90,6 +93,8 @@ const SaasDashboard = () => {
     switch (activeTab) {
       case 'intelligence':
         return <EnterpriseAnalytics />;
+      case 'knowledge':
+        return <KnowledgeTab />;
       case 'leads':
         return <CrmProTab />;
       case 'billing':

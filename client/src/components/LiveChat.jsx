@@ -231,26 +231,34 @@ export default function LiveChat({ instanceId, tenantId }) {
                 ) : (
                     <>
                         <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center">
-                            <span className="font-mono font-bold text-slate-200 flex items-center gap-2">
-                                {getPlatformIcon(messages[0]?.content || '', 18)}
-                                {leadsMeta[selectedLead]?.name !== 'desconocido' && leadsMeta[selectedLead]?.name 
-                                    ? leadsMeta[selectedLead].name 
-                                    : selectedLead.split('@')[0]}
-                            </span>
-
-                            {leadsMeta[selectedLead]?.summary && (
-                                <div className="hidden lg:flex text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 max-w-[200px] truncate" title={leadsMeta[selectedLead].summary}>
-                                    🤖 IA: {leadsMeta[selectedLead].summary}
+                            <div className="flex items-center gap-4">
+                                <span className="font-mono font-bold text-slate-200 flex items-center gap-2">
+                                    {getPlatformIcon(messages[0]?.content || '', 18)}
+                                    {leadsMeta[selectedLead]?.name !== 'desconocido' && leadsMeta[selectedLead]?.name 
+                                        ? leadsMeta[selectedLead].name 
+                                        : selectedLead.split('@')[0]}
+                                </span>
+                                <div className="flex items-center gap-2 bg-black/40 rounded-full px-3 py-1 border border-white/5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Live Translation Active</span>
                                 </div>
-                            )}
+                            </div>
 
-                            <button
-                                onClick={togglePauseBot}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${isPaused ? 'bg-red-900/40 text-red-400 border border-red-800' : 'bg-emerald-900/40 text-emerald-400 border border-emerald-800'}`}
-                            >
-                                {isPaused ? <ZapOff size={14} /> : <Zap size={14} />}
-                                {isPaused ? 'Bot Pausado' : 'IA Activa'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {leadsMeta[selectedLead]?.summary && (
+                                    <div className="hidden lg:flex text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 max-w-[200px] truncate" title={leadsMeta[selectedLead].summary}>
+                                        🤖 IA: {leadsMeta[selectedLead].summary}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={togglePauseBot}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPaused ? 'bg-red-900/40 text-red-400 border border-red-500/30' : 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/30'}`}
+                                >
+                                    {isPaused ? <ZapOff size={14} /> : <Zap size={14} />}
+                                    {isPaused ? 'Halt IA' : 'IA Listening'}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">

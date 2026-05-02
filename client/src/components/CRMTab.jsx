@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, TrendingUp, Users, Search, Filter, MessageSquare, Phone, Calendar, MoreVertical, Star, ChevronRight, ArrowUpRight, ArrowDownRight, UserPlus, Zap } from 'lucide-react';
+import { Target, TrendingUp, Users, Search, Filter, MessageSquare, Phone, Calendar, MoreVertical, Star, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const STAGES = [
   { id: 'new', label: 'Nuevos', color: 'bg-blue-500' },
@@ -9,7 +9,7 @@ const STAGES = [
   { id: 'converted', label: 'Cerrados', color: 'bg-emerald-500' }
 ];
 
-export default function CrmProTab() {
+export default function CRMTab() {
   const [leads, setLeads] = useState([
     { id: 1, name: 'Juan Pérez', phone: '+54 11 2345 6789', stage: 'new', score: 85, lastMsg: 'Me interesa el plan premium', time: '2 min ago', tags: ['Inversor', 'Hot'] },
     { id: 2, name: 'María García', phone: '+34 612 345 678', stage: 'qualified', score: 92, lastMsg: '¿Tienen soporte 24/7?', time: '1 hour ago', tags: ['Enterprise'] },
@@ -26,21 +26,11 @@ export default function CrmProTab() {
   ];
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-end">
-        <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">CRM PRO Pipeline</h1>
-            <p className="text-slate-500 mt-2">Gestión inteligente de leads calificados por IA.</p>
-        </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
-            <UserPlus size={16} /> Añadir Lead Manual
-        </button>
-      </div>
-
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Stats Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className="p-6 rounded-2xl bg-slate-900/50 border border-white/5 shadow-xl relative overflow-hidden group backdrop-blur-md">
+          <div key={i} className="p-6 rounded-2xl bg-slate-900 border border-white/5 shadow-xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-all">
                 <stat.icon size={80} />
             </div>
@@ -64,7 +54,7 @@ export default function CrmProTab() {
       <div className="rounded-3xl bg-slate-900 border border-white/5 shadow-2xl overflow-hidden">
         <div className="p-6 border-b border-white/5 bg-white/5 flex flex-col md:flex-row justify-between gap-4">
           <div className="flex items-center gap-6">
-            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Listado de Oportunidades</h2>
+            <h2 className="text-xl font-black text-white uppercase tracking-tighter">Pipeline de Ventas</h2>
             <div className="flex gap-2">
               {['all', 'hot', 'warm', 'cold'].map(t => (
                 <button 
@@ -124,7 +114,7 @@ export default function CrmProTab() {
                   </td>
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
-                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden min-w-[80px]">
+                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                             <motion.div 
                                 initial={{ width: 0 }}
                                 animate={{ width: `${lead.score}%` }}
@@ -146,7 +136,7 @@ export default function CrmProTab() {
                             <MessageSquare size={16} />
                         </button>
                         <button className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-indigo-500 transition-all">
-                            <Zap size={16} className="text-amber-500" />
+                            <MoreVertical size={16} />
                         </button>
                     </div>
                   </td>
@@ -157,8 +147,8 @@ export default function CrmProTab() {
         </div>
 
         <div className="p-6 bg-white/5 border-t border-white/5 flex justify-between items-center">
-            <p className="text-[10px] text-slate-500 font-mono uppercase">Neural Lead Tracking Active • 99.9% Recall</p>
-            <button className="text-[10px] font-black text-indigo-400 hover:text-white uppercase tracking-[0.2em] transition-all">Exportar Datos (.csv)</button>
+            <p className="text-[10px] text-slate-500 font-mono uppercase">Mostrando {leads.length} leads calificados por AI Core</p>
+            <button className="text-[10px] font-black text-indigo-400 hover:text-white uppercase tracking-[0.2em] transition-all">Ver Pipeline Completo</button>
         </div>
       </div>
     </div>

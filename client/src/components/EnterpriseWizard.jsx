@@ -76,26 +76,77 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     switch (STEPS[step].id) {
       case 'identity':
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Nombre del Negocio</label>
+                <input
+                  type="text"
+                  value={data.businessName || ''}
+                  onChange={(e) => handleChange('businessName', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                  placeholder="Ej: Fitness Pro Max"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Industria / Nicho</label>
+                <input
+                  type="text"
+                  value={data.industry || ''}
+                  onChange={(e) => handleChange('industry', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                  placeholder="Ej: Bienes Raíces, Coaching..."
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Nombre del Agente</label>
-              <input
-                type="text"
-                value={data.botName}
-                onChange={(e) => handleChange('botName', e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                placeholder="Ej: ALEX IO"
+              <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">¿Quién es tu Cliente Ideal?</label>
+              <textarea
+                value={data.targetCustomer || ''}
+                onChange={(e) => handleChange('targetCustomer', e.target.value)}
+                rows={2}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all resize-none"
+                placeholder="Ej: Dueños de negocios de 30-50 años que buscan..."
               />
             </div>
+
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">System Prompt (Instrucciones)</label>
+              <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Tus Productos y Oferta Irresistible</label>
               <textarea
-                value={data.systemPrompt}
-                onChange={(e) => handleChange('systemPrompt', e.target.value)}
-                rows={6}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all resize-none text-sm leading-relaxed"
-                placeholder="Define cómo debe comportarse el bot..."
+                value={data.products || ''}
+                onChange={(e) => handleChange('products', e.target.value)}
+                rows={3}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all resize-none"
+                placeholder="Lista tus 3 productos principales y sus precios o beneficios..."
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Estilo de Venta</label>
+                <select
+                  value={data.salesStyle || 'consultivo'}
+                  onChange={(e) => handleChange('salesStyle', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none appearance-none"
+                >
+                  <option value="consultivo">Consultivo (Escucha y ayuda)</option>
+                  <option value="agresivo">Cierre Rápido (Escasez y Urgencia)</option>
+                  <option value="amigable">Amigable (Construye confianza)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Tono de Comunicación</label>
+                <select
+                  value={data.tone || 'profesional'}
+                  onChange={(e) => handleChange('tone', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none appearance-none"
+                >
+                  <option value="profesional">Profesional y Serio</option>
+                  <option value="divertido">Divertido y Cercano</option>
+                  <option value="autoridad">Líder de Opinión / Autoridad</option>
+                </select>
+              </div>
             </div>
           </div>
         );
@@ -306,23 +357,46 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
           </div>
         );
       case 'summary':
+        const generatedPrompt = `Eres un asistente experto en ${data.industry || 'Negocios'}.
+NEGOCIO: ${data.businessName || 'ALEX IO'}
+CLIENTE IDEAL: ${data.targetCustomer || 'Público General'}
+PRODUCTOS: ${data.products || 'Servicios Varios'}
+ESTILO: ${data.salesStyle || 'Consultivo'}
+TONO: ${data.tone || 'Profesional'}
+OBJETIVO: ${data.goal || 'Cerrar Ventas'}
+
+REGLAS:
+- Responde claro y corto (máx 50 palabras).
+- Prioriza cerrar la intención del usuario.
+- Usa lenguaje natural y empático.
+- Si no sabes la respuesta, deriva a un humano.
+- No inventes datos técnicos o precios no mencionados.`;
+
         return (
           <div className="space-y-4">
             <div className="bg-black/40 rounded-xl border border-white/10 overflow-hidden backdrop-blur-md">
               <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Enterprise_Manifest_v3.0</span>
-                <span className="text-[10px] font-mono text-emerald-500/70">READY_FOR_DEPLOY</span>
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Enterprise_Manifest_v5.0</span>
+                <div className="flex gap-2">
+                    <span className="text-[9px] font-mono text-emerald-500/70 border border-emerald-500/20 px-2 rounded">PROMPT_GENERATED</span>
+                    <span className="text-[9px] font-mono text-blue-500/70 border border-blue-500/20 px-2 rounded">LEAD_SCORING_ON</span>
+                </div>
               </div>
               <div className="p-4 space-y-3">
+                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+                    <p className="text-[10px] font-mono text-slate-400 leading-relaxed italic line-clamp-4">
+                        {generatedPrompt}
+                    </p>
+                </div>
                 {[
-                  { label: 'Identidad', value: data.botName },
+                  { label: 'Identidad', value: data.businessName },
                   { label: 'Canal Principal', value: data.provider === 'baileys' ? 'WhatsApp (QR)' : 'WhatsApp (Meta)' },
                   { label: 'Voz IA', value: data.voiceEnabled ? data.voice.toUpperCase() : 'Desactivado' },
-                  { label: 'Límites', value: `${data.maxWords} palabras / ${data.maxMessages} mensajes` }
+                  { label: 'Estrategia', value: `${data.salesStyle} / ${data.tone}` }
                 ].map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-xs border-b border-white/5 pb-2">
-                    <span className="text-slate-400 font-bold">{item.label}</span>
-                    <span className="text-white font-mono">{item.value}</span>
+                  <div key={idx} className="flex justify-between text-[10px] border-b border-white/5 pb-2">
+                    <span className="text-slate-500 font-bold uppercase">{item.label}</span>
+                    <span className="text-white font-mono">{item.value || 'N/A'}</span>
                   </div>
                 ))}
               </div>
@@ -330,7 +404,7 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-start gap-3">
               <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
               <p className="text-[11px] text-slate-400 leading-tight">
-                Configuración validada. Al guardar, los cambios se aplicarán instantáneamente a todas las instancias activas del bot.
+                Cerebro optimizado. El sistema ha generado un Prompt de Ingeniería Nivel 5 basado en tus respuestas.
               </p>
             </div>
           </div>

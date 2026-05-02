@@ -12,18 +12,25 @@ const BillingTab = () => {
   const plans = [
     {
       name: 'Starter',
-      price: '$49',
-      description: 'Perfect for small businesses starting with AI.',
-      features: ['Up to 2,000 msgs/mo', '1 Agent', 'Basic Analytics', 'WhatsApp & Webchat'],
+      price: '$99',
+      description: 'Ideal para pequeños negocios que quieren automatizar su atención.',
+      features: ['Onboarding Wizard Básico', 'Hasta 5,000 msgs/mes', '1 Agente AI', 'WhatsApp QR (Baileys)'],
       color: 'blue'
     },
     {
-      name: 'Enterprise',
-      price: '$199',
-      description: 'The full power of ALEX IO for scaling teams.',
-      features: ['Unlimited Messages*', '5 Autonomous Agents', 'Predictive Analytics', 'All Channels + CRM', 'White Label'],
-      color: 'indigo',
+      name: 'Gold Enterprise',
+      price: '$499',
+      description: 'La máquina de ventas completa con IA profunda y RAG.',
+      features: ['Onboarding Wizard Premium', 'RAG (Memoria de Negocio)', 'CRM Pro + Lead Scoring', 'Meta Cloud API Integrada', 'Traducción en Vivo'],
+      color: 'amber',
       popular: true
+    },
+    {
+      name: 'Whitelabel SRE',
+      price: '$999',
+      description: 'Solución marca blanca para agencias y grandes empresas.',
+      features: ['Todo lo de Gold', 'Marca Blanca (Tu Dominio)', 'Soporte SRE 24/7', 'API de Alta Prioridad', 'Modelos Personalizados'],
+      color: 'indigo'
     }
   ];
 
