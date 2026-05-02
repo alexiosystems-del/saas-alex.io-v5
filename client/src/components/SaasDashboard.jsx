@@ -19,7 +19,8 @@ import {
   Trash2,
   Send,
   Cloud,
-  Book
+  Book,
+  TrendingUp
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
