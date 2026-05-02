@@ -14,6 +14,7 @@ const { getAdapterByInstanceId } = require('./adapterFactory');
 const { trackEvent } = require('./observability');
 const crypto = require('crypto');
 const operationalState = require('./operationalState');
+const botPool = require('./botPoolRouter');
 
 const detectUserLanguage = (text = '') => {
     const sample = String(text || '').trim();
@@ -129,6 +130,9 @@ const processMessageWithAI = async (msg) => {
         
         const answer = result.text || 'No pude procesar tu mensaje.';
         
+        // Report success to Bot Pool Router
+        botPool.reportSuccess(instanceId, Date.now() - start);
+
         // Log AI Cascade for monitoring (Async)
         if (isSupabaseEnabled && result.trace) {
             supabase.from('ai_cascade_logs').insert({
@@ -148,6 +152,10 @@ const processMessageWithAI = async (msg) => {
         return answer;
     } catch (e) {
         const isTimeout = e.message === 'AI_TIMEOUT';
+        
+        // Report failure to Bot Pool Router
+        botPool.reportFailure(instanceId, e.message);
+        
         if (isTimeout) {
             logError('[MessageRouter] ⏱️ AI TIMEOUT - respondiendo con safeguard', { instanceId });
         } else {

@@ -21,6 +21,7 @@ const RedisStore = require('rate-limit-redis').default;
 const { authenticateTenant } = require('./middleware/auth');
 const { getHealthSnapshot, getMetrics } = require('./services/observability');
 const { requestLogger } = require('./middleware/requestLogger');
+const botPool = require('./services/botPoolRouter');
 
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
@@ -313,8 +314,14 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         redis: redis ? 'connected' : 'disabled',
-        cache: global.responseCache.getStats()
+        cache: global.responseCache.getStats(),
+        botPool: { size: botPool.getPoolStatus().length }
     });
+});
+
+// Enterprise Bot Pool Status API
+app.get('/api/pool/status', authenticateTenant, (req, res) => {
+    res.json({ success: true, bots: botPool.getPoolStatus() });
 });
 
 // Observability Metrics Endpoint (Phase 5)
@@ -350,11 +357,16 @@ app.use((err, req, res, next) => {
 });
 
 // --- START SERVER ---
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
     logger.info(`🧠 AI Brain Listo...`);
 
     // Auto-restore previous sessions
     restoreSessions().catch(e => logger.error(`❌ Session restoration failed: ${e.message}`));
+
+    // Phase 4: Hydrate Bot Pool from DB and start health monitor
+    await botPool.hydratePool().catch(e => logger.error(`❌ Bot Pool hydration failed: ${e.message}`));
+    botPool.startHealthMonitor(60000);
+    logger.info(`🏊 Bot Pool Router Activo.`);
 });
