@@ -1,1109 +1,257 @@
-import React, { useEffect, useMemo, useState, Component } from 'react';
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Shield, Activity, Settings, Smartphone, Plus, PlusCircle, Loader, AlertTriangle, CheckCircle2, X, Wand2, LogOut, MessageCircle, MessageSquare, Send, Globe as GlobeIcon, Book, Sparkles, Sun, Moon, Trash2, PauseCircle, Play, RefreshCw, Zap } from 'lucide-react';
-import PromptWizard from './PromptWizard';
-import PromptCopilot from './PromptCopilot';
-import LiveChat from './LiveChat';
-import KnowledgeBase from './KnowledgeBase';
-import BroadcastCampaign from './BroadcastCampaign';
-import DataCompliance from './DataCompliance';
-import MemoryManager from './MemoryManager';
+import React, { useState, useEffect } from 'react';
+import { 
+  LayoutDashboard, 
+  Bot, 
+  MessageSquare, 
+  Settings, 
+  Zap, 
+  Shield, 
+  Users, 
+  BarChart3, 
+  LogOut, 
+  Plus, 
+  MoreVertical,
+  Activity,
+  CreditCard,
+  Target,
+  RefreshCw,
+  AlertCircle,
+  Trash2
+} from 'lucide-react';
+import EnterpriseAnalytics from './EnterpriseAnalytics';
+import BillingTab from './BillingTab';
 import ConfigTab from './ConfigTab';
-import ChannelSelector from './ChannelSelector';
-import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase, getAuthHeaders } from '../api';
+import EnterpriseWizard from './EnterpriseWizard';
+import OnboardingFlow from './OnboardingFlow';
 import { supabase } from '../supabaseClient';
 
-const VERSION = "v2.0.7.8-STABLE";
-
-// Inject DM Sans font
-if (typeof document !== 'undefined' && !document.getElementById('dm-sans-font')) {
-  const link = document.createElement('link');
-  link.id = 'dm-sans-font';
-  link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap';
-  document.head.appendChild(link);
-}
-
-class ErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1c23] text-white p-10 text-center">
-          <div className="w-20 h-20 bg-red-500/10 rounded-2xl flex items-center justify-center mb-6 border border-red-500/20">
-             <AlertTriangle size={40} className="text-red-500" />
-          </div>
-          <h2 className="text-2xl font-bold mb-2">Error de Interfaz Detectado</h2>
-          <p className="text-slate-400 mb-8 max-w-md">ALEX IO detectó una anomalía en el renderizado. El sistema de auto-recuperación está listo.</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-900/40"
-          >
-            Reiniciar Dashboard
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// --- THEME SYSTEM ---
-const themes = {
-  dark: {
-    bg: '#1a1c23', bgAlt: '#242731', card: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)',
-    text: '#f1f5f9', textMuted: '#94a3b8', textDim: '#cbd5e1',
-    accent: '#06b6d4', accentHover: '#22d3ee', accentBg: 'rgba(6,182,212,0.12)', accentBorder: 'rgba(6,182,212,0.25)',
-    inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.12)',
-    modalBg: 'rgba(26,28,35,0.98)', modalOverlay: 'rgba(2,6,23,0.8)',
-    footerBg: 'rgba(26,28,35,0.9)', footerBorder: 'rgba(255,255,255,0.1)',
-    noticeText: '#f1f5f9',
-    glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
-    sidebarBg: 'rgba(36,39,49,0.85)',
-  },
-  light: {
-    bg: '#cbd5e1', bgAlt: '#b2becd', card: 'rgba(255,255,255,0.6)', border: 'rgba(0,0,0,0.15)',
-    text: '#0f172a', textMuted: '#334155', textDim: '#475569',
-    accent: '#0891b2', accentHover: '#0e7490', accentBg: 'rgba(8,145,178,0.12)', accentBorder: 'rgba(8,145,178,0.25)',
-    inputBg: 'rgba(255,255,255,0.5)', inputBorder: 'rgba(0,0,0,0.2)',
-    modalBg: 'rgba(203,213,225,0.99)', modalOverlay: 'rgba(15,23,42,0.5)',
-    footerBg: 'rgba(178,190,205,0.95)', footerBorder: 'rgba(0,0,0,0.15)',
-    noticeText: '#0f172a',
-    glass: 'backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);',
-    sidebarBg: 'rgba(178,190,205,0.9)',
-  }
-};
-
-const PROVIDERS = [
-  { value: 'baileys', label: 'WhatsApp: Baileys' },
-  { value: 'meta', label: 'WhatsApp: Meta Cloud' },
-  { value: 'messenger', label: 'Facebook: Messenger' },
-  { value: 'instagram', label: 'Instagram: Direct' },
-  { value: 'tiktok', label: 'TikTok: Business Messaging' },
-  { value: 'discord', label: 'Discord: Server Bot' },
-  { value: 'reddit', label: 'Reddit: Chat' },
-  { value: '360dialog', label: 'WhatsApp: 360Dialog' }
-];
-
-
-
-function SaasDashboard() {
-  const { t, i18n } = useTranslation();
-  const [isDark, setIsDark] = useState(() => (localStorage.getItem('alex_theme') || 'dark') === 'dark');
-  const T = isDark ? themes.dark : themes.light;
-  const toggleTheme = () => { const next = !isDark; setIsDark(next); localStorage.setItem('alex_theme', next ? 'dark' : 'light'); };
-
-  const userEmail = localStorage.getItem('demo_email') || 'user@app.com';
-  const userRole = localStorage.getItem('alex_io_role') || 'OWNER';
-  const userTenant = localStorage.getItem('alex_io_tenant') || '';
-
-  const handleLogout = async () => {
-    try {
-      if (supabase?.auth) {
-        await supabase.auth.signOut();
-      }
-    } catch (e) {
-      console.warn('Logout Supabase warning:', e?.message || e);
-    }
-
-    localStorage.removeItem('alex_io_token');
-    localStorage.removeItem('demo_email');
-    localStorage.removeItem('alex_io_role');
-    localStorage.removeItem('alex_io_tenant');
-    sessionStorage.removeItem('alex_io_token');
-
-    if (typeof window !== 'undefined') {
-      window.__alexLogoutRedirecting = false;
-      window.location.replace('/#/login');
-    }
-  };
-
-  const [connecting, setConnecting] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [qrCode, setQrCode] = useState(null);
-  const [apiDebugUrl, setApiDebugUrl] = useState(getPreferredApiBase() || 'No resuelta');
-  const [notice, setNotice] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [loadingInstances, setLoadingInstances] = useState(false);
-  const [instances, setInstances] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [showNewBotModal, setShowNewBotModal] = useState(false);
+const SaasDashboard = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [showWizard, setShowWizard] = useState(false);
-  const [showCopilot, setShowCopilot] = useState(false);
-  const [usage, setUsage] = useState({ messages_sent: 0, plan_limit: 500, tokens_consumed: 0 });
-  const [promptVersions, setPromptVersions] = useState([]);
-  const [loadingPromptVersions, setLoadingPromptVersions] = useState(false);
-  const [promotingVersionId, setPromotingVersionId] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-  const [newBotName, setNewBotName] = useState('');
-  const [newBotProvider, setNewBotProvider] = useState('baileys');
-  const [newBotCredentials, setNewBotCredentials] = useState({
-    metaPhoneNumberId: '',
-    metaAccessToken: '',
-    metaVerifyToken: '',
-    tiktokAccessToken: '',
-    tiktokSellerId: '',
-    discordToken: '',
-    discordGuildId: '',
-    redditClientId: '',
-    redditClientSecret: '',
-    redditUsername: '',
-    redditPassword: ''
-  });
-  const [activeTab, setActiveTab] = useState('config'); // 'config' | 'chat'
-  const [botToDelete, setBotToDelete] = useState(null);
-  const [deletingBot, setDeletingBot] = useState(false);
+  const [bots, setBots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Soporte AI Chat
-  const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const [supportMessages, setSupportMessages] = useState([{ role: 'assistant', content: '¡Hola! Soy Alex Support. ¿En qué te puedo ayudar sobre la plataforma ALEX IO?' }]);
-  const [supportInput, setSupportInput] = useState('');
-  const [isSupportTyping, setIsSupportTyping] = useState(false);
-
-  const [configDraft, setConfigDraft] = useState({
-    name: '',
-    provider: 'baileys',
-    customPrompt: 'Eres un asistente virtual amigable y profesional.',
-    voice: 'nova',
-    maxWords: 50,
-    maxMessages: 10,
-    metaApiUrl: '',
-    metaPhoneNumberId: '',
-    metaAccessToken: '',
-    manychatToken: '',
-    tiktokAccessToken: '',
-    dialogApiKey: '',
-    hubspotAccessToken: '',
-    copperApiKey: '',
-    copperUserEmail: ''
-  });
+  const sidebarItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'intelligence', label: 'Intelligence', icon: BarChart3 },
+    { id: 'leads', label: 'CRM Leads', icon: Target },
+    { id: 'automations', label: 'Automations', icon: Zap },
+    { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
   useEffect(() => {
-    const resolved = getLastResolvedApiBase();
-    if (resolved) setApiDebugUrl(resolved);
-    fetchInstances();
+    fetchBots();
   }, []);
 
-  useEffect(() => {
-    if (selected?.instanceId) {
-      fetchPromptVersions(selected.instanceId);
-      fetchAnalytics(selected.instanceId);
-    } else {
-      setPromptVersions([]);
-      setAnalytics(null);
-    }
-  }, [selected?.instanceId]);
-
-  const fetchAnalytics = async (instanceId) => {
-    setLoadingAnalytics(true);
+  const fetchBots = async () => {
     try {
-      const { response, data } = await fetchJsonWithApiFallback(`/api/saas/analytics/${instanceId}`, {
-        headers: { ...getAuthHeaders() }
-      });
-      if (response.ok && data.success) {
-        setAnalytics(data);
-      }
-    } catch (e) {
-      console.error("Error fetching analytics:", e);
-    } finally {
-      setLoadingAnalytics(false);
-    }
-  };
+      setLoading(true);
+      setError(null);
+      const { data, error: sbError } = await supabase
+        .from('whatsapp_sessions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const handleSendSupportMessage = async (e) => {
-    e.preventDefault();
-    if (!supportInput.trim() || isSupportTyping) return;
-
-    const currentInput = supportInput.trim();
-    const newMessages = [...supportMessages, { role: 'user', content: currentInput }];
-    setSupportMessages(newMessages);
-    setSupportInput('');
-    setIsSupportTyping(true);
-
-    try {
-      const { response, data } = await fetchJsonWithApiFallback('/api/saas/support-chat', {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput, history: supportMessages })
-      });
-
-      if (response.ok && data.success) {
-        setSupportMessages([...newMessages, { role: 'assistant', content: data.text }]);
-      } else {
-        setSupportMessages([...newMessages, { role: 'assistant', content: 'Lo siento, hubo un error técnico. Reintenta.' }]);
-      }
+      if (sbError) throw sbError;
+      setBots(data || []);
     } catch (err) {
-      setSupportMessages([...newMessages, { role: 'assistant', content: 'Fallo de red.' }]);
+      console.error('Error fetching bots:', err);
+      setError(err.message);
     } finally {
-      setIsSupportTyping(false);
+      setLoading(false);
     }
   };
 
-  const fetchInstances = async () => {
-    setLoadingInstances(true);
+  const handleDeleteBot = async (instanceId) => {
+    if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      const { response, data } = await fetchJsonWithApiFallback('/api/saas/status', {
-        timeoutMs: 15000,
-        headers: { ...getAuthHeaders() }
-      });
-      if (response.ok && Array.isArray(data.sessions)) {
-        setInstances(data.sessions.map(s => ({
-          ...s,
-          id: s.instanceId || s.id,
-          name: s.companyName || 'Instancia Sin Nombre',
-          status: s.status || 'disconnected',
-          phone: s.phone || (s.provider === 'baileys' ? 'WhatsApp Web' : 'Cloud API')
-        })));
-        if (data.sessions.length > 0) {
-          setLogs([
-            { text: 'Quiero información', ai_model: 'gemini-flash', timestamp: new Date() },
-            { text: '¿Cual es el precio?', ai_model: 'gemini-flash', timestamp: new Date(Date.now() - 60000) }
-          ]);
-        }
-      }
+      await supabase.from('whatsapp_sessions').delete().eq('instance_id', instanceId);
+      setBots(bots.filter(b => b.instance_id !== instanceId));
     } catch (e) {
-      console.error("Error fetching instances:", e);
-    } finally {
-      setLoadingInstances(false);
-    }
-
-    try {
-      const { response: useRes, data: useData } = await fetchJsonWithApiFallback('/api/saas/usage', {
-        timeoutMs: 15000,
-        headers: { ...getAuthHeaders() }
-      });
-      if (useRes.ok && useData.usage) {
-        setUsage(useData.usage);
-      }
-    } catch (e) {
-      console.error("Error fetching usage:", e);
+      alert(e.message);
     }
   };
 
-  useEffect(() => {
-    if (!selected) return;
-    setConfigDraft({
-      name: selected.name || '',
-      provider: selected.provider || 'baileys',
-      customPrompt: selected.customPrompt || 'Eres un asistente virtual amigable y profesional.',
-      voice: selected.voice || 'nova',
-      maxWords: selected.maxWords || 50,
-      maxMessages: selected.maxMessages || 10,
-      metaApiUrl: selected.metaApiUrl || '',
-      metaPhoneNumberId: selected.metaPhoneNumberId || '',
-      metaAccessToken: selected.metaAccessToken || '',
-      manychatToken: selected.manychatToken || '',
-      tiktokAccessToken: selected.tiktokAccessToken || '',
-      dialogApiKey: selected.dialogApiKey || '',
-      hubspotAccessToken: selected.hubspotAccessToken || '',
-      copperApiKey: selected.copperApiKey || '',
-      copperUserEmail: selected.copperUserEmail || ''
-    });
-  }, [selected]);
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'intelligence':
+        return <EnterpriseAnalytics />;
+      case 'billing':
+        return <BillingTab />;
+      case 'dashboard':
+        return (
+          <div className="p-8 space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <h1 className="text-4xl font-black text-white tracking-tight">Command Center</h1>
+                <p className="text-slate-400 mt-2 text-lg">Orchestrating autonomous agents across your enterprise.</p>
+              </div>
+              <button 
+                onClick={() => setShowWizard(true)}
+                className="flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all shadow-xl shadow-blue-600/20 active:scale-95 group"
+              >
+                <Plus size={20} className="group-hover:rotate-90 transition-transform" />
+                Initialize Agent
+              </button>
+            </div>
 
-  const pushNotice = (type, message) => setNotice({ type, message });
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <RefreshCw className="animate-spin text-blue-500" size={48} />
+                <p className="text-slate-400 animate-pulse font-medium">Syncing with neural grid...</p>
+              </div>
+            ) : bots.length === 0 ? (
+              <div className="bg-slate-900/30 border border-white/5 rounded-[3rem] overflow-hidden">
+                <OnboardingFlow onComplete={() => setShowWizard(true)} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {bots.map((bot) => (
+                  <div key={bot.instance_id} className="group bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-8 hover:border-blue-500/40 transition-all duration-300 relative overflow-hidden backdrop-blur-sm">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    
+                    <div className="flex justify-between items-start mb-8">
+                      <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 rounded-[1.25rem] bg-slate-800 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform duration-300 shadow-inner border border-white/5">
+                          <Bot size={32} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-white tracking-tight">{bot.company_name}</h3>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <div className={`w-2 h-2 rounded-full ${bot.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{bot.status || 'offline'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button className="text-slate-600 hover:text-white p-2">
+                        <MoreVertical size={20} />
+                      </button>
+                    </div>
 
-  const providerLabel = useMemo(() => {
-    const found = PROVIDERS.find((p) => p.value === (selected?.provider || 'baileys'));
-    return found?.label || 'Baileys (QR)';
-  }, [selected]);
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Platform</p>
+                        <p className="text-white font-bold mt-1 text-sm">{bot.provider || 'Baileys'}</p>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Confidence</p>
+                        <p className="text-emerald-400 font-bold mt-1 text-sm">88.5%</p>
+                      </div>
+                    </div>
 
-  const sortPromptVersions = (versions = []) => {
-    const ranking = { active: 0, test: 1, archived: 2 };
-    return [...versions].sort((a, b) => {
-      const byStatus = (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9);
-      if (byStatus !== 0) return byStatus;
-      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
-    });
-  };
-
-  const handleBotAction = async (instanceId, action) => {
-    if (!instanceId) return;
-    try {
-      const { response, data } = await fetchJsonWithApiFallback(`/api/saas/action/${instanceId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ action })
-      });
-
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.error || `Error al ${action === 'pause' ? 'pausar' : 'reanudar'}`);
-      }
-
-      pushNotice('success', `Bot ${action === 'pause' ? 'pausado' : 'reanudado'} correctamente.`);
-      setTimeout(fetchInstances, 1000);
-    } catch (error) {
-      pushNotice('error', error.message);
-    }
-  };
-
-  const handleRestartInstance = async () => {
-    if (!selected?.instanceId) return;
-    try {
-      pushNotice('warning', 'Reiniciando el conector. Espera unos segundos...');
-      await fetchJsonWithApiFallback(`/api/saas/instance/${selected.instanceId}/restart`, {
-        method: 'POST',
-        timeoutMs: 30000,
-        headers: { ...getAuthHeaders() }
-      });
-      pushNotice('success', 'Sesión reiniciada. Generando nuevo código QR...');
-
-      if (selected.provider === 'baileys') {
-        const result = await waitForQr(selected.instanceId);
-        if (result.type === 'qr') {
-          setQrCode(result.value);
-          pushNotice('success', 'Nuevo QR generado. Escanéalo para reconectar el bot sin perder la memoria.');
-        } else if (result.type === 'online') {
-          pushNotice('success', 'El bot se reconectó automáticamente.');
-        }
-      }
-      setTimeout(fetchInstances, 2000);
-    } catch (error) {
-      pushNotice('error', error.message || 'Fallo al reiniciar.');
-    }
-  };
-
-  const handleDeleteBot = async () => {
-    if (!botToDelete?.instanceId || deletingBot) return;
-
-    setDeletingBot(true);
-    try {
-      const { response, data } = await fetchJsonWithApiFallback('/api/saas/disconnect', {
-        method: 'POST',
-        timeoutMs: 30000,
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ instanceId: botToDelete.instanceId })
-      });
-
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.error || 'No se pudo eliminar el bot.');
-      }
-
-      const deletedInstanceId = botToDelete.instanceId;
-      setInstances((prev) => prev.filter((inst) => (inst.instanceId || inst.id) !== deletedInstanceId));
-      setSelected((current) => ((current?.instanceId || current?.id) === deletedInstanceId ? null : current));
-      setBotToDelete(null);
-      pushNotice('success', 'Bot eliminado correctamente. Ya puedes crear uno nuevo.');
-      setActiveTab('config');
-      setTimeout(fetchInstances, 1000);
-    } catch (error) {
-      pushNotice('error', error.message || 'Fallo al eliminar el bot.');
-    } finally {
-      setDeletingBot(false);
-    }
-  };
-
-  const waitForQr = (instanceId) => new Promise((resolve, reject) => {
-    const timeoutMs = 120000;
-    const startedAt = Date.now();
-
-    const poll = async () => {
-      try {
-        const { response: statusRes, data: statusData } = await fetchJsonWithApiFallback(`/api/saas/status/${instanceId}`, { timeoutMs: 30000, headers: { ...getAuthHeaders() } });
-        setApiDebugUrl(getLastResolvedApiBase() || getPreferredApiBase() || 'No resuelta');
-
-        if (!statusRes.ok) return;
-        if (statusData.qr_code) {
-          clearInterval(intervalId);
-          return resolve({ type: 'qr', value: statusData.qr_code });
-        }
-
-        if (statusData.status === 'online') {
-          clearInterval(intervalId);
-          return resolve({ type: 'online' });
-        }
-
-        if (statusData.status === 'disconnected') {
-          clearInterval(intervalId);
-          return reject(new Error('WhatsApp desconectó la sesión durante el enlace. Reintenta.'));
-        }
-      } catch (_) {
-        // keep polling
-      }
-
-      if (Date.now() - startedAt >= timeoutMs) {
-        clearInterval(intervalId);
-        reject(new Error('No se recibió QR a tiempo. Verifica backend/WhatsApp y reintenta.'));
-      }
-    };
-
-    const intervalId = setInterval(poll, 5000);
-    poll();
-  });
-
-  const handleCreateNew = async () => {
-    const name = (newBotName || '').trim();
-    if (!name) return;
-    const provider = newBotProvider || 'baileys';
-
-    setShowNewBotModal(false);
-    setNewBotName('');
-    setConnecting(true);
-    setNotice(null);
-
-    try {
-      const { response: res, data } = await fetchJsonWithApiFallback('/api/saas/connect', {
-        timeoutMs: 120000,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          companyName: name,
-          customPrompt: `Eres un asistente virtual de ${name}`,
-          provider,
-          ...newBotCredentials,
-          dialogApiKey: ''
-        })
-      });
-
-      setApiDebugUrl(getLastResolvedApiBase() || getPreferredApiBase() || 'No resuelta');
-
-      if (!res.ok && res.status !== 408) {
-        throw new Error(data.error || `Error de conexión (HTTP ${res.status})`);
-      }
-
-      const instance = {
-        id: Date.now(),
-        instanceId: data.instance_id,
-        name,
-        provider,
-        customPrompt: `Eres un asistente virtual de ${name}`,
-        voice: 'nova',
-        maxWords: 50,
-        maxMessages: 10,
-        super_prompt_json: null,
-        metaApiUrl: '',
-        metaPhoneNumberId: '',
-        metaAccessToken: '',
-        manychatToken: '',
-        tiktokAccessToken: '',
-        dialogApiKey: '',
-        hubspotAccessToken: '',
-        copperApiKey: '',
-        copperUserEmail: ''
-      };
-
-      if (provider !== 'baileys') {
-        const cloudInstance = { ...instance, status: 'online', phone: provider === 'meta' ? 'Meta Cloud API' : '360Dialog' };
-        setInstances((prev) => [...prev, cloudInstance]);
-        setSelected(cloudInstance);
-        pushNotice('success', data.message || 'Bot cloud configurado correctamente.');
-        return;
-      }
-
-      let qr = data.qr_code;
-
-      if (!qr && res.status === 408 && data.instance_id) {
-        pushNotice('warning', 'Conexión lenta detectada: intentando recuperar QR automáticamente...');
-        const result = await waitForQr(data.instance_id);
-
-        if (result.type === 'online') {
-          const onlineInstance = { ...instance, status: 'online', phone: 'Conectado' };
-          setInstances((prev) => [...prev, onlineInstance]);
-          setSelected(onlineInstance);
-          pushNotice('success', 'La instancia se conectó correctamente sin requerir nuevo QR.');
-          return;
-        }
-
-        qr = result.value;
-      }
-
-      if (!qr) throw new Error(data.error || 'No se recibió código QR.');
-
-      setQrCode(qr);
-      const connectingInstance = { ...instance, status: 'connecting', phone: 'Escaneando QR...' };
-      setInstances((prev) => [...prev, connectingInstance]);
-      setSelected(connectingInstance);
-      pushNotice('success', 'QR generado correctamente. Escanéalo para finalizar conexión.');
-    } catch (error) {
-      pushNotice('error', error.message);
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const fetchPromptVersions = async (instanceId) => {
-    if (!instanceId) {
-      setPromptVersions([]);
-      return;
-    }
-
-    setLoadingPromptVersions(true);
-    try {
-      const { data } = await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${instanceId}`, {
-        timeoutMs: 20000,
-        headers: { ...getAuthHeaders() }
-      });
-      setPromptVersions(sortPromptVersions(data.versions || []));
-    } catch (error) {
-      console.warn('No se pudieron cargar versiones del prompt:', error.message);
-      setPromptVersions([]);
-    } finally {
-      setLoadingPromptVersions(false);
-    }
-  };
-
-  const handlePromotePromptVersion = async (version) => {
-    if (!selected?.instanceId || !version?.id) return;
-    setPromotingVersionId(version.id);
-    try {
-      const { data } = await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${selected.instanceId}/${version.id}/promote`, {
-        method: 'PATCH',
-        timeoutMs: 20000,
-        headers: { ...getAuthHeaders() }
-      });
-
-      const activePrompt = data.version?.prompt_text || version.prompt_text;
-      if (activePrompt) {
-        const nextDraft = { ...configDraft, customPrompt: activePrompt };
-        setConfigDraft(nextDraft);
-
-        await fetchJsonWithApiFallback(`/api/saas/config/${selected.instanceId}`, {
-          timeoutMs: 30000,
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify(nextDraft)
-        });
-      }
-
-      await fetchPromptVersions(selected.instanceId);
-      pushNotice('success', 'Versión promovida como activa.');
-    } catch (error) {
-      pushNotice('error', error.message || 'No se pudo promover la versión.');
-    } finally {
-      setPromotingVersionId(null);
-    }
-  };
-
-  const handleArchivePromptVersion = async (version) => {
-    if (!selected?.instanceId || !version?.id) return;
-    setPromotingVersionId(version.id);
-    try {
-      await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${selected.instanceId}/${version.id}/archive`, {
-        method: 'PATCH',
-        timeoutMs: 20000,
-        headers: { ...getAuthHeaders() }
-      });
-      await fetchPromptVersions(selected.instanceId);
-      pushNotice('success', 'Versión archivada correctamente.');
-    } catch (error) {
-      pushNotice('error', error.message || 'No se pudo archivar la versión.');
-    } finally {
-      setPromotingVersionId(null);
-    }
-  };
-
-  const handleSaveConfig = async () => {
-    if (!selected) return;
-
-    const merged = { ...selected, ...configDraft };
-    setSavingConfig(true);
-
-    try {
-      if (selected.instanceId) {
-        const { data } = await fetchJsonWithApiFallback(`/api/saas/config/${selected.instanceId}`, {
-          timeoutMs: 30000,
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify(configDraft)
-        });
-
-        if (!data.success) throw new Error(data.error || 'No se pudo guardar configuración.');
-      }
-
-      setInstances((prev) => prev.map((inst) => (inst.id === selected.id ? merged : inst)));
-      setSelected(merged);
-      pushNotice('success', `Configuración guardada (${providerLabel}).`);
-    } catch (error) {
-      pushNotice('error', error.message);
-    } finally {
-      setSavingConfig(false);
+                    <div className="flex gap-3">
+                      <button className="flex-1 py-3 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-blue-500/20">
+                        Settings
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteBot(bot.instance_id)}
+                        className="p-3 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl transition-all border border-rose-500/20"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-full space-y-4 animate-pulse">
+            <Activity className="text-blue-500/20" size={64} />
+            <p className="text-slate-500 font-mono text-sm uppercase tracking-widest">Calibrando módulo {activeTab}...</p>
+          </div>
+        );
     }
   };
 
   return (
-    <div className="min-h-screen" style={{ background: T.bg, color: T.text, fontFamily: "'DM Sans', sans-serif" }}>
-
-      {/* New Bot Modal */}
-      {showNewBotModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: T.modalOverlay }}>
-          <div className="rounded-2xl p-8 w-full max-w-2xl relative overflow-hidden" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-bold">Nuevo Asesor Digital</h3>
-              <button onClick={() => setShowNewBotModal(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
-              </button>
+    <div className="flex h-screen bg-[#020617] text-slate-200 overflow-hidden font-sans selection:bg-blue-500/30">
+      {/* Sidebar */}
+      <div className="w-72 bg-slate-950 border-r border-white/5 flex flex-col backdrop-blur-3xl">
+        <div className="p-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-blue-600/40">
+              <Zap className="text-white" fill="currentColor" size={28} />
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-1" style={{ color: T.textMuted }}>Nombre del Bot</label>
-                <input
-                  className="w-full rounded-xl p-4 text-lg font-medium"
-                  style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }}
-                  placeholder="Ej: Mi Tienda Online"
-                  value={newBotName}
-                  onChange={(e) => setNewBotName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateNew()}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-2" style={{ color: T.textMuted }}>Canal de conexión</label>
-                <ChannelSelector
-                  selected={
-                    newBotProvider === 'meta' ? 'whatsapp_cloud' : 
-                    newBotProvider === '360dialog' ? 'dialog360' : 
-                    newBotProvider === 'baileys' ? 'whatsapp_baileys' : 
-                    newBotProvider
-                  }
-                  onSelect={(ch) => {
-                    const mapping = {
-                      whatsapp_baileys: 'baileys',
-                      whatsapp_cloud: 'meta',
-                      dialog360: '360dialog',
-                      discord: 'discord',
-                      tiktok: 'tiktok',
-                      messenger: 'messenger',
-                      instagram: 'instagram'
-                    };
-                    if (mapping[ch.id]) {
-                      setNewBotProvider(mapping[ch.id]);
-                    }
-                  }}
-                />
-                <p className="text-xs mt-2" style={{ color: T.textMuted }}>
-                  Instagram, Facebook y TikTok se conectan desde <b>Configuración → Conexiones y Canales</b> usando el Wizard rápido.
-                </p>
-              </div>
-
-              {/* Dynamic Credentials Fields */}
-              {(newBotProvider === 'meta' || newBotProvider === 'whatsapp_cloud') && (
-                <div className="space-y-3 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
-                  <p className="text-[10px] uppercase font-bold text-indigo-400">Credenciales Meta Cloud</p>
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Phone Number ID" value={newBotCredentials.metaPhoneNumberId} onChange={e => setNewBotCredentials({...newBotCredentials, metaPhoneNumberId: e.target.value})} />
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Access Token (Permanent)" value={newBotCredentials.metaAccessToken} onChange={e => setNewBotCredentials({...newBotCredentials, metaAccessToken: e.target.value})} />
-                </div>
-              )}
-
-              {newBotProvider === 'tiktok' && (
-                <div className="space-y-3 p-3 rounded-lg bg-pink-500/5 border border-pink-500/20">
-                  <p className="text-[10px] uppercase font-bold text-pink-400">Credenciales TikTok</p>
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Seller ID" value={newBotCredentials.tiktokSellerId} onChange={e => setNewBotCredentials({...newBotCredentials, tiktokSellerId: e.target.value})} />
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Access Token" value={newBotCredentials.tiktokAccessToken} onChange={e => setNewBotCredentials({...newBotCredentials, tiktokAccessToken: e.target.value})} />
-                </div>
-              )}
-
-              {newBotProvider === 'discord' && (
-                <div className="space-y-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <p className="text-[10px] uppercase font-bold text-blue-400">Credenciales Discord</p>
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Bot Token" value={newBotCredentials.discordToken} onChange={e => setNewBotCredentials({...newBotCredentials, discordToken: e.target.value})} />
-                </div>
-              )}
-
-              {newBotProvider === 'reddit' && (
-                <div className="space-y-3 p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
-                  <p className="text-[10px] uppercase font-bold text-orange-400">Credenciales Reddit</p>
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Username" value={newBotCredentials.redditUsername} onChange={e => setNewBotCredentials({...newBotCredentials, redditUsername: e.target.value})} />
-                  <input className="w-full rounded p-2 text-xs" style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} placeholder="Password" type="password" value={newBotCredentials.redditPassword} onChange={e => setNewBotCredentials({...newBotCredentials, redditPassword: e.target.value})} />
-                </div>
-              )}
-              <button
-                onClick={handleCreateNew}
-                disabled={!newBotName.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg transition-all hover:scale-[1.01] shadow-lg shadow-blue-900/30 disabled:opacity-50"
-              >
-                Crear Bot <Zap size={18} className="inline ml-1" />
-              </button>
+            <div>
+              <span className="text-2xl font-black text-white tracking-tighter">ALEX<span className="text-blue-500">IO</span></span>
+              <p className="text-[10px] font-black text-slate-600 tracking-[0.25em] -mt-1">ENTERPRISE V5</p>
             </div>
           </div>
         </div>
-      )}
 
-      {botToDelete && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: T.modalOverlay }}>
-          <div className="rounded-xl p-6 w-full max-w-md" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <div className="flex items-start gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-red-500/10 text-red-400">
-                <Trash2 size={18} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Eliminar bot</h3>
-                <p className="text-sm mt-1" style={{ color: T.textMuted }}>
-                  Vas a borrar <strong style={{ color: T.text }}>{botToDelete.name}</strong> y su sesión activa.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-lg p-3 mb-5 text-sm" style={{ background: T.bgAlt, border: `1px solid ${T.border}`, color: T.textMuted }}>
-              Esto también limpiará la sesión persistente y los datos operativos asociados para que puedas crear un bot nuevo sin arrastrar residuos del anterior.
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setBotToDelete(null)}
-                disabled={deletingBot}
-                className="flex-1 py-2.5 rounded-lg font-bold transition-colors"
-                style={{ background: T.inputBg, border: `1px solid ${T.border}`, color: T.text }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteBot}
-                disabled={deletingBot}
-                className="flex-1 py-2.5 rounded-lg font-bold text-white transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)' }}
-              >
-                {deletingBot ? <Loader size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                {deletingBot ? 'Eliminando...' : 'Sí, eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {qrCode && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: T.modalOverlay }}>
-          <div className="p-8 rounded-xl text-center max-w-sm w-full" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <h2 className="text-2xl font-bold mb-4">Escanea el QR</h2>
-            <img src={qrCode} alt="QR" className="border-4 border-white p-2 rounded mb-4 mx-auto" />
-            <button onClick={() => setQrCode(null)} className="text-blue-500">Cerrar</button>
-          </div>
-        </div>
-      )}
-
-      <header className="border-b p-4 flex justify-between items-center" style={{ background: T.bgAlt, borderColor: T.border }}>
-        <div className="flex items-center gap-3">
-          <Shield className="text-indigo-400" size={28} />
-          <h1 className="text-2xl font-bold">ALEX <span className="text-indigo-400">IO</span></h1>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}>{VERSION}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={toggleTheme} className="p-2 rounded-lg transition-all hover:scale-110" style={{ background: T.card, border: `1px solid ${T.border}` }} title={isDark ? 'Modo Claro' : 'Modo Oscuro'}>
-            {isDark ? <Sun size={16} style={{ color: '#f59e0b' }} /> : <Moon size={16} style={{ color: '#6366f1' }} />}
-          </button>
-          <div className="text-right hidden sm:block">
-            <p className="text-xs" style={{ color: T.textMuted }}>{userEmail}</p>
-            <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: T.textDim }}>{userRole === 'SUPERADMIN' ? '⭐ Admin' : '👤 Cliente'}</p>
-          </div>
-
-          {/* Language Switcher */}
-          <div className="relative group flex items-center gap-1 px-3 py-1.5 rounded-lg cursor-pointer transition-colors" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <GlobeIcon size={16} style={{ color: T.textMuted }} />
-            <select
-              className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer appearance-none pl-1 pr-3"
-              style={{ color: T.textDim }}
-              value={i18n.language}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
+        <nav className="flex-1 px-6 space-y-2">
+          {sidebarItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group ${
+                activeTab === item.id 
+                  ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/30' 
+                  : 'text-slate-500 hover:bg-white/5 hover:text-white'
+              }`}
             >
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="pt">Português</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="zh">中文</option>
-            </select>
+              <item.icon size={20} className={`${activeTab === item.id ? 'text-white' : 'text-slate-600 group-hover:text-blue-400'} transition-colors`} />
+              <span className="font-bold text-sm tracking-wide">{item.label}</span>
+              {activeTab === item.id && (
+                <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full shadow-lg" />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-8">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-5 rounded-3xl border border-white/5 mb-8 shadow-2xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Load</span>
+            </div>
+            <p className="text-sm font-bold text-white">Enterprise Elite</p>
+            <div className="w-full h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" style={{ width: '62%' }} />
+            </div>
+            <p className="text-[10px] font-medium text-slate-600 mt-3">12.4k / 20k units</p>
           </div>
 
-          <Link to="/pricing" className="px-4 py-2 rounded-lg font-bold text-sm transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', color: '#fff' }}>Planes</Link>
-          <button
-            onClick={handleLogout}
-            className="hover:text-red-400 transition-colors p-2"
-            style={{ color: T.textMuted }}
-            title="Cerrar sesión"
-          >
-            <LogOut size={18} />
+          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-600 hover:text-rose-400 hover:bg-rose-400/5 rounded-2xl transition-all font-bold text-sm group">
+            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+            Deauthorize
           </button>
         </div>
-      </header>
+      </div>
 
-      {notice && (
-        <div className={`mx-6 mt-4 p-3 rounded-lg border text-sm flex items-center gap-2 ${notice.type === 'error' ? 'bg-red-900/30 border-red-700 text-red-200' : notice.type === 'warning' ? 'bg-yellow-900/20 border-yellow-700 text-yellow-200' : 'bg-green-900/20 border-green-700 text-green-200'
-          }`}>
-          {notice.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-          <span>{notice.message}</span>
-        </div>
-      )}
-
-      <main className="flex h-[calc(100vh-64px)]">
-        <aside className="w-64 border-r p-4 flex flex-col" style={{ background: T.bgAlt, borderColor: T.border }}>
-          <div className="mb-6 rounded-xl p-4" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <h2 className="text-[10px] font-bold uppercase tracking-widest flex justify-between items-center mb-2" style={{ color: T.textMuted }}>
-              Uso del Plan
-              <span style={{ color: T.accentHover }}>{usage.messages_sent} / {usage.plan_limit}</span>
-            </h2>
-            <div className="w-full rounded-full h-1.5 mb-2 overflow-hidden" style={{ background: T.border }}>
-              <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min((usage.messages_sent / Math.max(usage.plan_limit, 1)) * 100, 100)}%`, background: `linear-gradient(90deg, #6366f1, ${usage.messages_sent / Math.max(usage.plan_limit, 1) > 0.8 ? '#ef4444' : '#f59e0b'})` }}></div>
-            </div>
-            <p className="text-[10px] text-right" style={{ color: T.textMuted }}>
-              {usage.tokens_consumed ? `${(usage.tokens_consumed / 1000).toFixed(1)}k tokens` : '0 tokens'}
-            </p>
-          </div>
-
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: T.textMuted }}>{t('dashboard.myBots', 'Asesores Digitales')}</h2>
-          <div className="space-y-2 flex-1 overflow-auto">
-            {instances.map((inst) => (
-              <button key={inst.id} onClick={() => setSelected(inst)} className="w-full text-left p-3 rounded-xl flex items-center justify-between transition-all"
-                style={{
-                  background: selected?.id === inst.id ? T.accentBg : T.card,
-                  border: `1px solid ${selected?.id === inst.id ? T.accent : T.border}`,
-                }}>
-                <div>
-                  <div className="font-medium text-sm" style={{ color: T.text }}>{inst.name}</div>
-                  <div className="text-xs" style={{ color: T.textMuted }}>{inst.phone}</div>
-                </div>
-                <div className="relative">
-                  <div className={`w-2.5 h-2.5 rounded-full ${inst.status === 'online' ? 'bg-green-500' : inst.status === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                  {inst.status === 'online' && <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-green-500 animate-ping opacity-40" />}
-                </div>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setShowNewBotModal(true)} className="w-full mt-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]" style={{ background: T.card, border: `1px solid ${T.border}`, color: T.textDim }}>
-            <PlusCircle size={20} /> {t('dashboard.createNewBot', 'Añadir Nuevo Asesor')}
-          </button>
-        </aside>
-
-        <div className="flex-1 p-6 overflow-hidden flex flex-col">
-          {selected ? (
-            <div className="flex flex-col h-full w-full max-w-7xl mx-auto">
-              {/* Bot Header */}
-              <div className="flex items-center justify-between gap-4 mb-2">
-                <div>
-                  <h2 className="text-xl font-bold" style={{ color: T.text }}>{selected.name}</h2>
-                  <p className="text-sm flex items-center gap-2" style={{ color: T.textMuted }}>
-                    {providerLabel} · Estado: {selected.status || 'desconocido'}
-                    {selected.paused && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">PAUSADO</span>
-                    )}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setBotToDelete(selected)}
-                  className="px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02]"
-                  style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}
-                >
-                  <Trash2 size={16} />
-                  Eliminar Bot
-                </button>
-              </div>
-
-              {/* Action Toolbar - always visible, wraps on small screens */}
-              <div className="flex flex-wrap items-center gap-2 mb-4 p-2 rounded-lg" style={{ background: T.bgAlt, border: `1px solid ${T.border}` }}>
-                <button
-                  onClick={() => handleBotAction(selected.instanceId, selected.paused ? 'resume' : 'pause')}
-                  className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                  style={{ background: T.card, border: `1px solid ${T.border}`, color: selected.paused ? T.accent : T.textDim }}
-                >
-                  {selected.paused ? <Play size={14} /> : <PauseCircle size={14} />}
-                  {selected.paused ? 'Reanudar' : 'Pausar'}
-                </button>
-                <button
-                  onClick={handleRestartInstance}
-                  className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                  style={{ background: T.card, border: `1px solid ${T.border}`, color: '#f59e0b' }}
-                >
-                  <Zap size={14} />
-                  Nuevo QR
-                </button>
-                <button
-                  onClick={() => handleBotAction(selected.instanceId, 'reconnect')}
-                  className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                  style={{ background: T.card, border: `1px solid ${T.border}`, color: T.textDim }}
-                >
-                  <RefreshCw size={14} />
-                  Reconectar
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const { response, data } = await fetchJsonWithApiFallback(`/api/saas/test-sync/${selected.instanceId}`, {
-                        method: 'POST',
-                        headers: { ...getAuthHeaders() }
-                      });
-                      if (response.ok) pushNotice('success', data.message);
-                      else throw new Error(data.error);
-                    } catch (e) {
-                       pushNotice('error', e.message);
-                    }
-                  }}
-                  className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                  style={{ background: T.card, border: `1px solid ${T.border}`, color: '#6366f1' }}
-                >
-                  <Activity size={14} />
-                  Test HubSpot
-                </button>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex gap-1 mb-4 pb-2 flex-shrink-0 overflow-x-auto" style={{ borderBottom: `1px solid ${T.border}` }}>
-                {[
-                  { key: 'config', icon: <Settings size={15} />, label: 'Configuración', color: '#6366f1' },
-                  { key: 'rag', icon: <Book size={15} />, label: 'Protocolos Clínicos', color: '#6366f1' },
-                  { key: 'chat', icon: <MessageSquare size={15} />, label: 'Chat de Pacientes', color: '#6366f1' },
-                  { key: 'broadcast', icon: <Send size={15} />, label: 'Campañas', color: '#a855f7' },
-                  { key: 'compliance', icon: <Shield size={15} />, label: 'Auditoría', color: '#06b6d4' },
-                  { key: 'memories', icon: <Sparkles size={15} />, label: 'Memoria Larga', color: '#f59e0b' },
-                ].map(tab => (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                    className="font-bold pb-2 px-3 border-b-2 transition-all flex items-center gap-2 text-sm whitespace-nowrap"
-                    style={{
-                      borderColor: activeTab === tab.key ? tab.color : 'transparent',
-                      color: activeTab === tab.key ? tab.color : T.textMuted,
-                    }}>
-                    {tab.icon} {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {activeTab === 'config' ? (
-                <div className="flex-1 overflow-y-auto pb-6 pr-2">
-                  <ConfigTab
-                    selected={selected}
-                    configDraft={configDraft}
-                    setConfigDraft={setConfigDraft}
-                    onSave={handleSaveConfig}
-                    analytics={analytics}
-                    connectionStatus={selected?.status}
-                    theme={T}
-                  />
-                </div>
-              ) : activeTab === 'chat' ? (
-                <div className="flex-1 overflow-hidden">
-                  <LiveChat instanceId={selected.instanceId || selected.id} tenantId={userTenant} />
-                </div>
-              ) : activeTab === 'rag' ? (
-                <div className="flex-1 overflow-hidden">
-                  <KnowledgeBase instanceId={selected.instanceId || selected.id} tenantId={userTenant} />
-                </div>
-              ) : activeTab === 'broadcast' ? (
-                <div className="flex-1 overflow-auto p-4 sm:p-6 pb-24 h-full">
-                  <BroadcastCampaign instanceId={selected.instanceId || selected.id} instanceName={selected.name} />
-                </div>
-              ) : activeTab === 'compliance' ? (
-                <div className="flex-1 overflow-hidden">
-                  <DataCompliance instanceId={selected.instanceId || selected.id} tenantId={userTenant} />
-                </div>
-              ) : activeTab === 'memories' ? (
-                <div className="flex-1 overflow-y-auto">
-                  <MemoryManager />
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full" style={{ color: T.textMuted }}>
-              <Smartphone size={64} className="mb-4 opacity-20" />
-              <p className="text-lg font-medium mb-2">Selecciona un bot</p>
-              <p className="text-sm">del panel lateral para administrar su configuración.</p>
-            </div>
-          )}
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/5 via-transparent to-transparent">
+        <div className="max-w-[1400px] mx-auto min-h-full">
+          {renderContent()}
         </div>
       </main>
 
-      <footer className="fixed bottom-2 right-3 text-[11px] px-2 py-1 rounded flex items-center gap-2" style={{ background: T.footerBg, border: `1px solid ${T.footerBorder}`, color: T.textMuted }}>
-        <span className="font-bold" style={{ color: '#818cf8' }}>{VERSION}</span>
-        <span>Hardened | V8 Multi-Tenancy | API: {apiDebugUrl}</span>
-      </footer>
-
+      {/* Wizard Modal */}
       {showWizard && (
-        <PromptWizard
-          onClose={() => setShowWizard(false)}
-          onPromptGenerated={async (prompt, promptMeta) => {
-            setConfigDraft(prev => ({ ...prev, customPrompt: prompt }));
-            try {
-              if (selected?.instanceId && prompt) {
-                await fetchJsonWithApiFallback('/api/saas/prompt-versions', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                  body: JSON.stringify({ instanceId: selected.instanceId, prompt, super_prompt_json: promptMeta || null, status: 'test' })
-                });
-                await fetchPromptVersions(selected.instanceId);
-              }
-            } catch (error) {
-              console.warn('No se pudo versionar el prompt automáticamente:', error.message);
-            }
-          }}
-          instanceName={selected?.name || configDraft.name}
-        />
-      )}
-
-      {showCopilot && selected && (
-        <PromptCopilot
-          currentPrompt={configDraft.customPrompt}
-          onClose={() => setShowCopilot(false)}
-          onPromptImproved={(newPrompt) => {
-            setConfigDraft(prev => ({ ...prev, customPrompt: newPrompt }));
-          }}
-        />
-      )}
-
-      {/* Floating AI Support Chat */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-        {isSupportOpen && (
-          <div className="rounded-xl shadow-2xl mb-4 w-80 h-96 flex flex-col overflow-hidden" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-            <div className="p-3 text-white flex justify-between items-center" style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}>
-              <div className="flex items-center gap-2">
-                <Wand2 size={16} />
-                <span className="font-bold text-sm">Alex Support</span>
-              </div>
-              <button onClick={() => setIsSupportOpen(false)} className="hover:text-indigo-200 transition-colors">
-                <X size={18} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-2xl">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowWizard(false)} />
+          <div className="relative w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+            <div className="absolute top-8 right-8 z-20">
+              <button 
+                onClick={() => setShowWizard(false)}
+                className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-slate-500 transition-colors border border-white/5"
+              >
+                <Plus size={24} className="rotate-45" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: T.bg }}>
-              {supportMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-lg p-2 text-sm ${msg.role === 'user' ? 'text-white rounded-br-none' : 'text-slate-200 rounded-bl-none'}`}
-                    style={msg.role === 'user' ? { background: T.accent } : { background: T.card, border: `1px solid ${T.border}` }}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {isSupportTyping && (
-                <div className="flex justify-start">
-                  <div className="rounded-lg rounded-bl-none p-2 text-xs flex gap-1 items-center" style={{ background: T.card, border: `1px solid ${T.border}`, color: T.textMuted }}>
-                    <span className="animate-bounce">●</span>
-                    <span className="animate-bounce delay-75">●</span>
-                    <span className="animate-bounce delay-150">●</span>
-                  </div>
-                </div>
-              )}
+            <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <EnterpriseWizard onSuccess={() => { setShowWizard(false); fetchBots(); }} />
             </div>
-            <form onSubmit={handleSendSupportMessage} className="p-2 flex gap-2" style={{ borderTop: `1px solid ${T.border}`, background: T.card }}>
-              <input type="text" value={supportInput} onChange={e => setSupportInput(e.target.value)} placeholder="Escribe tu duda..."
-                className="flex-1 rounded-full px-3 py-1.5 text-sm focus:outline-none"
-                style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text }} />
-              <button type="submit" disabled={!supportInput.trim() || isSupportTyping}
-                className="disabled:opacity-50 text-white rounded-full p-2 transition-colors flex items-center justify-center"
-                style={{ background: '#6366f1' }}>
-                <Send size={16} className="-ml-0.5" />
-              </button>
-            </form>
           </div>
-        )}
-        <button onClick={() => setIsSupportOpen(!isSupportOpen)}
-          className={`text-white p-4 rounded-full shadow-lg transition-all ${isSupportOpen ? 'rotate-90 scale-90 opacity-0' : 'rotate-0 scale-100 opacity-100'}`}
-          style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 4px 20px rgba(99,102,241,0.3)' }}>
-          <MessageCircle size={24} />
-        </button>
-      </div>
-
+        </div>
+      )}
     </div>
   );
-}
+};
 
-
-export default function SaasDashboardWithBoundary() {
-  return (
-    <ErrorBoundary>
-      <SaasDashboard />
-    </ErrorBoundary>
-  );
-}
-
+export default SaasDashboard;
