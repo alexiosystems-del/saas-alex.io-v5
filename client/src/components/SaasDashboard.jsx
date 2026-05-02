@@ -23,6 +23,7 @@ import BillingTab from './BillingTab';
 import ConfigTab from './ConfigTab';
 import EnterpriseWizard from './EnterpriseWizard';
 import OnboardingFlow from './OnboardingFlow';
+import CrmProTab from './CrmProTab';
 import { supabase } from '../supabaseClient';
 
 const SaasDashboard = () => {
@@ -78,6 +79,8 @@ const SaasDashboard = () => {
     switch (activeTab) {
       case 'intelligence':
         return <EnterpriseAnalytics />;
+      case 'leads':
+        return <CrmProTab />;
       case 'billing':
         return <BillingTab />;
       case 'dashboard':

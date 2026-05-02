@@ -12,7 +12,7 @@ const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
 const { saveMemory, getMemory } = require('./memoryService');
-const { upsertLead } = require('./crmService');
+const { upsertLeadPro } = require('./crmProService');
 const { logAnalytics } = require('./analyticsService');
 const { scoreLead } = require('./scoringService');
 const { salesAgent, optimizerAgent, expansionAgent } = require('./agentService');
@@ -613,7 +613,15 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     
     // Fire-and-forget background tasks
     saveMemory(business_id, customerId, { lastMessage: message, score: leadScore }).catch(() => {});
-    upsertLead(business_id, customerId, message).catch(() => {});
+    upsertLeadPro({
+        business_id,
+        phone: customerId,
+        last_message: message,
+        score: leadScore,
+        stage: leadScore > 0.7 ? 'qualified' : 'new',
+        source: 'ai_conversation',
+        metadata: { model: usedModel, confidence: finalScore }
+    }).catch(() => {});
     logAnalytics({
         business_id,
         latency,

@@ -309,6 +309,10 @@ app.use('/api/memories', authenticateTenant, tenantLimiter, memoriesRouter);
 const leadsAndBroadcastRouter = require('./routes/leadsAndBroadcast');
 app.use('/api/saas', authenticateTenant, tenantLimiter, leadsAndBroadcastRouter);
 
+// CRM PRO Enterprise Routes
+const crmRouter = require('./routes/crm');
+app.use('/api/crm', authenticateTenant, tenantLimiter, crmRouter);
+
 // Health Check (Public or Internal)
 app.get('/api/health', (req, res) => {
     res.json({
