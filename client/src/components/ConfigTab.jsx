@@ -446,3 +446,4 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
 }
 
 // 🔱 SRE Synchronization Pulse: 2026-05-02T21:09:00Z - Gold Product Finalized.
+export default ConfigTab;
