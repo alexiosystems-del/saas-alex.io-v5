@@ -377,7 +377,7 @@ const SaasDashboard = () => {
               <EnterpriseWizard 
                 onSave={async (data) => {
                   try {
-                    const newInstanceId = 'bot_' + Date.now();
+                    const newInstanceId = 'bot_' + crypto.randomUUID();
                     
                     // Insert into whatsapp_sessions to register the bot
                     await supabase.from('whatsapp_sessions').insert({

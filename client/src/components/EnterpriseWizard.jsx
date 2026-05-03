@@ -21,6 +21,17 @@ const VOICE_OPTIONS = [
 ];
 
 export default function EnterpriseWizard({ config, onSave, onCancel }) {
+  if (typeof onSave !== "function") {
+    console.error("Critical: onSave prop is missing or not a function in EnterpriseWizard");
+    return (
+      <div className="p-8 text-center text-red-500 bg-red-500/10 rounded-3xl border border-red-500/20">
+        <ShieldAlert className="w-12 h-12 mx-auto mb-4" />
+        <h3 className="font-bold text-xl">Error de Integración</h3>
+        <p className="text-sm mt-2 text-slate-400">El componente no ha recibido la función de guardado (onSave).</p>
+      </div>
+    );
+  }
+
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     botName: config?.botName || config?.companyName || 'ALEX IO',

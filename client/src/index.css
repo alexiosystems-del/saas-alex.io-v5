@@ -60,7 +60,14 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--gradient-main);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+input, textarea, select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 
 /* ─── SCROLLBAR ─── */
