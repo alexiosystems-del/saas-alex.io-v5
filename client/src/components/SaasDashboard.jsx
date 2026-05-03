@@ -380,7 +380,7 @@ const SaasDashboard = () => {
                     const newInstanceId = 'bot_' + crypto.randomUUID();
                     
                     // Insert into whatsapp_sessions to register the bot
-                    await supabase.from('whatsapp_sessions').insert({
+                    const { error: err1 } = await supabase.from('whatsapp_sessions').insert({
                       instance_id: newInstanceId,
                       company_name: data.botName || 'Nuevo Bot',
                       provider: data.provider || 'baileys',
@@ -388,9 +388,10 @@ const SaasDashboard = () => {
                       voice_enabled: data.voiceEnabled || false,
                       target_language: 'es'
                     });
+                    if (err1) throw new Error("Error en whatsapp_sessions: " + err1.message);
 
                     // Insert into bot_configs
-                    await supabase.from('bot_configs').insert({
+                    const { error: err2 } = await supabase.from('bot_configs').insert({
                       instance_id: newInstanceId,
                       name: data.botName || 'Nuevo Bot',
                       custom_prompt: data.systemPrompt,
@@ -401,12 +402,13 @@ const SaasDashboard = () => {
                       manychat_token: data.manychatToken,
                       updated_at: new Date()
                     });
+                    if (err2) throw new Error("Error en bot_configs: " + err2.message);
 
                     setShowWizard(false); 
                     fetchBots();
                   } catch (e) {
                     console.error('Error creating bot:', e);
-                    alert('Error guardando configuración');
+                    alert('Error guardando configuración: ' + e.message);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
