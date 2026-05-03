@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const G = '#D4A843';
-const GH = '#E0BC6A';
-const GD = '#D4A84318';
-const GB = '#D4A84338';
+const G = '#6366F1';
+const GH = '#818CF8';
+const GD = '#6366F118';
+const GB = '#6366F138';
 
 const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -82,11 +82,11 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
             <style>{`
                 @keyframes alex-pulse {
                     0% { box-shadow: 0 0 0 0 ${GB}; }
-                    70% { box-shadow: 0 0 0 15px rgba(212, 168, 67, 0); }
-                    100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0); }
+                    70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
                 }
                 .alex-bubble-bot { background: #1A1F28; border-radius: 4px 16px 16px 16px; padding: 10px 14px; font-size: 14px; color: #E5E7EB; line-height: 1.5; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-                .alex-bubble-user { background: ${G}; border-radius: 16px 4px 16px 16px; padding: 10px 14px; font-size: 14px; color: #07090C; line-height: 1.5; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+                .alex-bubble-user { background: ${G}; border-radius: 16px 4px 16px 16px; padding: 10px 14px; font-size: 14px; color: #FFFFFF; line-height: 1.5; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
             `}</style>
             
             {!isOpen && (
@@ -94,7 +94,7 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
                     onClick={() => setIsOpen(true)}
                     style={{
                         backgroundColor: G, 
-                        color: '#07090C', 
+                        color: '#FFFFFF', 
                         border: 'none',
                         borderRadius: '50%',
                         width: '60px', 
@@ -201,7 +201,7 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
                             disabled={isLoading || !inputText.trim()}
                             style={{
                                 backgroundColor: inputText.trim() && !isLoading ? G : '#1E2530',
-                                color: '#07090C',
+                                color: '#FFFFFF',
                                 border: 'none',
                                 borderRadius: '10px',
                                 padding: '0 15px',

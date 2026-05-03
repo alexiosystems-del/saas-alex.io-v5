@@ -91,8 +91,9 @@ function markProviderDead(provider, reason) {
 // --- CONSTANTS ---
 const OPENAI_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
 let GEMINI_KEY = (process.env.GEMINI_API_KEY || process.env.GENAI_API_KEY || process.env.GOOGLE_API_KEY || '').replace(/['"]/g, '').trim();
-if (!GEMINI_KEY.startsWith('AIza')) {
-    GEMINI_KEY = 'AIzaSyBMvWhsffeudV9aHI2mR_I-D4RmWKXWobw'; // Override: La key en Render estaba mal configurada (era de Anthropic)
+if (GEMINI_KEY && !GEMINI_KEY.startsWith('AIza')) {
+    console.warn('⚠️ [CASCADE] GEMINI_KEY does not look like a valid Google API key. Disabling Gemini.');
+    GEMINI_KEY = '';
 }
 const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
 const MINIMAX_KEY = (process.env.MINIMAX_API_KEY || '').trim();
@@ -743,7 +744,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         }
     }
 
-    try { if (cacheKey && global.responseCache) global.responseCache.set(cacheKey, result); } catch (_) {}
+    try { if (global.responseCache) global.responseCache.set(`${botConfig.tenantId}_${customerId}_${normalizedUserMsg.slice(0,50)}`, result); } catch (_) {}
 
     // --- POST-INTERACTION: MEMORY EXTRACTION (Async) ---
     if (botConfig.tenantId && customerId !== 'unknown' && responseText && usedModel !== 'safeguard') {

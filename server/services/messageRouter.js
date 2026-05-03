@@ -128,10 +128,16 @@ const processMessageWithAI = async (msg) => {
 
         const result = await Promise.race([aiPromise, timeoutPromise]);
         
+        // SAFETY: generateResponse can return null when AI limiter fires
+        if (!result) {
+            logInfo(`[MessageRouter] AI returned null (limiter/silent mode) for ${instanceId}`);
+            return null;
+        }
+        
         const answer = result.text || 'No pude procesar tu mensaje.';
         
         // Report success to Bot Pool Router
-        botPool.reportSuccess(instanceId, Date.now() - start);
+        try { botPool.reportSuccess(instanceId, Date.now() - start); } catch (_) {}
 
         // Log AI Cascade for monitoring (Async)
         if (isSupabaseEnabled && result.trace) {
@@ -154,16 +160,16 @@ const processMessageWithAI = async (msg) => {
         const isTimeout = e.message === 'AI_TIMEOUT';
         
         // Report failure to Bot Pool Router
-        botPool.reportFailure(instanceId, e.message);
+        try { botPool.reportFailure(instanceId, e.message); } catch (_) {}
         
         if (isTimeout) {
             logError('[MessageRouter] ⏱️ AI TIMEOUT - respondiendo con safeguard', { instanceId });
         } else {
-            logError('[MessageRouter] Error en alexBrain', e);
+            logError(`[MessageRouter] ❌ CRITICAL ERROR in alexBrain [${instanceId}]: ${e.message}`, { stack: e.stack?.split('\n').slice(0, 5).join(' | ') });
         }
         const fallback = isTimeout 
             ? '¡Hola! Soy ALEX IO. Mis sistemas de IA están bajo alta demanda. ¿Podés contarme brevemente qué necesitás y te respondo enseguida?'
-            : 'Lo siento, estoy teniendo problemas técnicos en este momento.';
+            : '¡Hola! Soy ALEX IO. ¿En qué puedo ayudarte hoy?';
         logToDB('OUTBOUND', fallback);
         return fallback;
     }
