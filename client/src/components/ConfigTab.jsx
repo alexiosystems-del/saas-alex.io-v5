@@ -324,6 +324,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                 </div>
             </div>
             </div>
+            </div>
 
             {/* Sidebar Stats */}
             <div className="space-y-6">
