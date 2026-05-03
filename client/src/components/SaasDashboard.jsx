@@ -374,7 +374,43 @@ const SaasDashboard = () => {
               </button>
             </div>
             <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
-              <EnterpriseWizard onSuccess={() => { setShowWizard(false); fetchBots(); }} />
+              <EnterpriseWizard 
+                onSave={async (data) => {
+                  try {
+                    const newInstanceId = 'bot_' + Date.now();
+                    
+                    // Insert into whatsapp_sessions to register the bot
+                    await supabase.from('whatsapp_sessions').insert({
+                      instance_id: newInstanceId,
+                      company_name: data.botName || 'Nuevo Bot',
+                      provider: data.provider || 'baileys',
+                      status: 'pending',
+                      voice_enabled: data.voiceEnabled || false,
+                      target_language: 'es'
+                    });
+
+                    // Insert into bot_configs
+                    await supabase.from('bot_configs').insert({
+                      instance_id: newInstanceId,
+                      name: data.botName || 'Nuevo Bot',
+                      custom_prompt: data.systemPrompt,
+                      voice_enabled: data.voiceEnabled,
+                      voice_provider: data.voice,
+                      provider: data.provider,
+                      access_token: data.accessToken,
+                      manychat_token: data.manychatToken,
+                      updated_at: new Date()
+                    });
+
+                    setShowWizard(false); 
+                    fetchBots();
+                  } catch (e) {
+                    console.error('Error creating bot:', e);
+                    alert('Error guardando configuración');
+                  }
+                }}
+                onCancel={() => setShowWizard(false)}
+              />
             </div>
           </div>
         </div>
