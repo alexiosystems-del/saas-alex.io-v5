@@ -64,13 +64,19 @@ const SaasDashboard = () => {
       setError(null);
       const { data, error: sbError } = await supabase
         .from('whatsapp_sessions')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (sbError) throw sbError;
-      setBots(data || []);
-      if (data && data.length > 0 && !selectedBotId) {
-        setSelectedBotId(data[0].instance_id);
+      
+      // Sort in memory instead of SQL to avoid 400 error if created_at column is missing
+      const sortedData = (data || []).sort((a, b) => {
+          if (!a.created_at || !b.created_at) return 0;
+          return new Date(b.created_at) - new Date(a.created_at);
+      });
+
+      setBots(sortedData);
+      if (sortedData.length > 0 && !selectedBotId) {
+        setSelectedBotId(sortedData[0].instance_id);
       }
     } catch (err) {
       console.error('Error fetching bots:', err);
