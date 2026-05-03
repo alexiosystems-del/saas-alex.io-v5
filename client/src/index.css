@@ -10,22 +10,22 @@
   font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light;
   
-  /* Premium SaaS Gray tokens */
-  --bg-primary: #0f1115;
-  --bg-secondary: #1a1d23;
-  --bg-card: #20242c;
-  --border: #2c313a;
+  /* Premium SaaS Gray Plata tokens */
+  --bg-primary: #f5f6f8;
+  --bg-secondary: #e9ecf1;
+  --bg-card: #ffffff;
+  --border: #d1d5db;
 
-  --text-primary: #ffffff;
-  --text-secondary: #a1a7b3;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
 
-  --accent: #5b8cff;
-  --accent-hover: #7aa2ff;
+  --accent: #6b8cff;
+  --accent-hover: #4f6fff;
 
-  --success: #22c55e;
-  --danger: #ef4444;
+  --success: #16a34a;
+  --danger: #dc2626;
 
   color: var(--text-primary);
   background-color: var(--bg-primary);
