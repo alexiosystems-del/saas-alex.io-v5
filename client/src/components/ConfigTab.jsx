@@ -323,6 +323,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     <p className="text-center text-[8px] text-slate-600 mt-3 font-mono">ALEX IO SRE CORE • V5.1.2-GOLD • LATENCY: 42MS</p>
                 </div>
             </div>
+            </div>
 
             {/* Sidebar Stats */}
             <div className="space-y-6">
