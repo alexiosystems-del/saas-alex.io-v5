@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert, Wand2 } from 'lucide-react';
+import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert, Wand2, RotateCcw, RefreshCw } from 'lucide-react';
 import EnterpriseWizard from './EnterpriseWizard';
 import MetaWizard from './MetaWizard';
 import PromptWizard from './PromptWizard';
@@ -250,9 +250,9 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     </div>
 
                 {/* Dynamic Config Fields */}
-                <AnimatePresence mode="wait">
+                <div>
                     {configDraft.provider === 'meta' && (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="pt-4 border-t border-white/5">
+                        <div className="pt-4 border-t border-white/5">
                             <div className="flex justify-between items-center mb-4">
                                 <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Meta Cloud Configuration</p>
                                 <button onClick={() => setPhase('meta_wizard')} className="text-[10px] font-black text-white px-3 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-all">Launch Meta Wizard</button>
@@ -267,11 +267,11 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                     <input type="text" value={configDraft.phoneNumberId || ''} onChange={e => setConfigDraft(p => ({ ...p, phoneNumberId: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all" placeholder="105xxxxxxx" />
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     )}
 
                     {configDraft.provider === '360dialog' && (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="pt-4 border-t border-white/5">
+                        <div className="pt-4 border-t border-white/5">
                             <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4">360Dialog Pro Configuration</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
@@ -286,9 +286,9 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                     </select>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     )}
-                </AnimatePresence>
+                </div>
 
                 {/* MODO DIOS: SRE Hardening Status */}
                 <div className="bg-slate-900/60 border-2 border-indigo-500/20 rounded-[2.5rem] p-8 backdrop-blur-xl relative overflow-hidden group">
@@ -446,5 +446,4 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     );
 }
 
-// 🔱 SRE Synchronization Pulse: 2026-05-02T21:24:00Z - ALL TAGS BALANCED.
-export default ConfigTab;
+// 🔱 SRE Synchronization Pulse: 2026-05-03T00:45:00Z - ALL TAGS BALANCED.
