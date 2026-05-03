@@ -70,6 +70,7 @@ const SuperAdminDashboard = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [healthData, setHealthData] = useState<SreHealthSnapshot | null>(null);
     const [aiDiag, setAiDiag] = useState<any>(null);
+    const [systemLogs, setSystemLogs] = useState<any[]>([]);
 
     useEffect(() => { fetchGlobalData(); const iv = setInterval(fetchGlobalData, 30000); return () => clearInterval(iv); }, []);
 
@@ -105,6 +106,11 @@ const SuperAdminDashboard = () => {
                 const diagRes = await fetchJsonWithApiFallback('/api/diagnostics/ai', {});
                 if (diagRes.response.ok && diagRes.data) setAiDiag(diagRes.data);
             } catch (e: any) { console.warn('AI Diag fetch failed:', e.message); }
+            // Fetch System Logs
+            try {
+                const logsRes = await fetchJsonWithApiFallback('/api/sre/logs', { headers: { ...getAuthHeaders() } });
+                if (logsRes.response.ok && logsRes.data) setSystemLogs(logsRes.data.logs || []);
+            } catch (e: any) { console.warn('System logs fetch failed:', e.message); }
         } catch (err: any) { console.error("SuperAdmin Error:", err.message); }
         finally { setLoading(false); }
     };
@@ -282,6 +288,35 @@ const SuperAdminDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* System Logs Dashboard */}
+            <section style={{ ...glassCard({ padding: 24, marginBottom: 40 }), position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Activity size={16} style={{ color: T.accentLight }} />
+                    <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, margin: 0, color: T.text }}>Central Logs (Real-time)</h3>
+                </div>
+                <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 10 }}>
+                    {systemLogs.length > 0 ? systemLogs.map((log, idx) => (
+                        <div key={log.id || idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: `1px solid ${T.glassBorder}` }}>
+                            <div style={{ padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, textTransform: 'uppercase', background: log.level === 'error' ? 'rgba(239,68,68,0.15)' : log.level === 'warn' ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', color: log.level === 'error' ? T.danger : log.level === 'warn' ? T.warning : T.success }}>
+                                {log.level}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: T.textDim }}>[{log.source}]</span>
+                                    <span style={{ fontSize: 10, color: T.textMuted, fontFamily: 'monospace' }}>{new Date(log.created_at).toLocaleString()}</span>
+                                </div>
+                                <span style={{ fontSize: 12, color: T.text, lineHeight: 1.4 }}>{log.message}</span>
+                                {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                    <pre style={{ margin: '4px 0 0', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 6, fontSize: 10, color: T.textDim, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                        {JSON.stringify(log.metadata, null, 2)}
+                                    </pre>
+                                )}
+                            </div>
+                        </div>
+                    )) : <p style={{ color: T.textDim, fontSize: 12, textAlign: 'center', fontStyle: 'italic', padding: 20 }}>No hay logs del sistema en este momento.</p>}
+                </div>
+            </section>
 
             {/* Clients Table */}
             <section style={{ ...glassCard({ overflow: 'hidden', boxShadow: `0 8px 32px rgba(0,0,0,0.2)` }), position: 'relative', zIndex: 1 }}>

@@ -146,26 +146,22 @@ async function hydratePool() {
   }
   
   try {
-    const { data, error } = await supabase
-      .from('whatsapp_sessions')
-      .select('instance_id, company_name, provider, tenant_id, status')
-      .in('status', ['online', 'active', 'connected', null]);
-    
-    if (error) throw error;
-    
+    const { data } = await supabase.from("bots").select("*");
+
+    console.log("Bots cargados:", data ? data.length : 0);
+
     const sessions = data || [];
-    logInfo(`[BotPool] Hydrating pool with ${sessions.length} bot(s) from DB...`);
-    
     for (const session of sessions) {
-      registerBot(session.instance_id, {
-        companyName: session.company_name,
-        provider: session.provider || 'baileys',
-        tenantId: session.tenant_id,
-        status: session.status
+      registerBot(session.id, {
+        companyName: session.company_name || 'Bot',
+        provider: session.config?.provider || 'baileys',
+        tenantId: session.user_id,
+        status: 'online'
       });
     }
     
     logInfo(`[BotPool] ✅ Pool hydrated. ${botPool.size} bot(s) registered.`);
+    return data;
   } catch (e) {
     logError('[BotPool] Failed to hydrate pool:', e.message);
   }

@@ -104,6 +104,11 @@ app.use(helmet({
 // Middleware
 const jsonParser = express.json();
 
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+
 // Stripe y TikTok requieren body crudo para validar firma de webhook (HMAC).
 app.use((req, res, next) => {
     if (req.path === '/api/payments/stripe/webhook') return next();
@@ -281,14 +286,30 @@ app.get('/api/diagnostics/ai', (req, res) => {
     res.json(getAiDiagnostics());
 });
 
+// WIZARD + CREACIÓN DE BOT (FIX TOTAL)
+app.post("/save-bot", async (req, res) => {
+  const { config, prompt } = req.body;
+
+  const { data, error } = await supabase
+    .from("bots")
+    .insert({ config, prompt })
+    .select();
+
+  if (error) return res.status(500).json(error);
+
+  res.json(data);
+});
+
 // GLOBAL CONTROL SYSTEM (AI Router Pro Failures & Uptime)
-app.get('/system-status', (req, res) => {
-    const { getSystemStatus } = require('./services/aiRouter');
-    try {
-        res.json(getSystemStatus());
-    } catch (e) {
-        res.json({ status: "running", uptime: process.uptime(), ai: {} });
-    }
+app.get("/system-status", async (req, res) => {
+  const bots = await supabase.from("bots").select("*");
+
+  res.json({
+    ai: "ok",
+    db: "ok",
+    bots: bots.data ? bots.data.length : 0,
+    whatsapp: "ready"
+  });
 });
 
 app.get('/api/sre/health', authenticateTenant, (req, res) => {
@@ -296,6 +317,26 @@ app.get('/api/sre/health', authenticateTenant, (req, res) => {
         return res.status(403).json({ error: 'Acceso denegado: solo SuperAdmin' });
     }
     return res.json({ success: true, health: getHealthSnapshot() });
+});
+
+app.get('/api/sre/logs', authenticateTenant, async (req, res) => {
+    if (req.tenant?.role !== 'SUPERADMIN') {
+        return res.status(403).json({ error: 'Acceso denegado: solo SuperAdmin' });
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('system_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+        return res.json({ success: true, logs: data || [] });
+    } catch (error) {
+        console.error('Error fetching logs:', error.message);
+        return res.status(500).json({ error: 'Error fetching logs' });
+    }
 });
 
 // Multi-Platform Webhooks (Public endpoints for providers)

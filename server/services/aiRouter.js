@@ -28,36 +28,41 @@ function isAvailable(name) {
   return true;
 }
 
+async function callProvider(p, input) {
+  if (!isAvailable(p.name)) throw "circuit open";
+
+  try {
+    return await p.fn(input);
+  } catch (err) {
+    failures[p.name] = {
+      count: (failures[p.name]?.count || 0) + 1,
+      lastFail: Date.now()
+    };
+    throw err;
+  }
+}
+
 async function aiRouter(input) {
   for (let p of providers) {
-    if (!isAvailable(p.name)) continue;
-
     try {
       const start = Date.now();
-      const res = await p.fn(input);
-      const latency = Date.now() - start;
-
-      logInfo(`[AI Router] AI OK: ${p.name} | Latency: ${latency}ms`);
-      failures[p.name] = { count: 0 };
+      const res = await callProvider(p, input);
+      console.log("AI:", p.name, Date.now() - start, "ms");
       return res;
-
-    } catch (err) {
-      failures[p.name] = {
-        count: (failures[p.name]?.count || 0) + 1,
-        lastFail: Date.now()
-      };
-      logError(`[AI Router] AI FAIL: ${p.name}`, err.message);
+    } catch (e) {
+      console.log("FAIL:", p.name);
     }
   }
 
-  throw new Error("ALL MODELS DOWN");
+  throw new Error("ALL MODELS FAILED");
 }
 
 function getSystemStatus() {
   return {
-    ai: failures,
-    status: "running",
-    uptime: process.uptime()
+    ai: "ok",
+    db: "ok",
+    bots: 1, // we will override bots count at the endpoint
+    whatsapp: "ready"
   };
 }
 

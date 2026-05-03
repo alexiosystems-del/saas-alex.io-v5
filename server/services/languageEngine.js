@@ -1,33 +1,24 @@
-const { getSupabase } = require('./supabaseClient'); // Asumiendo export de supabase
-const aiRouter = require('./aiRouter');
-const { translate, detectLang } = require('./translationEngine'); // Mocks o utils
+const { getSupabase } = require('./supabaseClient'); 
+const { aiRouter } = require('./aiRouter');
+const { translate, detectLang } = require('./translationEngine'); 
 
 const supported = ["es","en","fr","de","ar","hi","zh","ko"];
 
-async function processMessage(message) {
-  // 1. Detectar idioma original
+async function globalBrain(message) {
   const lang = await detectLang(message);
 
-  // 2. Traducir a Inglés (lenguaje base para IA) si no es inglés
-  let toEN = message;
-  if (lang !== 'en') {
-      toEN = await translate(message, "en");
-  }
+  const translated = await translate(message, "en");
 
-  // 3. Procesar con AI Router (Failover inteligente)
-  const ai = await aiRouter(toEN);
+  const ai = await aiRouter(translated);
 
-  // 4. Traducir respuesta al idioma original
-  let final = ai;
-  if (lang !== 'en') {
-      final = await translate(ai, lang);
-  }
+  const final = await translate(ai, lang);
 
   return {
     original: message,
-    lang,
-    response: final
+    translated,
+    response: final,
+    lang
   };
 }
 
-module.exports = { processMessage, supported };
+module.exports = { processMessage: globalBrain, globalBrain, supported };
