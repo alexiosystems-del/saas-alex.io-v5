@@ -11,14 +11,30 @@
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
-  color: rgba(255, 255, 255, 0.92);
-  background-color: #050510;
+  
+  /* Premium SaaS Gray tokens */
+  --bg-primary: #0f1115;
+  --bg-secondary: #1a1d23;
+  --bg-card: #20242c;
+  --border: #2c313a;
+
+  --text-primary: #ffffff;
+  --text-secondary: #a1a7b3;
+
+  --accent: #5b8cff;
+  --accent-hover: #7aa2ff;
+
+  --success: #22c55e;
+  --danger: #ef4444;
+
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Glass tokens */
+  /* Glass tokens (kept for compatibility) */
   --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-bg-hover: rgba(255, 255, 255, 0.07);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -35,9 +51,9 @@
   --accent-green: #10b981;
 
   /* Gradients */
-  --gradient-main: linear-gradient(135deg, #0c0c1d 0%, #0a0a1a 30%, #0d0b1e 60%, #050510 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple));
-  --gradient-glow: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(99, 102, 241, 0.06), transparent 40%);
+  --gradient-main: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  --gradient-accent: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  --gradient-glow: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(91, 140, 255, 0.06), transparent 40%);
 }
 
 body {
