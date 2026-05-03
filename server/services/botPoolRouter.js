@@ -139,6 +139,8 @@ function getPoolStatus() {
 /**
  * Load all bots from Supabase on server startup and register them.
  */
+const TENANT_ID = '11111111-1111-1111-1111-111111111111';
+
 async function hydratePool() {
   if (!isSupabaseEnabled) {
     logInfo('[BotPool] Supabase not enabled. Skipping hydration.');
@@ -146,16 +148,26 @@ async function hydratePool() {
   }
   
   try {
-    const { data } = await supabase.from("bots").select("*");
+    const { data, error } = await supabase
+      .from('bots')
+      .select('*')
+      .eq('tenant_id', TENANT_ID)
+      .eq('active', true);
 
-    console.log("Bots cargados:", data ? data.length : 0);
+    if (error) {
+      logError('[BotPool] Error fetching bots:', error.message);
+      return [];
+    }
 
-    const sessions = data || [];
-    for (const session of sessions) {
-      registerBot(session.id, {
-        companyName: session.company_name || 'Bot',
-        provider: session.config?.provider || 'baileys',
-        tenantId: session.user_id,
+    console.log('[BotPool] Hydrating pool with', data ? data.length : 0, 'bot(s) from DB...');
+
+    for (const bot of data || []) {
+      registerBot(bot.id, {
+        companyName: bot.name || 'Bot',
+        prompt: bot.prompt,
+        tenantId: bot.tenant_id,
+        voiceEnabled: bot.voice_enabled,
+        model: bot.model,
         status: 'online'
       });
     }

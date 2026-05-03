@@ -130,6 +130,29 @@ const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'];
+const TENANT_ID = '11111111-1111-1111-1111-111111111111';
+
+function generateProPrompt({ business, goal, tone, language }) {
+  return `
+Eres un experto en ${business}.
+
+OBJETIVO:
+${goal}
+
+CONFIG:
+- Idioma: ${language}
+- Tono: ${tone}
+- Respuestas humanas y cortas
+
+COMPORTAMIENTO:
+- Detecta intención
+- Responde con valor
+- Cierra con acción
+
+CIERRE:
+Siempre intenta vender o generar contacto.
+`;
+}
 
 const buildToken = (user) => {
     const email = user.email;
@@ -286,13 +309,44 @@ app.get('/api/diagnostics/ai', (req, res) => {
     res.json(getAiDiagnostics());
 });
 
-// WIZARD + CREACIÓN DE BOT (FIX TOTAL)
+// CREATE BOT (FIX TOTAL)
+app.post('/api/saas/bots', async (req, res) => {
+  try {
+    const { name, business, goal, tone, language } = req.body;
+
+    const prompt = generateProPrompt({
+      business,
+      goal,
+      tone,
+      language
+    });
+
+    const { data, error } = await supabase
+      .from('bots')
+      .insert([{
+        tenant_id: TENANT_ID,
+        name,
+        prompt,
+        active: true
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// WIZARD + CREACIÓN DE BOT (LEGACY/FALLBACK)
 app.post("/save-bot", async (req, res) => {
   const { config, prompt } = req.body;
 
   const { data, error } = await supabase
     .from("bots")
-    .insert({ config, prompt })
+    .insert({ config, prompt, tenant_id: TENANT_ID })
     .select();
 
   if (error) return res.status(500).json(error);
@@ -302,7 +356,7 @@ app.post("/save-bot", async (req, res) => {
 
 // GLOBAL CONTROL SYSTEM (AI Router Pro Failures & Uptime)
 app.get("/system-status", async (req, res) => {
-  const bots = await supabase.from("bots").select("*");
+  const bots = await supabase.from("bots").select("*").eq('tenant_id', TENANT_ID);
 
   res.json({
     ai: "ok",
@@ -357,12 +411,60 @@ const livechatRouter = require('./routes/livechat');
 app.use('/api/livechat', authenticateTenant, tenantLimiter, livechatRouter);
 
 // Long-Term Memory Routes
-const memoriesRouter = require('./routes/memories');
-app.use('/api/memories', authenticateTenant, tenantLimiter, memoriesRouter);
+app.get('/api/memories', async (req, res) => {
+  try {
+    const { customer_id } = req.query;
 
-// Leads and Advanced Broadcast Routes
-const leadsAndBroadcastRouter = require('./routes/leadsAndBroadcast');
-app.use('/api/saas', authenticateTenant, tenantLimiter, leadsAndBroadcastRouter);
+    const { data, error } = await supabase
+      .from('customer_memories')
+      .select('*')
+      .eq('customer_id', customer_id)
+      .eq('tenant_id', TENANT_ID);
+
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Leads API (FIX)
+app.get('/api/saas/leads', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('tenant_id', TENANT_ID)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TAGS API
+app.get('/api/saas/leads/tags', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('tags')
+      .eq('tenant_id', TENANT_ID);
+
+    if (error) throw error;
+
+    const tags = [...new Set(
+      (data || []).flatMap(l => l.tags || [])
+    )];
+
+    res.json(tags);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // CRM PRO Enterprise Routes
 const crmRouter = require('./routes/crm');
@@ -412,7 +514,9 @@ app.use((err, req, res, next) => {
     if (req.path.startsWith('/assets/')) {
         return res.status(404).type('text/plain').send('Asset not found');
     }
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+        error: err.message || 'Internal server error' 
+    });
 });
 
 // --- START SERVER ---
