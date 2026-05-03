@@ -297,12 +297,13 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                   </div>
                   
                   <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="grid grid-cols-3 gap-3 mb-6">
+                        {[
                             { label: 'AI Cascade', status: 'Active', icon: Zap, color: 'text-amber-400' },
                             { label: 'Multi-Engine', status: 'Synced', icon: RefreshCw, color: 'text-blue-400' },
                             { label: 'Memory Grid', status: 'Secure', icon: Bot, color: 'text-purple-400' }
                         ].map((item, i) => (
-                            <div key={i} className="p-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
+                            <div key={i} className="p-3 rounded-2xl bg-black/40 border border-white/5 backdrop-blur-md">
                                 <div className="flex items-center gap-2 mb-1.5">
                                     <item.icon size={12} className={item.color} />
                                     <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">{item.label}</span>
