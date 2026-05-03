@@ -364,7 +364,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, async () => {
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
-    logger.info(`🧠 AI Brain Listo...`);
+    logger.info(`🧠 AI Brain Listo... backend está esperando, 50 sin drama`);
 
     // Auto-restore previous sessions
     restoreSessions().catch(e => logger.error(`❌ Session restoration failed: ${e.message}`));
