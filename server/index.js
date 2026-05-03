@@ -281,6 +281,16 @@ app.get('/api/diagnostics/ai', (req, res) => {
     res.json(getAiDiagnostics());
 });
 
+// GLOBAL CONTROL SYSTEM (AI Router Pro Failures & Uptime)
+app.get('/system-status', (req, res) => {
+    const { getSystemStatus } = require('./services/aiRouter');
+    try {
+        res.json(getSystemStatus());
+    } catch (e) {
+        res.json({ status: "running", uptime: process.uptime(), ai: {} });
+    }
+});
+
 app.get('/api/sre/health', authenticateTenant, (req, res) => {
     if (req.tenant?.role !== 'SUPERADMIN') {
         return res.status(403).json({ error: 'Acceso denegado: solo SuperAdmin' });
@@ -300,6 +310,10 @@ app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappSaas);
 // Payment Routes (Protected & Rate Limited by Tenant)
 const paymentsRouter = require('./routes/payments');
 app.use('/api/payments', authenticateTenant, tenantLimiter, paymentsRouter);
+
+// Live Chat Routes
+const livechatRouter = require('./routes/livechat');
+app.use('/api/livechat', authenticateTenant, tenantLimiter, livechatRouter);
 
 // Long-Term Memory Routes
 const memoriesRouter = require('./routes/memories');

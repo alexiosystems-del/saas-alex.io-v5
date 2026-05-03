@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  api-core:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "10000:10000"
+    environment:
+      - NODE_ENV=production
+      - PORT=10000
+
+  # Simulando la estructura requerida para escalar
+  ai-router:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_NAME=ai-router
+
+  whatsapp:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_NAME=whatsapp-gateway
+
+  livechat:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_NAME=livechat
+
+  rag:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SERVICE_NAME=rag-engine
