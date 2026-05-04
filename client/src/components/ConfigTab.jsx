@@ -47,12 +47,13 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     const [channelWizard, setChannelWizard] = useState('instagram');
 
     useEffect(() => {
-        if (configDraft?.customPrompt?.length > 50) {
+        const prompt = configDraft?.customPrompt || configDraft?.prompt || configDraft?.custom_prompt || '';
+        if (prompt.length > 10 || selected?.instance_id || selected?.id) {
             setPhase('advanced');
         } else {
             setPhase('select');
         }
-    }, [selected?.id]);
+    }, [selected?.id, selected?.instance_id]);
 
     const renderSelect = () => (
         <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
