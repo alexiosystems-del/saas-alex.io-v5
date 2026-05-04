@@ -132,25 +132,21 @@ const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'];
 const TENANT_ID = '11111111-1111-1111-1111-111111111111';
 
-function generateProPrompt({ business, goal, tone, language }) {
+function generatePrompt(data) {
   return `
-Eres un experto en ${business}.
+Eres un asistente experto en ${data.industry}.
 
-OBJETIVO:
-${goal}
+OBJETIVO: ${data.objective}
+TONO: ${data.tone}
 
-CONFIG:
-- Idioma: ${language}
-- Tono: ${tone}
-- Respuestas humanas y cortas
+REGLAS:
+- Responde claro y corto
+- Cierra ventas
+- Usa lenguaje natural
+- Si no sabes algo, deriva a humano
 
-COMPORTAMIENTO:
-- Detecta intención
-- Responde con valor
-- Cierra con acción
-
-CIERRE:
-Siempre intenta vender o generar contacto.
+CONTEXTO:
+${data.extra || ''}
 `;
 }
 
@@ -309,30 +305,34 @@ app.get('/api/diagnostics/ai', (req, res) => {
     res.json(getAiDiagnostics());
 });
 
-// CREATE BOT (FIX TOTAL)
+// GET ALL BOTS (FIX TOTAL)
+app.get('/api/saas/bots', async (req, res) => {
+  const { data, error } = await supabase.from('bots').select('*');
+  if (error) return res.status(500).json({ error });
+  res.json(data);
+});
+
+// CREATE BOT (FIX WIZARD)
 app.post('/api/saas/bots', async (req, res) => {
   try {
-    const { name, business, goal, tone, language } = req.body;
-
-    const prompt = generateProPrompt({
-      business,
-      goal,
-      tone,
-      language
-    });
+    const { name, prompt, tone, industry, objective } = req.body;
 
     const { data, error } = await supabase
       .from('bots')
-      .insert([{
-        tenant_id: TENANT_ID,
-        name,
-        prompt,
-        active: true
-      }])
+      .insert([{ name, prompt, tone, industry, objective }])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) return res.status(500).json({ error });
+
+    // Link a default config
+    await supabase.from('bot_configs').insert([
+      {
+        bot_id: data.id,
+        voice_enabled: true,
+        translation_enabled: true
+      }
+    ]);
 
     res.json(data);
   } catch (err) {
@@ -343,21 +343,18 @@ app.post('/api/saas/bots', async (req, res) => {
 // WIZARD + CREACIÓN DE BOT (LEGACY/FALLBACK)
 app.post("/save-bot", async (req, res) => {
   const { config, prompt } = req.body;
-
   const { data, error } = await supabase
     .from("bots")
-    .insert({ config, prompt, tenant_id: TENANT_ID })
+    .insert({ name: config.botName || 'Nuevo Bot', prompt })
     .select();
 
   if (error) return res.status(500).json(error);
-
   res.json(data);
 });
 
-// GLOBAL CONTROL SYSTEM (AI Router Pro Failures & Uptime)
+// GLOBAL CONTROL SYSTEM
 app.get("/system-status", async (req, res) => {
-  const bots = await supabase.from("bots").select("*").eq('tenant_id', TENANT_ID);
-
+  const bots = await supabase.from("bots").select("*");
   res.json({
     ai: "ok",
     db: "ok",
@@ -410,60 +407,71 @@ app.use('/api/payments', authenticateTenant, tenantLimiter, paymentsRouter);
 const livechatRouter = require('./routes/livechat');
 app.use('/api/livechat', authenticateTenant, tenantLimiter, livechatRouter);
 
-// Long-Term Memory Routes
+// Long-Term Memory Routes (FIX CRÍTICO)
 app.get('/api/memories', async (req, res) => {
-  try {
-    const { customer_id } = req.query;
+  const { customer_id } = req.query;
+  const { data, error } = await supabase
+    .from('customer_memories')
+    .select('*')
+    .eq('customer_id', customer_id);
 
-    const { data, error } = await supabase
-      .from('customer_memories')
-      .select('*')
-      .eq('customer_id', customer_id)
-      .eq('tenant_id', TENANT_ID);
-
-    if (error) throw error;
-
-    res.json(data || []);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  if (error) return res.status(500).json({ error });
+  res.json(data || []);
 });
 
-// Leads API (FIX)
+// Leads API (FIX TOTAL)
 app.get('/api/saas/leads', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('tenant_id', TENANT_ID)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    res.json(data || []);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { temp } = req.query;
+  let query = supabase.from('leads').select('*');
+  if (temp && temp !== 'all') query = query.eq('temperature', temp);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error });
+  res.json(data || []);
 });
 
 // TAGS API
 app.get('/api/saas/leads/tags', async (req, res) => {
+  const { data, error } = await supabase.from('lead_tags').select('*');
+  if (error) return res.status(500).json({ error });
+  res.json(data || []);
+});
+
+// CHAT INTELIGENTE (FIX CORE)
+app.post('/api/chat', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('tags')
-      .eq('tenant_id', TENANT_ID);
+    const { message, bot_id } = req.body;
+    const { data: bot } = await supabase
+      .from('bots')
+      .select('*')
+      .eq('id', bot_id)
+      .single();
 
-    if (error) throw error;
+    if (!bot) return res.json({ reply: "Bot no encontrado" });
 
-    const tags = [...new Set(
-      (data || []).flatMap(l => l.tags || [])
-    )];
+    const finalPrompt = `${bot.prompt}\n\nUSER: ${message}\nAI:`;
 
-    res.json(tags);
+    const { OpenAI } = require('openai');
+    const openai = new OpenAI();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: finalPrompt }]
+    });
+
+    res.json({ reply: response.choices[0].message.content });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// RAG (FUNCIONAL REAL)
+app.post('/api/rag/upload', async (req, res) => {
+  const { name, content } = req.body;
+  const { data, error } = await supabase
+    .from('rag_sources')
+    .insert([{ name, content, type: 'text' }]);
+
+  if (error) return res.status(500).json({ error });
+  res.json({ success: true });
 });
 
 // CRM PRO Enterprise Routes

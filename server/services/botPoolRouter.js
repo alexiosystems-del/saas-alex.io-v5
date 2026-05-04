@@ -150,9 +150,7 @@ async function hydratePool() {
   try {
     const { data, error } = await supabase
       .from('bots')
-      .select('*')
-      .eq('tenant_id', TENANT_ID)
-      .eq('active', true);
+      .select('*');
 
     if (error) {
       logError('[BotPool] Error fetching bots:', error.message);
@@ -165,9 +163,9 @@ async function hydratePool() {
       registerBot(bot.id, {
         companyName: bot.name || 'Bot',
         prompt: bot.prompt,
-        tenantId: bot.tenant_id,
-        voiceEnabled: bot.voice_enabled,
-        model: bot.model,
+        tone: bot.tone,
+        industry: bot.industry,
+        objective: bot.objective,
         status: 'online'
       });
     }
