@@ -24,7 +24,7 @@ export default function CrmProTab() {
       setLoading(true);
       const res = await fetch(`/api/saas/leads?status=${filter}`);
       const data = await res.json();
-      setLeads(data);
+      setLeads(data.leads || []);
     } catch (e) {
       console.error('Error fetching leads:', e);
     } finally {

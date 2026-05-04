@@ -65,9 +65,10 @@ const SaasDashboard = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       
-      setBots(data);
-      if (data.length > 0 && !selectedBotId) {
-        setSelectedBotId(data[0].id);
+      const botsList = data.bots || [];
+      setBots(botsList);
+      if (botsList.length > 0 && !selectedBotId) {
+        setSelectedBotId(botsList[0].id);
       }
     } catch (err) {
       console.error('Error fetching bots:', err);
@@ -80,10 +81,13 @@ const SaasDashboard = () => {
   const handleDeleteBot = async (botId) => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      await supabase.from('bots').delete().eq('id', botId);
+      const res = await fetch(`/api/saas/bots/${botId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBots(bots.filter(b => b.id !== botId));
     } catch (e) {
-      alert(e.message);
+      alert('Error al eliminar bot: ' + e.message);
     }
   };
 

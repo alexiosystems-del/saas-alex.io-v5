@@ -58,12 +58,18 @@ export default function LiveChat({ instanceId, tenantId }) {
                 setLeads(Array.from(uniqueLeads.values()));
             }
 
-            // Fetch AI intent metadata
-            const { data: metaData } = await supabase.from('leads').select('*').eq('instance_id', instanceId);
-            if (metaData) {
-                const metaMap = {};
-                metaData.forEach(m => metaMap[m.remote_jid] = m);
-                setLeadsMeta(metaMap);
+            // Fetch AI intent metadata via API
+            try {
+                const res = await fetch(`/api/saas/leads?instance_id=${instanceId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const metaData = data.leads || [];
+                    const metaMap = {};
+                    metaData.forEach(m => metaMap[m.remote_jid] = m);
+                    setLeadsMeta(metaMap);
+                }
+            } catch (e) {
+                console.error('Error fetching leads meta:', e);
             }
         };
 

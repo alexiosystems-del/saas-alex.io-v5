@@ -393,7 +393,7 @@ app.get('/api/saas/bots', async (req, res) => {
     }
 
     console.log(`✅ [GET BOTS] Found ${data?.length || 0} bots`);
-    res.json(data || []);
+    res.json({ bots: data || [] });
 
   } catch (error) {
     console.error('💥 [GET BOTS] Fatal:', error);
@@ -477,16 +477,38 @@ app.put('/api/saas/bots/:id', async (req, res) => {
   }
 });
 
+// DELETE BOT
+app.delete('/api/saas/bots/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete config first (cascade should handle it, but let's be explicit if needed)
+    await supabase.from('bot_configs').delete().eq('bot_id', id);
+    
+    const { error } = await supabase
+      .from('bots')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET LEADS
 app.get('/api/saas/leads', async (req, res) => {
   try {
-    const { temp, status } = req.query;
+    const { temp, status, instance_id } = req.query;
     let query = supabase.from('leads').select('*, lead_tags(tag)');
     if (temp && temp !== 'all') query = query.eq('temperature', temp.toUpperCase());
     if (status && status !== 'all') query = query.eq('status', status.toUpperCase());
+    if (instance_id) query = query.eq('instance_id', instance_id);
+    
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    res.json(data || []);
+    res.json({ leads: data || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -498,7 +520,7 @@ app.get('/api/saas/leads/tags', async (req, res) => {
     const { data, error } = await supabase.from('lead_tags').select('tag');
     if (error) throw error;
     const unique = [...new Set(data.map(t => t.tag))];
-    res.json(unique);
+    res.json({ tags: unique });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
