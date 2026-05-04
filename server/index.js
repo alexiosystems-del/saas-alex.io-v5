@@ -6,6 +6,8 @@ const BOOT_TIME = new Date().toISOString();
 const cors = require('cors');
 const pino = require('pino');
 const helmet = require('helmet');
+const path = require('path');
+const fs = require('fs');
 
 // --- CONFIGURATION ---
 const app = express();
@@ -244,33 +246,14 @@ app.post('/api/auth/login', (req, res) => {
     });
 });
 
-// --- SERVE FRONTEND (Static files from client build) ---
-const path = require('path');
-const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
-const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
-const fs = require('fs');
-const getFrontendPath = () => {
-    const candidates = [clientBuildPath, clientDistPath];
-    for (const candidate of candidates) {
-        if (fs.existsSync(path.join(candidate, 'index.html'))) {
-            return candidate;
-        }
-    }
-    return null;
-};
-const frontendPath = getFrontendPath();
+// --- FRONTEND CONFIGURATION ---
+const clientPath = path.resolve(__dirname, '../client/build');
+logger.info(`🔍 Checking frontend path: ${clientPath}`);
 
-if (frontendPath) {
-    // index.html: never cache (ensures fresh version after deploy)
-    app.get('/', (req, res) => {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-
-    // Hashed assets (JS/CSS): cache aggressively (filename changes on rebuild)
-    app.use(express.static(frontendPath, {
+if (fs.existsSync(path.join(clientPath, 'index.html'))) {
+    logger.info(`✅ Frontend build found at ${clientPath}`);
+    // Static assets first (JS, CSS, Images)
+    app.use(express.static(clientPath, {
         maxAge: '1y',
         immutable: true,
         setHeaders: (res, filePath) => {
@@ -279,16 +262,11 @@ if (frontendPath) {
             }
         }
     }));
-
-    // If an asset hash is stale/missing, return 404 (never fallback to index for JS/CSS assets)
-    app.get(/^\/assets\/.*$/, (req, res) => {
-        res.status(404).type('text/plain').send('Asset not found');
-    });
-
-    logger.info(`📦 Frontend served from ${frontendPath} (cache-hardened)`);
+} else {
+    logger.warn(`⚠️ Frontend build NOT found at ${clientPath}. Check Render build command.`);
 }
 
-// --- ROUTES ---
+// --- API ROUTES ---
 app.get('/api/status', (req, res) => {
     res.json({
         status: 'online',
@@ -655,19 +633,27 @@ app.get('/api/metrics/:instance_id/:channel', authenticateTenant, (req, res) => 
 });
 
 // --- SPA CATCH-ALL (must be AFTER all API routes) ---
-if (frontendPath) {
-    app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/assets/')) {
-            return res.status(404).type('text/plain').send('Asset not found');
-        }
+app.get('*', (req, res, next) => {
+    // Si la ruta empieza por /api/, no es para el frontend
+    if (req.path.startsWith('/api/')) {
+        return next();
+    }
+    
+    // Si es un asset que no se encontró en express.static
+    if (req.path.startsWith('/assets/')) {
+        return res.status(404).type('text/plain').send('Asset not found');
+    }
+
+    // Para todo lo demás, servir index.html (SPA routing)
+    if (fs.existsSync(path.join(clientPath, 'index.html'))) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
-        return res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
-            if (err) return next(err);
-        });
-    });
-}
+        return res.sendFile(path.join(clientPath, 'index.html'));
+    } else {
+        return res.status(404).send('Frontend not built');
+    }
+});
 
 
 app.use((err, req, res, next) => {
