@@ -71,6 +71,7 @@ router.post('/bots', async (req, res) => {
         const { data: session, error: sessErr } = await supabase
             .from('whatsapp_sessions')
             .insert({
+                session_id: instanceId,
                 instance_id: instanceId,
                 tenant_id: tenantId,
                 company_name: name || 'Nuevo Bot',
