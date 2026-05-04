@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { supabase } from '../supabaseClient';
 
 interface Plan {
     name: string;
@@ -20,41 +19,23 @@ export const useSubscription = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user || !supabase) {
+        if (!user) {
             setLoading(false);
             return;
         }
 
         const fetchData = async () => {
             try {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('*, plans(*)')
-                    .eq('id', user.id)
-                    .single();
+                const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                if (profile?.plans) {
-                    setPlan(profile.plans);
+                const res = await fetch('/api/saas/subscription/usage', { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.plan) setPlan(data.plan);
+                    if (data.usage) setUsage(data.usage);
                 }
-
-                const currentMonth = new Date().toISOString().substring(0, 7);
-                const { data: usageData } = await supabase
-                    .from('usage_metrics')
-                    .select('messages_sent')
-                    .eq('user_id', user.id)
-                    .eq('month_year', currentMonth)
-                    .single();
-
-                const { count: botCount } = await supabase
-                    .from('bot_configs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id);
-
-                setUsage({
-                    messages_sent: usageData?.messages_sent || 0,
-                    bot_count: botCount || 0
-                });
-
             } catch (err) {
                 console.error("Error fetching subscription data:", err);
             } finally {
@@ -66,16 +47,9 @@ export const useSubscription = () => {
     }, [user]);
 
     const checkLimit = (type: 'bots' | 'messages') => {
-        if (!plan) return true; // Fail safe
-
-        if (type === 'bots') {
-            return usage.bot_count < plan.max_bots;
-        }
-
-        if (type === 'messages') {
-            return usage.messages_sent < plan.max_messages_monthly;
-        }
-
+        if (!plan) return true;
+        if (type === 'bots') return usage.bot_count < plan.max_bots;
+        if (type === 'messages') return usage.messages_sent < plan.max_messages_monthly;
         return true;
     };
 

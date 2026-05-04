@@ -31,9 +31,15 @@ import CrmProTab from './CrmProTab';
 import SettingsTab from './SettingsTab';
 import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
-import { supabase } from '../supabaseClient';
-
 import KnowledgeTab from './KnowledgeTab';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+};
 
 const SaasDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -62,15 +68,13 @@ const SaasDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const { data, error: sbError } = await supabase
-        .from('whatsapp_sessions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (sbError) throw sbError;
-      setBots(data || []);
-      if (data && data.length > 0 && !selectedBotId) {
-        setSelectedBotId(data[0].instance_id);
+      const res = await fetch('/api/saas/bots', { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const botsList = data.bots || data || [];
+      setBots(botsList);
+      if (botsList.length > 0 && !selectedBotId) {
+        setSelectedBotId(botsList[0].instance_id || botsList[0].id);
       }
     } catch (err) {
       console.error('Error fetching bots:', err);
@@ -83,10 +87,14 @@ const SaasDashboard = () => {
   const handleDeleteBot = async (instanceId) => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      await supabase.from('whatsapp_sessions').delete().eq('instance_id', instanceId);
-      setBots(bots.filter(b => b.instance_id !== instanceId));
+      const res = await fetch(`/api/saas/bots/${instanceId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBots(bots.filter(b => (b.instance_id || b.id) !== instanceId));
     } catch (e) {
-      alert(e.message);
+      alert('Error al eliminar: ' + e.message);
     }
   };
 
@@ -122,36 +130,27 @@ const SaasDashboard = () => {
             }}
             onSave={async () => {
               try {
-                const draft = bots.find(b => b.instance_id === selectedBotId);
+                const draft = bots.find(b => (b.instance_id || b.id) === selectedBotId);
                 if (!draft) return;
 
-                // Sync with bot_configs table
-                const { error: saveError } = await supabase
-                  .from('bot_configs')
-                  .upsert({
-                    instance_id: draft.instance_id,
+                const res = await fetch(`/api/saas/bots/${draft.instance_id || draft.id}`, {
+                  method: 'PUT',
+                  headers: getAuthHeaders(),
+                  body: JSON.stringify({
                     name: draft.name || draft.company_name,
-                    custom_prompt: draft.customPrompt,
+                    prompt: draft.customPrompt,
                     voice_enabled: draft.voiceEnabled,
-                    voice_provider: draft.voice,
+                    voice: draft.voice,
                     provider: draft.provider,
-                    access_token: draft.accessToken,
-                    manychat_token: draft.manychatToken,
-                    d360_api_key: draft.d360ApiKey,
-                    d360_url: draft.d360Url,
-                    updated_at: new Date()
-                  });
-
-                if (saveError) throw saveError;
-                
-                // Also update whatsapp_sessions if needed (e.g. for provider)
-                await supabase
-                  .from('whatsapp_sessions')
-                  .update({ 
-                    provider: draft.provider,
-                    company_name: draft.name || draft.company_name
+                    industry: draft.industry,
+                    objective: draft.objective
                   })
-                  .eq('instance_id', draft.instance_id);
+                });
+
+                if (!res.ok) {
+                  const errData = await res.json();
+                  throw new Error(errData.error || `HTTP ${res.status}`);
+                }
 
                 alert('Configuración sincronizada con el Kernel exitosamente.');
               } catch (e) {
@@ -377,36 +376,33 @@ const SaasDashboard = () => {
               <EnterpriseWizard 
                 onSave={async (data) => {
                   try {
-                    const newInstanceId = 'bot_' + crypto.randomUUID();
-                    
-                    // Insert into whatsapp_sessions to register the bot
-                    await supabase.from('whatsapp_sessions').insert({
-                      instance_id: newInstanceId,
-                      company_name: data.botName || 'Nuevo Bot',
-                      provider: data.provider || 'baileys',
-                      status: 'pending',
-                      voice_enabled: data.voiceEnabled || false,
-                      target_language: 'es'
+                    const payload = {
+                      name: data.botName || 'Nuevo Bot',
+                      prompt: data.systemPrompt || `Eres un asistente experto.`,
+                      tone: data.tone || 'professional',
+                      industry: data.industry || 'general',
+                      objective: data.goal || 'assist customers',
+                      voice_enabled: data.voiceEnabled === true,
+                      channel: data.provider || 'baileys',
+                      identity: data.botName,
+                      strategy: data.salesStyle || 'consultive'
+                    };
+
+                    const res = await fetch('/api/saas/bots', {
+                      method: 'POST',
+                      headers: getAuthHeaders(),
+                      body: JSON.stringify(payload)
                     });
 
-                    // Insert into bot_configs
-                    await supabase.from('bot_configs').insert({
-                      instance_id: newInstanceId,
-                      name: data.botName || 'Nuevo Bot',
-                      custom_prompt: data.systemPrompt,
-                      voice_enabled: data.voiceEnabled,
-                      voice_provider: data.voice,
-                      provider: data.provider,
-                      access_token: data.accessToken,
-                      manychat_token: data.manychatToken,
-                      updated_at: new Date()
-                    });
+                    const result = await res.json();
+                    if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
 
                     setShowWizard(false); 
                     fetchBots();
+                    alert(`Bot "${result.bot?.name || payload.name}" creado exitosamente.`);
                   } catch (e) {
                     console.error('Error creating bot:', e);
-                    alert('Error guardando configuración');
+                    alert('Error al crear bot: ' + e.message);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
