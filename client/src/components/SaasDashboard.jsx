@@ -118,18 +118,24 @@ const SaasDashboard = () => {
               try {
                 const draft = bots.find(b => b.id === selectedBotId);
                 if (!draft) return;
-                const { error: saveError } = await supabase
-                  .from('bots')
-                  .update({
+                
+                const res = await fetch(`/api/saas/bots/${draft.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
                     name: draft.name,
                     prompt: draft.prompt,
                     voice_enabled: draft.voice_enabled,
                     industry: draft.industry,
                     objective: draft.objective
                   })
-                  .eq('id', draft.id);
+                });
 
-                if (saveError) throw saveError;
+                if (!res.ok) {
+                  const errData = await res.json();
+                  throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
                 alert('Configuración sincronizada exitosamente.');
               } catch (e) {
                 alert('Error al guardar: ' + e.message);

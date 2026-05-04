@@ -395,7 +395,7 @@ const webhooksMulti = require('./routes/webhooks-multi');
 app.use('/api/webhooks', webhooksMulti);
 
 // ============================================
-// SAAS API ENDPOINTS - INLINE (FIX TOTAL V4)
+// SAAS API ENDPOINTS - INLINE (FIX TOTAL V5 - 2026-05-04)
 // ============================================
 
 // GET ALL BOTS
@@ -473,6 +473,32 @@ app.post('/api/saas/bots', async (req, res) => {
   }
 });
 
+// UPDATE BOT
+app.put('/api/saas/bots/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, prompt, voice_enabled, industry, objective } = req.body;
+
+    const { data: bot, error } = await supabase
+      .from('bots')
+      .update({
+        name,
+        prompt,
+        voice_enabled: voice_enabled === true || voice_enabled === 'true',
+        industry,
+        objective
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, bot });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET LEADS
 app.get('/api/saas/leads', async (req, res) => {
   try {
@@ -539,6 +565,7 @@ app.get('/api/debug/system', async (req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
+      v: 'V5-INLINE',
       bots: bots?.length || 0,
       configs: configs?.length || 0
     });
@@ -547,7 +574,7 @@ app.get('/api/debug/system', async (req, res) => {
   }
 });
 
-console.log('✅ SAAS API Routes registered inline');
+console.log('✅ SAAS API Routes registered inline (V5)');
 
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');

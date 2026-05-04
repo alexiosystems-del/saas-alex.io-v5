@@ -10,19 +10,32 @@ const STAGES = [
 ];
 
 export default function CrmProTab() {
-  const [leads, setLeads] = useState([
-    { id: 1, name: 'Juan Pérez', phone: '+54 11 2345 6789', stage: 'new', score: 85, lastMsg: 'Me interesa el plan premium', time: '2 min ago', tags: ['Inversor', 'Hot'] },
-    { id: 2, name: 'María García', phone: '+34 612 345 678', stage: 'qualified', score: 92, lastMsg: '¿Tienen soporte 24/7?', time: '1 hour ago', tags: ['Enterprise'] },
-    { id: 3, name: 'Carlos Ruiz', phone: '+52 55 1234 5678', stage: 'engaged', score: 45, lastMsg: 'Lo voy a pensar', time: '3 hours ago', tags: ['Follow-up'] }
-  ]);
-
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    fetchLeads();
+  }, [filter]);
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/saas/leads?status=${filter}`);
+      const data = await res.json();
+      setLeads(data);
+    } catch (e) {
+      console.error('Error fetching leads:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stats = [
-    { label: 'Leads Totales', value: '1,284', change: '+12%', icon: Users, color: 'text-blue-400' },
+    { label: 'Leads Totales', value: leads.length.toString(), change: '+0%', icon: Users, color: 'text-blue-400' },
     { label: 'Tasa de Conversión', value: '18.4%', change: '+3.2%', icon: Target, color: 'text-emerald-400' },
-    { label: 'Valor Estimado', value: '$42,500', change: '+8%', icon: TrendingUp, color: 'text-amber-400' }
+    { label: 'Valor Estimado', value: `$${(leads.length * 50).toLocaleString()}`, change: '+0%', icon: TrendingUp, color: 'text-amber-400' }
   ];
 
   return (
