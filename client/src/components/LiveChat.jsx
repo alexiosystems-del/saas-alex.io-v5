@@ -35,18 +35,13 @@ export default function LiveChat({ instanceId, tenantId }) {
         if (!instanceId || !supabase) return;
 
         const loadRecentLeads = async () => {
-            // Because Supabase doesn't have native SELECT DISTINCT out of the box for client,
-            // we'll fetch recent messages and group in memory to find active chats
-            const { data, error } = await supabase
-                .from('messages')
-                .select('remote_jid, created_at, content')
-                .eq('instance_id', instanceId)
-                .order('created_at', { ascending: false })
-                .limit(500);
-
-            if (data && !error) {
+            try {
+                const res = await fetch(`/api/saas/messages?instance_id=${instanceId}&limit=500`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                
                 const uniqueLeads = new Map();
-                data.forEach(msg => {
+                (data.messages || []).forEach(msg => {
                     if (!uniqueLeads.has(msg.remote_jid)) {
                         uniqueLeads.set(msg.remote_jid, {
                             jid: msg.remote_jid,
@@ -56,6 +51,8 @@ export default function LiveChat({ instanceId, tenantId }) {
                     }
                 });
                 setLeads(Array.from(uniqueLeads.values()));
+            } catch (e) {
+                console.error('Error loading recent leads:', e);
             }
 
             // Fetch AI intent metadata via API
@@ -112,23 +109,19 @@ export default function LiveChat({ instanceId, tenantId }) {
 
     // Fetch conversation when a lead is selected
     useEffect(() => {
-        if (!selectedLead || !supabase) return;
+        if (!selectedLead) return;
 
         const loadConversation = async () => {
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('instance_id', instanceId)
-                .eq('remote_jid', selectedLead)
-                .order('created_at', { ascending: true })
-                .limit(100);
-
-            if (!error && Array.isArray(data)) setMessages(data);
-            else if (!error) setMessages([]);
-
-            // At this point we assume AI is active (not paused). 
-            // In a deeper implementation, we'd fetch this from the backend or DB.
-            setIsPaused(false);
+            try {
+                const res = await fetch(`/api/saas/messages?instance_id=${instanceId}&remote_jid=${selectedLead}&limit=100`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                setMessages(data.messages || []);
+                setIsPaused(false);
+            } catch (e) {
+                console.error('Error loading conversation:', e);
+                setMessages([]);
+            }
         };
 
         loadConversation();

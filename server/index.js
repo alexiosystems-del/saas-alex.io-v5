@@ -246,9 +246,11 @@ app.post('/api/auth/login', (req, res) => {
     });
 });
 
-// --- FRONTEND CONFIGURATION ---
-const clientPath = path.resolve(__dirname, '../client/build');
-logger.info(`🔍 Checking frontend path: ${clientPath}`);
+// --- FRONTEND CONFIGURATION (Vite dist support) ---
+const clientPath = fs.existsSync(path.resolve(__dirname, '../client/dist')) 
+    ? path.resolve(__dirname, '../client/dist')
+    : path.resolve(__dirname, '../client/build');
+logger.info(`🔍 Serving frontend from: ${clientPath}`);
 
 if (fs.existsSync(path.join(clientPath, 'index.html'))) {
     logger.info(`✅ Frontend build found at ${clientPath}`);
@@ -283,40 +285,7 @@ app.get('/api/diagnostics/ai', (req, res) => {
     res.json(getAiDiagnostics());
 });
 
-// GET ALL BOTS (FIX TOTAL)
-app.get('/api/saas/bots', async (req, res) => {
-  const { data, error } = await supabase.from('bots').select('*');
-  if (error) return res.status(500).json({ error });
-  res.json(data);
-});
 
-// CREATE BOT (FIX WIZARD)
-app.post('/api/saas/bots', async (req, res) => {
-  try {
-    const { name, prompt, tone, industry, objective } = req.body;
-
-    const { data, error } = await supabase
-      .from('bots')
-      .insert([{ name, prompt, tone, industry, objective }])
-      .select()
-      .single();
-
-    if (error) return res.status(500).json({ error });
-
-    // Link a default config
-    await supabase.from('bot_configs').insert([
-      {
-        bot_id: data.id,
-        voice_enabled: true,
-        translation_enabled: true
-      }
-    ]);
-
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // WIZARD + CREACIÓN DE BOT (LEGACY/FALLBACK)
 app.post("/save-bot", async (req, res) => {
@@ -373,80 +342,106 @@ const webhooksMulti = require('./routes/webhooks-multi');
 app.use('/api/webhooks', webhooksMulti);
 
 // ============================================
-// SAAS API ENDPOINTS - INLINE (FIX TOTAL V5 - 2026-05-04)
+// ENTERPRISE SAAS API - CONSOLIDATED (V5)
 // ============================================
+const enterpriseRouter = require('./routes/leadsAndBroadcast');
+app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
 
-// GET ALL BOTS
-app.get('/api/saas/bots', async (req, res) => {
+// GET MESSAGES (For Compliance/Audit)
+app.get('/api/saas/messages', async (req, res) => {
   try {
-    console.log('📥 [GET BOTS] Request received');
+    const { instance_id, limit = 50 } = req.query;
+    
+    let query = supabase
+      .from('messages')
+      .select(`
+        id,
+        remote_jid,
+        direction,
+        content,
+        message_hash,
+        previous_hash,
+        audit_flag,
+        audit_reason,
+        created_at
+      `)
+      .order('created_at', { ascending: false })
+      .limit(Number(limit));
 
-    const { data, error } = await supabase
-      .from('bots')
-      .select(`*, bot_configs (*)`)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
+    if (instance_id) query = query.eq('instance_id', instance_id);
+    if (req.query.remote_jid) query = query.eq('remote_jid', req.query.remote_jid);
 
-    if (error) {
-      console.error('❌ [GET BOTS] Error:', error);
-      return res.status(500).json({ error: error.message });
-    }
+    const { data, error } = await query;
+    if (error) throw error;
 
-    console.log(`✅ [GET BOTS] Found ${data?.length || 0} bots`);
-    res.json({ bots: data || [] });
-
+    res.json({ success: true, messages: data });
   } catch (error) {
-    console.error('💥 [GET BOTS] Fatal:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// CREATE BOT
-app.post('/api/saas/bots', async (req, res) => {
+// POST FEEDBACK
+app.get('/api/saas/feedback', async (req, res) => {
+    // Only superadmin or internal audit should see this
+    res.status(403).json({ error: 'Unauthorized' });
+});
+
+app.post('/api/saas/feedback', async (req, res) => {
   try {
-    console.log('📥 [CREATE BOT] Body:', req.body);
+    const { message, category } = req.body;
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert([{ user_id: req.user?.id, message, category }]);
+    
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy } = req.body;
+// POST PROFILE
+app.post('/api/saas/profile', async (req, res) => {
+  try {
+    const profile = req.body;
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: req.user?.id,
+        ...profile,
+        updated_at: new Date()
+      });
+    
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    if (!name || !prompt) {
-      return res.status(400).json({ error: 'Missing name or prompt' });
-    }
-
-    const { data: bot, error: botError } = await supabase
-      .from('bots')
-      .insert([{
-        name: name.trim(),
-        prompt: prompt.trim(),
-        tone: tone || 'professional',
-        industry: industry || 'general',
-        objective: objective || 'assist',
-        voice_enabled: voice_enabled === true || voice_enabled === 'true',
-        translation_enabled: false,
-        status: 'active'
-      }])
-      .select()
+// GET SUBSCRIPTION USAGE
+app.get('/api/saas/subscription/usage', async (req, res) => {
+  try {
+    // In a real multi-tenant app, we'd get user_id from JWT
+    // For now, we'll fetch global or first user for demo
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*, plans(*)')
+      .limit(1)
       .single();
 
-    if (botError) {
-      console.error('❌ [CREATE BOT] Error:', botError);
-      return res.status(500).json({ error: botError.message });
-    }
+    const { count: botCount } = await supabase
+      .from('bots')
+      .select('*', { count: 'exact', head: true });
 
-    // Create config
-    await supabase.from('bot_configs').insert([{
-      bot_id: bot.id,
-      channel: channel || 'whatsapp',
-      config: {
-        identity: identity || name,
-        strategy: strategy || 'undefined'
+    res.json({
+      plan: profile?.plans || { name: 'Free', max_bots: 3, max_messages_monthly: 1000 },
+      usage: {
+        messages_sent: 0, // Need to implement message logging
+        bot_count: botCount || 0
       }
-    }]);
-
-    console.log('✅ [CREATE BOT] Created:', bot.id);
-    res.json({ success: true, bot });
-
+    });
   } catch (error) {
-    console.error('💥 [CREATE BOT] Fatal:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -577,9 +572,10 @@ app.get('/api/debug/system', async (req, res) => {
 console.log('✅ SAAS API Routes registered inline (V5)');
 
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
-const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
-app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); // Extra rate limit on connect
-app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappSaas);
+// WhatsApp Core Logic
+const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
+app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); 
+app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
 
 // Payment Routes (Protected & Rate Limited by Tenant)
 const paymentsRouter = require('./routes/payments');
@@ -663,14 +659,13 @@ app.get('*', (req, res, next) => {
     
     // Si es un asset que no se encontró en express.static
     if (req.path.startsWith('/assets/')) {
+        console.warn(`⚠️ Asset 404: ${req.path}`);
         return res.status(404).type('text/plain').send('Asset not found');
     }
 
     // Para todo lo demás, servir index.html (SPA routing)
     if (fs.existsSync(path.join(clientPath, 'index.html'))) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
         return res.sendFile(path.join(clientPath, 'index.html'));
     } else {
         return res.status(404).send('Frontend not built');

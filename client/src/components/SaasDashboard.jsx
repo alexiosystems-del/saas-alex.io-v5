@@ -31,7 +31,6 @@ import CrmProTab from './CrmProTab';
 import SettingsTab from './SettingsTab';
 import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
-import { supabase } from '../supabaseClient';
 import KnowledgeTab from './KnowledgeTab';
 
 const SaasDashboard = () => {

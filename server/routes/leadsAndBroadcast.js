@@ -10,21 +10,23 @@ const axios = require('axios');
 async function getInstanceConfig(instanceId, tenantId) {
     let config = clientConfigs.get(instanceId);
     if (!config) {
+        // Hydrate from bot_configs
         const { data: session } = await supabase
-            .from('whatsapp_sessions')
-            .select('*')
+            .from('bot_configs')
+            .select(`
+                *,
+                bots (name, prompt, tone, industry, objective)
+            `)
             .eq('instance_id', instanceId)
-            .eq('tenant_id', tenantId)
             .single();
         
         if (session) {
             config = {
                 instanceId: session.instance_id,
-                provider: session.provider || 'baileys',
-                tenantId: session.tenant_id,
-                metaAccessToken: session.meta_access_token,
-                metaPhoneNumberId: session.meta_phone_number_id,
-                dialogApiKey: session.dialog_api_key
+                provider: session.channel || 'baileys',
+                tenantId: tenantId, // bot_configs doesn't have tenant_id in some versions, using param
+                companyName: session.bots?.name || 'ALEX IO Agent',
+                settings: session.settings || {}
             };
         }
     }
@@ -34,14 +36,88 @@ async function getInstanceConfig(instanceId, tenantId) {
 // --- GET /api/saas/bots ---
 router.get('/bots', async (req, res) => {
     try {
-        const tenantId = req.tenant.id;
-        const { data: sessions, error } = await supabase
-            .from('whatsapp_sessions')
-            .select('instance_id, company_name, status, provider')
-            .eq('tenant_id', tenantId);
+        const { data: configs, error } = await supabase
+            .from('bot_configs')
+            .select(`
+                instance_id,
+                status,
+                channel,
+                bots (name)
+            `);
 
         if (error) throw error;
-        res.json({ bots: sessions.map(s => ({ id: s.instance_id, name: s.company_name, status: s.status, provider: s.provider })) });
+        res.json({ 
+            bots: configs.map(c => ({ 
+                id: c.instance_id, 
+                name: c.bots?.name || 'Unnamed Bot', 
+                status: c.status, 
+                provider: c.channel 
+            })) 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- POST /api/saas/bots ---
+router.post('/bots', async (req, res) => {
+    try {
+        const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy } = req.body;
+
+        if (!name || !prompt) {
+            return res.status(400).json({ error: 'Missing name or prompt' });
+        }
+
+        // 1. Create the Bot base
+        const { data: bot, error: botError } = await supabase
+            .from('bots')
+            .insert([{
+                name: name.trim(),
+                prompt: prompt.trim(),
+                tone: tone || 'professional',
+                industry: industry || 'general',
+                objective: objective || 'assist',
+                voice_enabled: !!voice_enabled,
+                status: 'active'
+            }])
+            .select()
+            .single();
+
+        if (botError) throw botError;
+
+        // 2. Create the Bot Config (Defensive)
+        const { error: configError } = await supabase.from('bot_configs').insert([{
+            bot_id: bot.id,
+            instance_id: `v5_${bot.id.split('-')[0]}_${Date.now().toString().slice(-4)}`,
+            channel: channel || 'baileys',
+            status: 'disconnected',
+            settings: {
+                identity: identity || name,
+                strategy: strategy || 'undefined',
+                voice_enabled: !!voice_enabled,
+                tone: tone || 'professional'
+            }
+        }]);
+
+        if (configError) {
+            console.error('⚠️ Config creation error:', configError.message);
+            // Non-blocking for the bot creation itself
+        }
+
+        res.json({ success: true, bot });
+    } catch (err) {
+        console.error('❌ Bot creation failed:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- DELETE /api/saas/bots/:id ---
+router.delete('/bots/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { error } = await supabase.from('bots').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

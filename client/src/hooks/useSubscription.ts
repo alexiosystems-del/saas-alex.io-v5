@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { supabase } from '../supabaseClient';
 
 interface Plan {
     name: string;
@@ -20,41 +19,14 @@ export const useSubscription = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user || !supabase) {
-            setLoading(false);
-            return;
-        }
-
         const fetchData = async () => {
             try {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('*, plans(*)')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profile?.plans) {
-                    setPlan(profile.plans);
-                }
-
-                const currentMonth = new Date().toISOString().substring(0, 7);
-                const { data: usageData } = await supabase
-                    .from('usage_metrics')
-                    .select('messages_sent')
-                    .eq('user_id', user.id)
-                    .eq('month_year', currentMonth)
-                    .single();
-
-                const { count: botCount } = await supabase
-                    .from('bot_configs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id);
-
-                setUsage({
-                    messages_sent: usageData?.messages_sent || 0,
-                    bot_count: botCount || 0
-                });
-
+                const res = await fetch('/api/saas/subscription/usage');
+                if (!res.ok) throw new Error('Failed to fetch subscription');
+                const data = await res.json();
+                
+                setPlan(data.plan);
+                setUsage(data.usage);
             } catch (err) {
                 console.error("Error fetching subscription data:", err);
             } finally {

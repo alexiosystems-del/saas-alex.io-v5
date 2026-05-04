@@ -12,22 +12,26 @@ create table if not exists app_users (
 -- BOTS
 create table if not exists bots (
   id uuid primary key default gen_random_uuid(),
-  name text,
+  name text not null,
   prompt text,
-  tone text,
-  industry text,
-  objective text,
-  created_at timestamp default now()
+  tone text default 'professional',
+  industry text default 'general',
+  objective text default 'assist customers',
+  voice_enabled boolean default false,
+  translation_enabled boolean default false,
+  status text default 'active',
+  created_at timestamptz default now()
 );
 
 -- BOT CONFIG
 create table if not exists bot_configs (
   id uuid primary key default gen_random_uuid(),
   bot_id uuid references bots(id) on delete cascade,
-  channel text default 'whatsapp',
-  voice_enabled boolean default false,
-  translation_enabled boolean default false,
-  created_at timestamp default now()
+  instance_id text unique,
+  channel text default 'baileys',
+  status text default 'disconnected',
+  settings jsonb default '{}',
+  created_at timestamptz default now()
 );
 
 -- LEADS
