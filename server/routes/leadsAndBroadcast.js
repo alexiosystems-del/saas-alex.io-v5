@@ -73,12 +73,16 @@ router.post('/bots', async (req, res) => {
             .insert({
                 session_id: instanceId,
                 instance_id: instanceId,
+                key_type: 'metadata',
+                key_id: 'status',
+                value: '{}',
                 tenant_id: tenantId,
                 company_name: name || 'Nuevo Bot',
                 provider: channel || 'baileys',
                 status: 'pending',
                 voice_enabled: voice_enabled || false,
-                target_language: 'es'
+                target_language: 'es',
+                updated_at: new Date().toISOString()
             })
             .select()
             .single();
