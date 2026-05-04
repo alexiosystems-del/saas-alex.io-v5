@@ -141,13 +141,14 @@ const processMessageWithAI = async (msg) => {
 
         // Log AI Cascade for monitoring (Async)
         if (isSupabaseEnabled && result.trace) {
-            supabase.from('ai_cascade_logs').insert({
+            const { error: cascadeError } = await supabase.from('ai_cascade_logs').insert({
                 tenant_id: tenantId,
                 instance_id: instanceId,
                 model_used: result.trace.model,
                 reason: result.trace.reason || 'Primary choice',
                 latency_ms: Date.now() - start
-            }).catch(e => console.warn('⚠️ [CascadeLog] Error saving:', e.message));
+            });
+            if (cascadeError) console.warn('⚠️ [CascadeLog] Error saving:', cascadeError.message);
         }
 
         logToDB('OUTBOUND', answer);

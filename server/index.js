@@ -394,6 +394,10 @@ app.get('/api/sre/logs', authenticateTenant, async (req, res) => {
 const webhooksMulti = require('./routes/webhooks-multi');
 app.use('/api/webhooks', webhooksMulti);
 
+// SaaS Enterprise Routes (V3)
+const saasRoutes = require('./routes/saas');
+app.use(saasRoutes);
+
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
 app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); // Extra rate limit on connect

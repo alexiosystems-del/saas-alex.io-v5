@@ -17,12 +17,12 @@ class CentralLogger {
 
         // Envío asíncrono a Supabase si está habilitado
         if (isSupabaseEnabled) {
-            // Se asume que existe la tabla 'system_logs' o similar. 
-            // Si no, podríamos enviarlo vía RPC o a una API de observabilidad como DataDog/NewRelic
-            supabase.from('system_logs').insert(logEntry).catch(e => {
-                // Silently ignore DB log failures to avoid loops
-                // console.warn('Failed to centralize log:', e.message);
-            });
+            (async () => {
+                const { error } = await supabase.from('system_logs').insert(logEntry);
+                if (error) {
+                    // Silently ignore DB log failures to avoid loops
+                }
+            })();
         }
     }
 
