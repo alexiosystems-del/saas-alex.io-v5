@@ -394,9 +394,160 @@ app.get('/api/sre/logs', authenticateTenant, async (req, res) => {
 const webhooksMulti = require('./routes/webhooks-multi');
 app.use('/api/webhooks', webhooksMulti);
 
-// SaaS Enterprise Routes (V3)
-const saasRoutes = require('./routes/saas');
-app.use(saasRoutes);
+// ============================================
+// SAAS API ENDPOINTS - INLINE (FIX TOTAL V4)
+// ============================================
+
+// GET ALL BOTS
+app.get('/api/saas/bots', async (req, res) => {
+  try {
+    console.log('📥 [GET BOTS] Request received');
+
+    const { data, error } = await supabase
+      .from('bots')
+      .select(`*, bot_configs (*)`)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ [GET BOTS] Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`✅ [GET BOTS] Found ${data?.length || 0} bots`);
+    res.json(data || []);
+
+  } catch (error) {
+    console.error('💥 [GET BOTS] Fatal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CREATE BOT
+app.post('/api/saas/bots', async (req, res) => {
+  try {
+    console.log('📥 [CREATE BOT] Body:', req.body);
+
+    const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy } = req.body;
+
+    if (!name || !prompt) {
+      return res.status(400).json({ error: 'Missing name or prompt' });
+    }
+
+    const { data: bot, error: botError } = await supabase
+      .from('bots')
+      .insert([{
+        name: name.trim(),
+        prompt: prompt.trim(),
+        tone: tone || 'professional',
+        industry: industry || 'general',
+        objective: objective || 'assist',
+        voice_enabled: voice_enabled === true || voice_enabled === 'true',
+        translation_enabled: false,
+        status: 'active'
+      }])
+      .select()
+      .single();
+
+    if (botError) {
+      console.error('❌ [CREATE BOT] Error:', botError);
+      return res.status(500).json({ error: botError.message });
+    }
+
+    // Create config
+    await supabase.from('bot_configs').insert([{
+      bot_id: bot.id,
+      channel: channel || 'whatsapp',
+      config: {
+        identity: identity || name,
+        strategy: strategy || 'undefined'
+      }
+    }]);
+
+    console.log('✅ [CREATE BOT] Created:', bot.id);
+    res.json({ success: true, bot });
+
+  } catch (error) {
+    console.error('💥 [CREATE BOT] Fatal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET LEADS
+app.get('/api/saas/leads', async (req, res) => {
+  try {
+    const { temp, status } = req.query;
+    let query = supabase.from('leads').select('*, lead_tags(tag)');
+    if (temp && temp !== 'all') query = query.eq('temperature', temp.toUpperCase());
+    if (status && status !== 'all') query = query.eq('status', status.toUpperCase());
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET TAGS
+app.get('/api/saas/leads/tags', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('lead_tags').select('tag');
+    if (error) throw error;
+    const unique = [...new Set(data.map(t => t.tag))];
+    res.json(unique);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// MEMORIES
+app.get('/api/memories', async (req, res) => {
+  try {
+    const { customer_id } = req.query;
+    const { data, error } = await supabase
+      .from('customer_memories')
+      .select('*')
+      .eq('customer_id', customer_id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/memories', async (req, res) => {
+  try {
+    const { customer_id, memory, bot_id } = req.body;
+    const { data, error } = await supabase
+      .from('customer_memories')
+      .insert([{ customer_id, memory, bot_id }])
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DEBUG
+app.get('/api/debug/system', async (req, res) => {
+  try {
+    const { data: bots } = await supabase.from('bots').select('*');
+    const { data: configs } = await supabase.from('bot_configs').select('*');
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      bots: bots?.length || 0,
+      configs: configs?.length || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+console.log('✅ SAAS API Routes registered inline');
 
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
@@ -410,35 +561,6 @@ app.use('/api/payments', authenticateTenant, tenantLimiter, paymentsRouter);
 // Live Chat Routes
 const livechatRouter = require('./routes/livechat');
 app.use('/api/livechat', authenticateTenant, tenantLimiter, livechatRouter);
-
-// Long-Term Memory Routes (FIX CRÍTICO)
-app.get('/api/memories', async (req, res) => {
-  const { customer_id } = req.query;
-  const { data, error } = await supabase
-    .from('customer_memories')
-    .select('*')
-    .eq('customer_id', customer_id);
-
-  if (error) return res.status(500).json({ error });
-  res.json(data || []);
-});
-
-// Leads API (FIX TOTAL)
-app.get('/api/saas/leads', async (req, res) => {
-  const { temp } = req.query;
-  let query = supabase.from('leads').select('*');
-  if (temp && temp !== 'all') query = query.eq('temperature', temp);
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error });
-  res.json(data || []);
-});
-
-// TAGS API
-app.get('/api/saas/leads/tags', async (req, res) => {
-  const { data, error } = await supabase.from('lead_tags').select('*');
-  if (error) return res.status(500).json({ error });
-  res.json(data || []);
-});
 
 // CHAT INTELIGENTE (FIX CORE)
 app.post('/api/chat', async (req, res) => {
