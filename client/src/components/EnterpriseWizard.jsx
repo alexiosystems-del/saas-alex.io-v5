@@ -42,6 +42,8 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     maxMessages: config?.maxMessages || 100,
     provider: config?.provider || 'baileys',
     accessToken: config?.accessToken || '',
+    metaPhoneNumberId: config?.metaPhoneNumberId || '',
+    d360ApiKey: config?.d360ApiKey || '',
     discordToken: config?.discordToken || '',
     discordPublicKey: config?.discordPublicKey || '',
     discordAppId: config?.discordAppId || '',
@@ -210,13 +212,20 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 </div>
                 
                 {data.provider === 'meta' && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+                         <input
+                            type="text"
+                            value={data.metaPhoneNumberId}
+                            onChange={(e) => handleChange('metaPhoneNumberId', e.target.value)}
+                            className="w-full bg-white/5 border border-blue-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-xs"
+                            placeholder="Meta Phone Number ID"
+                        />
                          <input
                             type="password"
                             value={data.accessToken}
                             onChange={(e) => handleChange('accessToken', e.target.value)}
                             className="w-full bg-white/5 border border-blue-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-xs font-mono"
-                            placeholder="Meta Access Token"
+                            placeholder="Meta Access Token (System User)"
                         />
                     </motion.div>
                 )}
@@ -426,16 +435,16 @@ REGLAS:
   };
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8 animate-in zoom-in-95">
+    <div className="bg-[var(--bg-primary)] rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-w-2xl w-full mx-auto my-8 animate-in zoom-in-95">
       {/* Header */}
-      <div className="bg-slate-800/50 px-6 py-4 border-b border-white/5 flex items-center justify-between">
+      <div className="bg-[var(--bg-secondary)] px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-            <Bot size={18} className="text-indigo-400" />
+          <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/20 flex items-center justify-center border border-[var(--accent)]/30">
+            <Bot size={18} className="text-[var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-white font-bold leading-none mb-1">Executive Wizard</h2>
-            <p className="text-[9px] text-slate-500 uppercase tracking-widest">Enterprise Edition</p>
+            <h2 className="text-[var(--text-primary)] font-bold leading-none mb-1">Executive Wizard</h2>
+            <p className="text-[9px] text-[var(--text-secondary)] uppercase tracking-widest">Enterprise Edition</p>
           </div>
         </div>
         <div className="flex gap-1.5">

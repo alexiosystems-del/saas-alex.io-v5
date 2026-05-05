@@ -178,20 +178,22 @@ const SaasDashboard = () => {
                     <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-black uppercase tracking-widest">SRE_COMMAND_CENTER_V5.5</span>
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[9px] font-black uppercase tracking-widest">SYSTEM_OPTIMIZED</span>
                 </div>
-                <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Neural Command Center <span className="text-indigo-500">🔱</span></h1>
+                <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
+                  Neural Command Center <span className="text-[var(--accent)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
+                </h1>
                 <p className="text-slate-500 mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
               </div>
               <div className="flex gap-4">
-                  <div className="bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 backdrop-blur-md">
+                  <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl px-6 py-4 shadow-xl">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Carga Neural Total</p>
                       <div className="flex items-center gap-3">
-                          <span className="text-2xl font-black text-white">{(totalMessages / 1000).toFixed(1)}k</span>
+                          <span className="text-2xl font-black text-[var(--text-primary)]">{(totalMessages / 1000).toFixed(1)}k</span>
                           <TrendingUp size={16} className="text-emerald-500" />
                       </div>
                   </div>
                   <button 
                     onClick={() => setShowWizard(true)}
-                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-indigo-600/30 active:scale-95 group"
+                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold-hover)] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-gold-600/30 active:scale-95 group border-none"
                   >
                     <Plus size={20} className="group-hover:rotate-90 transition-transform" />
                     Inicializar Agente
@@ -302,63 +304,59 @@ const SaasDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#020617] text-slate-200 overflow-hidden font-sans selection:bg-blue-500/30">
+    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden font-sans">
       {/* Sidebar */}
-      <div className="w-72 bg-slate-950 border-r border-white/5 flex flex-col backdrop-blur-3xl">
-        <div className="p-10">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-blue-600/40">
-              <Zap className="text-white" fill="currentColor" size={28} />
+      <div className="w-80 glass-sidebar flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl z-20">
+        <div className="p-8">
+          <div className="flex items-center gap-3 mb-10 group cursor-pointer">
+            <div className="w-12 h-12 bg-gradient-to-br from-[var(--accent-gold)] to-[var(--accent-gold-hover)] rounded-2xl flex items-center justify-center shadow-lg shadow-gold-500/30 group-hover:scale-110 transition-transform">
+              <Bot size={28} className="text-white" />
             </div>
             <div>
-              <span className="text-2xl font-black text-white tracking-tighter">ALEX<span className="text-blue-500">IO</span></span>
-              <p className="text-[10px] font-black text-slate-600 tracking-[0.25em] -mt-1">ENTERPRISE V5</p>
+              <h2 className="text-2xl font-black text-[var(--accent-gold)] tracking-tighter italic">ALEX IO</h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">Neural OS</p>
             </div>
           </div>
+
+          <nav className="space-y-2">
+            {sidebarItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm ${
+                  activeTab === item.id 
+                  ? 'bg-[var(--accent-gold)] text-white shadow-lg shadow-gold-500/30 translate-x-2' 
+                  : 'text-slate-500 hover:text-[var(--accent-gold)] hover:bg-[var(--accent-gold)]/10'
+                }`}
+              >
+                <item.icon size={20} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <nav className="flex-1 px-6 space-y-2 overflow-y-auto custom-scrollbar">
-          {sidebarItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group ${
-                activeTab === item.id 
-                  ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/30' 
-                  : 'text-slate-500 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <item.icon size={20} className={`${activeTab === item.id ? 'text-white' : 'text-slate-600 group-hover:text-blue-400'} transition-colors`} />
-              <span className="font-bold text-sm tracking-wide">{item.label}</span>
-              {activeTab === item.id && (
-                <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full shadow-lg" />
-              )}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-8">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-5 rounded-3xl border border-white/5 mb-8 shadow-2xl">
+        <div className="mt-auto p-8">
+          <div className="bg-[var(--bg-card)] p-5 rounded-3xl border border-[var(--border)] mb-8 shadow-xl">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Load</span>
             </div>
-            <p className="text-sm font-bold text-white">Enterprise Elite</p>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" style={{ width: '62%' }} />
+            <p className="text-sm font-bold text-[var(--text-primary)]">Enterprise Elite</p>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full mt-4 overflow-hidden">
+              <div className="h-full bg-[var(--accent-gold)]" style={{ width: '62%' }} />
             </div>
-            <p className="text-[10px] font-medium text-slate-600 mt-3">12.4k / 20k units</p>
           </div>
 
-          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-600 hover:text-rose-400 hover:bg-rose-400/5 rounded-2xl transition-all font-bold text-sm group">
-            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-            Deauthorize
+          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all font-bold text-sm group">
+            <LogOut size={18} />
+            Cerrar Sesión
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/5 via-transparent to-transparent">
+      <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
         <div className="max-w-[1400px] mx-auto min-h-full">
           {renderContent()}
         </div>
@@ -366,13 +364,13 @@ const SaasDashboard = () => {
 
       {/* Wizard Modal */}
       {showWizard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-2xl">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowWizard(false)} />
-          <div className="relative w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-md bg-black/40">
+          <div className="absolute inset-0" onClick={() => setShowWizard(false)} />
+          <div className="relative w-full max-w-4xl bg-[var(--bg-primary)] border border-[var(--border)] rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
             <div className="absolute top-8 right-8 z-20">
               <button 
                 onClick={() => setShowWizard(false)}
-                className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-slate-500 transition-colors border border-white/5"
+                className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-slate-500 transition-colors border border-[var(--border)]"
               >
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -388,7 +386,14 @@ const SaasDashboard = () => {
                       industry: data.industry || 'general',
                       objective: data.goal || 'assist customers',
                       voice_enabled: data.voiceEnabled === true,
+                      voice: data.voice || 'nova',
                       channel: data.provider || 'baileys',
+                      accessToken: data.accessToken,
+                      d360ApiKey: data.d360ApiKey,
+                      discordToken: data.discordToken,
+                      tiktokAccessToken: data.tiktokAccessToken,
+                      tiktokSellerId: data.tiktokSellerId,
+                      manychatToken: data.manychatToken,
                       identity: data.botName,
                       strategy: data.salesStyle || 'consultive'
                     };
@@ -404,10 +409,10 @@ const SaasDashboard = () => {
 
                     setShowWizard(false); 
                     fetchBots();
-                    alert(`Bot "${result.bot?.name || payload.name}" creado exitosamente.`);
+                    alert(`Agente "${result.bot?.name || payload.name}" inicializado.`);
                   } catch (e) {
                     console.error('Error creating bot:', e);
-                    alert('Error al crear bot: ' + e.message);
+                    alert('Error: ' + e.message);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
@@ -416,11 +421,6 @@ const SaasDashboard = () => {
           </div>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-      `}} />
     </div>
   );
 };

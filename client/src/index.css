@@ -7,53 +7,49 @@
    ═══════════════════════════════════════════════════════ */
 
 :root {
-  font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light;
+  color-scheme: light dark;
   
-  /* Premium SaaS Gray Plata tokens */
-  --bg-primary: #f5f6f8;
-  --bg-secondary: #e9ecf1;
-  --bg-card: #ffffff;
-  --border: #d1d5db;
+  /* 🔱 PREMIUM ALEX IO GOLD & SILVER DESIGN SYSTEM 🔱 */
+  
+  /* LIGHT MODE (SILVER GRAY) */
+  --bg-primary: #D1D5DB; /* Silver Gray */
+  --bg-secondary: #E5E7EB;
+  --bg-card: #FFFFFF;
+  --border: #9CA3AF;
 
   --text-primary: #111827;
-  --text-secondary: #6b7280;
+  --text-secondary: #4B5563;
 
-  --accent: #6b8cff;
-  --accent-hover: #4f6fff;
+  --accent-gold: #D4AF37; /* Gold */
+  --accent-gold-hover: #C5A028;
+  --accent-gold-glow: rgba(212, 175, 55, 0.4);
 
-  --success: #16a34a;
-  --danger: #dc2626;
+  --accent: var(--accent-gold);
+  --accent-hover: var(--accent-gold-hover);
 
-  color: var(--text-primary);
-  background-color: var(--bg-primary);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --success: #10B981;
+  --danger: #EF4444;
 
-  /* Glass tokens (kept for compatibility) */
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-bg-hover: rgba(255, 255, 255, 0.07);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
-  --glass-blur: 20px;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --glass-shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.5);
+  /* DARK MODE OVERRIDES */
+  --dark-bg: #0F172A;
+  --dark-card: #1E293B;
+  --dark-gold: #FFD700;
+}
 
-  /* Accent palette */
-  --accent-cyan: #06b6d4;
-  --accent-blue: #3b82f6;
-  --accent-purple: #8b5cf6;
-  --accent-pink: #ec4899;
-  --accent-green: #10b981;
-
-  /* Gradients */
-  --gradient-main: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent), var(--accent-hover));
-  --gradient-glow: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(91, 140, 255, 0.06), transparent 40%);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: var(--dark-bg);
+    --bg-secondary: #1E293B;
+    --bg-card: var(--dark-card);
+    --border: #334155;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --accent: var(--dark-gold);
+    --accent-hover: #FACC15;
+  }
 }
 
 body {
@@ -62,6 +58,7 @@ body {
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 input, textarea, select {

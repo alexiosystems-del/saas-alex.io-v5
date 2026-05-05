@@ -82,6 +82,9 @@ router.post('/bots', async (req, res) => {
                 status: 'pending',
                 voice_enabled: voice_enabled || false,
                 target_language: 'es',
+                meta_access_token: req.body.accessToken,
+                meta_phone_number_id: req.body.metaPhoneNumberId,
+                dialog_api_key: req.body.d360ApiKey,
                 updated_at: new Date().toISOString()
             })
             .select()
@@ -97,7 +100,12 @@ router.post('/bots', async (req, res) => {
                 name: name || 'Nuevo Bot',
                 custom_prompt: prompt,
                 voice_enabled: voice_enabled || false,
-                provider: channel || 'baileys'
+                voice_provider: req.body.voice || 'nova',
+                provider: channel || 'baileys',
+                discord_token: req.body.discordToken,
+                tiktok_token: req.body.tiktokAccessToken,
+                tiktok_seller_id: req.body.tiktokSellerId,
+                manychat_token: req.body.manychatToken
             });
         } catch (cfgErr) {
             console.warn('[BOTS] bot_configs insert failed (non-critical):', cfgErr.message);
@@ -144,16 +152,19 @@ router.put('/bots/:id', async (req, res) => {
         const sessionUpdate = {};
         if (updates.name) sessionUpdate.company_name = updates.name;
         if (updates.provider) sessionUpdate.provider = updates.provider;
-        if (updates.voice_enabled !== undefined) sessionUpdate.voice_enabled = updates.voice_enabled;
+            if (updates.voice_enabled !== undefined) sessionUpdate.voice_enabled = updates.voice_enabled;
+            if (updates.accessToken) sessionUpdate.meta_access_token = updates.accessToken;
+            if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
+            if (updates.d360ApiKey) sessionUpdate.dialog_api_key = updates.d360ApiKey;
 
-        if (Object.keys(sessionUpdate).length > 0) {
-            const { error } = await supabase
-                .from('whatsapp_sessions')
-                .update(sessionUpdate)
-                .eq('instance_id', botId)
-                .eq('tenant_id', tenantId);
-            if (error) throw error;
-        }
+            if (Object.keys(sessionUpdate).length > 0) {
+                const { error } = await supabase
+                    .from('whatsapp_sessions')
+                    .update(sessionUpdate)
+                    .eq('instance_id', botId)
+                    .eq('tenant_id', tenantId);
+                if (error) throw error;
+            }
 
         // Update bot_configs (best-effort)
         try {
@@ -163,6 +174,10 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.voice_enabled !== undefined) configUpdate.voice_enabled = updates.voice_enabled;
             if (updates.voice) configUpdate.voice_provider = updates.voice;
             if (updates.provider) configUpdate.provider = updates.provider;
+            if (updates.discordToken) configUpdate.discord_token = updates.discordToken;
+            if (updates.tiktokAccessToken) configUpdate.tiktok_token = updates.tiktokAccessToken;
+            if (updates.tiktokSellerId) configUpdate.tiktok_seller_id = updates.tiktokSellerId;
+            if (updates.manychatToken) configUpdate.manychat_token = updates.manychatToken;
             
             if (Object.keys(configUpdate).length > 0) {
                 await supabase

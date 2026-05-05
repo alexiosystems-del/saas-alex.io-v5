@@ -87,8 +87,15 @@ const WhatsAppConnect = () => {
     const fetchStatus = async () => {
         try {
             const res = await api.get('/api/saas/status');
-            setStatus(res.data.status);
-            if (res.data.qr) setQrCode(res.data.qr);
+            // Backend returns { sessions: [...] }
+            const sessions = res.data.sessions || [];
+            if (sessions.length > 0) {
+                // Focus on the first session or filter by a specific one if needed
+                const primary = sessions[0];
+                setStatus(primary.status || 'DISCONNECTED');
+                if (primary.qr_code) setQrCode(primary.qr_code);
+                else if (primary.status === 'QR_READY' && primary.qr) setQrCode(primary.qr);
+            }
         } catch (e) {
             console.warn("Could not fetch WA status:", e.message);
         }
