@@ -186,7 +186,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     />
                     <div className="mt-3 flex justify-between items-center">
                         <p className="text-[10px] text-slate-500 italic">Este prompt define la personalidad, límites y objetivos comerciales de tu bot.</p>
-                        <span className="text-[10px] font-bold text-slate-600">{(configDraft.customPrompt || '').length} caracteres</span>
+                        <span className="text-[10px] font-bold text-slate-600">{localPrompt.length} caracteres</span>
                     </div>
                 </div>
 

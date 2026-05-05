@@ -177,17 +177,62 @@ const WhatsAppConnect = () => {
                                         onClick={async () => {
                                             setStatus('CONNECTING');
                                             try {
-                                                const res = await api.post('/api/saas/connect', { companyName: 'Alex Bot' });
-                                                const instanceId = res.data.instance_id;
+                                                // Get auth token (backend JWT or Supabase session)
+                                                let authToken = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+                                                if (!authToken) {
+                                                    // Fallback: try Supabase session
+                                                    try {
+                                                        const { supabase } = await import('../supabaseClient');
+                                                        if (supabase) {
+                                                            const { data: { session } } = await supabase.auth.getSession();
+                                                            if (session?.access_token) {
+                                                                authToken = session.access_token;
+                                                            }
+                                                        }
+                                                    } catch (e) { console.warn('Supabase session fallback failed:', e.message); }
+                                                }
+
+                                                if (!authToken) {
+                                                    setStatus('DISCONNECTED');
+                                                    alert('Sesión expirada. Por favor, vuelve a iniciar sesión.');
+                                                    return;
+                                                }
+
+                                                const res = await fetch(`${window.location.origin}/api/saas/connect`, {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'Authorization': `Bearer ${authToken}`
+                                                    },
+                                                    body: JSON.stringify({ companyName: 'Alex Bot' })
+                                                });
+
+                                                const data = await res.json();
+                                                if (!res.ok) {
+                                                    console.error('Connect failed:', data);
+                                                    setStatus('DISCONNECTED');
+                                                    alert(`Error: ${data.error || 'No se pudo conectar'}`);
+                                                    return;
+                                                }
+
+                                                const instanceId = data.instance_id;
+                                                if (data.qr_code) {
+                                                    setQrCode(data.qr_code);
+                                                    setStatus('QR_READY');
+                                                }
+
                                                 const poll = setInterval(async () => {
                                                     try {
-                                                        const s = await api.get(`/api/saas/status/${instanceId}`);
-                                                        if (s.data.status === 'online' || s.data.status === 'READY') {
+                                                        const s = await fetch(`${window.location.origin}/api/saas/status/${instanceId}`, {
+                                                            headers: { 'Authorization': `Bearer ${authToken}` }
+                                                        });
+                                                        const sData = await s.json();
+                                                        if (sData.status === 'online' || sData.status === 'READY') {
                                                             setStatus('READY');
                                                             setQrCode(null);
                                                             clearInterval(poll);
-                                                        } else if (s.data.qr_code) {
-                                                            setQrCode(s.data.qr_code);
+                                                        } else if (sData.qr_code) {
+                                                            setQrCode(sData.qr_code);
                                                             setStatus('QR_READY');
                                                         }
                                                     } catch (err) {
