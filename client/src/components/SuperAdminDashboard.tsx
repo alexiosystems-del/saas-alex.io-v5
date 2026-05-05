@@ -219,7 +219,7 @@ const SuperAdminDashboard = () => {
                             { name: 'Gemini', key: 'gemini', color: '#4285F4', icon: '🔷' },
                             { name: 'OpenAI', key: 'openai', color: '#10a37f', icon: '🟢' },
                             { name: 'DeepSeek', key: 'deepseek', color: T.purple, icon: '🟣' },
-                            { name: 'Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
+                            { name: 'Claude / Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
                         ].map(provider => {
                             const info = aiDiag[provider.key];
                             if (!info) return null;
@@ -390,6 +390,7 @@ const SuperAdminDashboard = () => {
                                                                         { name: 'Gemini', color: T.accentLight, data: botDetails.ai_usage?.gemini, cost: botDetails.estimated_costs?.gemini },
                                                                         { name: 'OpenAI', color: T.success, data: botDetails.ai_usage?.openai, cost: botDetails.estimated_costs?.openai },
                                                                         { name: 'DeepSeek', color: T.purple, data: botDetails.ai_usage?.deepseek, cost: botDetails.estimated_costs?.deepseek },
+                                                                        { name: 'Claude', color: T.warning, data: botDetails.ai_usage?.anthropic || botDetails.ai_usage?.claude, cost: botDetails.estimated_costs?.anthropic || botDetails.estimated_costs?.claude },
                                                                     ].map(m => (
                                                                         <div key={m.name} style={glassCard({ padding: 14 })}>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}><Zap size={13} style={{ color: m.color }} /><span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{m.name}</span></div>

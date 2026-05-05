@@ -342,7 +342,7 @@ console.log(`🧠 [CASCADE] Inicializando Cerebro:`);
 console.log(`   - Gemini: ${mask(GEMINI_KEY)}`);
 console.log(`   - OpenAI: ${mask(OPENAI_KEY)} (CRÍTICO PARA VOZ Y FALLBACK)`);
 console.log(`   - DeepSeek: ${mask(DEEPSEEK_KEY)}`);
-console.log(`   - Anthropic/Claude: ${mask(ANTHROPIC_KEY)} (AUDITORÍA DE COMPLIANCE)`);
+console.log(`   - Claude/Anthropic: ${mask(ANTHROPIC_KEY)} (CASCADA + AUDITORÍA DE COMPLIANCE)`);
 
 /**
  * ORCHESTRATOR: Response Quality Evaluator (Hardened V1)
@@ -403,6 +403,24 @@ function chooseModel(inputLength) {
   if (inputLength < 200) return 'deepseek';
   if (inputLength < 400) return 'minimax';
   return 'gpt';
+}
+
+function isCascadeProviderReady(providerId) {
+  const readiness = {
+    gemini: Boolean(GEMINI_KEY) && circuitBreaker.isAvailable('GEMINI'),
+    gpt: Boolean(OPENAI_KEY) && circuitBreaker.isAvailable('OPENAI'),
+    claude: Boolean(ANTHROPIC_KEY) && circuitBreaker.isAvailable('ANTHROPIC'),
+    deepseek: Boolean(DEEPSEEK_KEY) && circuitBreaker.isAvailable('DEEPSEEK'),
+    minimax: Boolean(MINIMAX_KEY) && circuitBreaker.isAvailable('MINIMAX')
+  };
+  return Boolean(readiness[providerId]);
+}
+
+function getCascadeModelOrder(preferredModel) {
+  const ordered = [preferredModel, ...(['gemini', 'gpt', 'claude', 'deepseek', 'minimax'].filter(m => m !== preferredModel))];
+  const available = ordered.filter(isCascadeProviderReady);
+  const skipped = ordered.filter(m => !isCascadeProviderReady(m));
+  return { ordered, available, skipped };
 }
 
 /**
@@ -643,9 +661,12 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         }}
     };
 
-    // Reorder cascade based on cost optimizer
-    const modelOrder = [preferredModel, ...(['gemini', 'gpt', 'claude', 'deepseek', 'minimax'].filter(m => m !== preferredModel))];
-    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]);
+    // Reorder cascade based on cost optimizer and skip providers without configured keys/circuit availability.
+    const { available: modelOrder, skipped: skippedModels } = getCascadeModelOrder(preferredModel);
+    if (skippedModels.length > 0) {
+        console.warn(`⚠️ [CASCADE] Proveedores omitidos por falta de key/circuit breaker: ${skippedModels.join(', ')}`);
+    }
+    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]).filter(Boolean);
 
     let responseText = '';
     let usedModel = '';
@@ -1062,8 +1083,14 @@ function getAiDiagnostics() {
         openai: { configured: !!(OPENAI_KEY && OPENAI_KEY.length > 10), masked: mask(OPENAI_KEY), dead: deadKeys.has('OPENAI'), last_error: providerLastError['OPENAI'] || null },
         deepseek: { configured: !!(DEEPSEEK_KEY && DEEPSEEK_KEY.length > 10), masked: mask(DEEPSEEK_KEY), dead: deadKeys.has('DEEPSEEK'), last_error: providerLastError['DEEPSEEK'] || null },
         minimax: { configured: !!(MINIMAX_KEY && MINIMAX_KEY.length > 10), dead: deadKeys.has('MINIMAX') },
-        anthropic: { configured: !!(ANTHROPIC_KEY && ANTHROPIC_KEY.length > 10), masked: mask(ANTHROPIC_KEY), dead: deadKeys.has('ANTHROPIC') },
+        anthropic: { configured: !!(ANTHROPIC_KEY && ANTHROPIC_KEY.length > 10), masked: mask(ANTHROPIC_KEY), dead: deadKeys.has('ANTHROPIC'), last_error: providerLastError['ANTHROPIC'] || null },
         budgets_usd: normalizedBudgets,
+        cascade: {
+            preferred_short: chooseModel(25),
+            preferred_medium: chooseModel(120),
+            order_if_short: getCascadeModelOrder(chooseModel(25)),
+            order_if_medium: getCascadeModelOrder(chooseModel(120))
+        },
         smart_router: { budget_per_request: BUDGET_PER_REQUEST, costs: MODEL_COST_PER_1K },
         cache: global.responseCache ? global.responseCache.getStats() : null
     };

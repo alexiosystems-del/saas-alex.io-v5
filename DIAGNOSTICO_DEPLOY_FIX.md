@@ -24,7 +24,7 @@ npm run platform:check
 
 El comando valida variables para:
 - RAG (Supabase/OpenAI)
-- Traducción/multilenguaje
+-- Traducción/multilenguaje
 - CRM propio (CRM PRO)
 - Meta Cloud API
 - 360dialog

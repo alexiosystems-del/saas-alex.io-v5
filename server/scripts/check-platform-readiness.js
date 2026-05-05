@@ -11,6 +11,10 @@ const checks = [
     vars: ['GEMINI_API_KEY']
   },
   {
+    area: 'Claude/Anthropic (cascada + auditoría)',
+    vars: ['ANTHROPIC_API_KEY']
+  },
+  {
     area: 'CRM PRO (interno)',
     vars: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
   },

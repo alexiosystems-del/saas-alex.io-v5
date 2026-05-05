@@ -57,7 +57,7 @@ npm run frontend:csp:check -- https://whatsapp-fullstack-ylsx.onrender.com/#/das
 ## Riesgo funcional por módulo
 
 - **CRM PRO:** alto (listas/contadores y estados pueden desincronizarse).
-- **RAG:** medio-alto (indexación/estado visual y eventos en tiempo real afectados).
+-- **RAG:** medio-alto (indexación/estado visual y eventos en tiempo real afectados).
 - **Generación QR/canales:** medio (flujo de sesión y updates de estado pueden llegar tarde o fallar visualmente).
 
 ## Recomendación para consulta externa (Claude)
