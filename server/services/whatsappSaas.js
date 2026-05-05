@@ -2561,6 +2561,7 @@ module.exports = {
     router,
     restoreSessions,
     setSocket,
+    clientConfigs,
     whatsappSockets, // Export sockets for broadcast and other services
     logBotEvent,
     updateSessionStatus,

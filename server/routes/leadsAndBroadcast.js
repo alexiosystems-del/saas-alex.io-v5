@@ -192,6 +192,20 @@ router.put('/bots/:id', async (req, res) => {
             console.warn('[BOTS] bot_configs update failed:', e.message);
         }
 
+        // 🔱 Real-time Memory Sync (SRE-style)
+        const currentLive = clientConfigs.get(botId);
+        if (currentLive) {
+            clientConfigs.set(botId, {
+                ...currentLive,
+                companyName: updates.name || currentLive.companyName,
+                customPrompt: updates.prompt || currentLive.customPrompt,
+                voiceEnabled: updates.voice_enabled !== undefined ? updates.voice_enabled : currentLive.voiceEnabled,
+                voice: updates.voice || currentLive.voice,
+                provider: updates.provider || currentLive.provider
+            });
+            console.log(`⚡ [LIVE SYNC] Configuración actualizada en memoria para ${botId}`);
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error('[BOTS] Update error:', err.message);
