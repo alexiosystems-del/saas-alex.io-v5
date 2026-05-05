@@ -430,8 +430,6 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             )}
           </div>
         );
-          </div>
-        );
       case 'summary':
         const generatedPrompt = `Eres un asistente experto en ${data.industry || 'Negocios'}.
 NEGOCIO: ${data.businessName || 'ALEX IO'}
