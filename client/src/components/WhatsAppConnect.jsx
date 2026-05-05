@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import QRCode from 'react-qr-code';
 import io from 'socket.io-client';
 import api from '../services/api';
 import { motion } from 'framer-motion';
@@ -159,7 +159,7 @@ const WhatsAppConnect = () => {
                                     </div>
                                 ) : qrCode ? (
                                     <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
-                                        <QRCodeSVG value={qrCode} size={200} />
+                                        <QRCode value={qrCode} size={200} />
                                     </div>
                                 ) : status === 'CONNECTING' ? (
                                     <div className="w-48 h-48 bg-slate-700/30 rounded-full flex flex-col items-center justify-center border-2 border-slate-600 border-dashed">

@@ -17,10 +17,21 @@ const getBaseUrl = () => {
 
 const api = axios.create({
     baseURL: getBaseUrl(),
-    timeout: 60000, // 60 seconds timeout
+    timeout: 60000,
     headers: {
         'Content-Type': 'application/json',
     },
+});
+
+// AUTH INTERCEPTOR: Inject ALEX IO JWT from localStorage
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
 });
 
 // Get available scenarios
