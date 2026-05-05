@@ -21,7 +21,9 @@ import {
   Cloud,
   Book,
   TrendingUp,
-  QrCode
+  QrCode,
+  Sun,
+  Moon
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
