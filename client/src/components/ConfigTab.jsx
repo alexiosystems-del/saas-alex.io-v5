@@ -113,12 +113,27 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
                         <Bot size={16} style={{ color: C.indigo }} /> Identidad del Bot
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Nombre Público</label>
                             <input className="w-full rounded-xl p-3 text-sm focus:outline-none transition-all"
                                 style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
                                 value={configDraft.name || ''} onChange={e => setConfigDraft(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Idioma Nativo</label>
+                            <select className="w-full rounded-xl p-3 text-sm focus:outline-none appearance-none"
+                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                value={configDraft.target_language || 'es'} onChange={e => setConfigDraft(p => ({ ...p, target_language: e.target.value }))}>
+                                <option value="es">Español</option>
+                                <option value="en">English</option>
+                                <option value="fr">Français</option>
+                                <option value="de">Deutsch</option>
+                                <option value="zh">Mandarin</option>
+                                <option value="hi">Hindi</option>
+                                <option value="ar">Arabic</option>
+                                <option value="pt">Português</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Voz y Síntesis</label>

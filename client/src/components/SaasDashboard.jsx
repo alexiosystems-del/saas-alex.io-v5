@@ -157,7 +157,8 @@ const SaasDashboard = () => {
                     voice: draft.voice,
                     provider: draft.provider,
                     industry: draft.industry,
-                    objective: draft.objective
+                    objective: draft.objective,
+                    target_language: draft.target_language
                   })
                 });
 

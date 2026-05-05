@@ -131,7 +131,8 @@ const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
 function detectLanguage(text = '', history = [], forcedLanguage = '') {
     const forced = String(forcedLanguage || '').trim().toLowerCase();
-    if (['es', 'en', 'pt', 'fr', 'de', 'it'].includes(forced)) return forced;
+    const supported = ['es', 'en', 'pt', 'fr', 'de', 'it', 'zh', 'hi', 'ar'];
+    if (supported.includes(forced)) return forced;
 
     const recentHistory = (history || [])
         .slice(-8)
@@ -147,7 +148,10 @@ function detectLanguage(text = '', history = [], forcedLanguage = '') {
         pt: [' não ', ' você ', ' obrigado', ' olá', ' preciso', ' quero', ' para ', ' preço', 'quanto custa'],
         fr: [' bonjour', ' merci', ' je ', ' vous ', ' avec ', ' prix ', ' combien', ' besoin'],
         de: [' hallo', ' danke', ' ich ', ' und ', ' mit ', ' preis', ' brauche'],
-        it: [' ciao', ' grazie', ' io ', ' con ', ' precio', ' quanto costa']
+        it: [' ciao', ' grazie', ' io ', ' con ', ' precio', ' quanto costa'],
+        zh: ['你好', '谢谢', '多少钱', '需要', '要', '在哪'],
+        hi: ['नमस्ते', 'धन्यवाद', 'कितना', 'चाहिए', 'कहाँ'],
+        ar: ['مرحبا', 'شكرا', 'كم', 'اين', 'اريد']
     };
 
     const score = (tokens) => tokens.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);

@@ -54,7 +54,8 @@ router.get('/bots', async (req, res) => {
             objective: s.objective,
             total_messages: s.total_messages || 0,
             company_name: s.company_name,
-            customPrompt: s.custom_prompt
+            customPrompt: s.custom_prompt,
+            target_language: s.target_language
         })) });
     } catch (err) {
         res.status(500).json({ error: err.message });
