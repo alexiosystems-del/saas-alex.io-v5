@@ -27,6 +27,10 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 // Inject Socket.io into services
 const whatsappService = require('./services/whatsappClient');
 whatsappService.setSocket(io);
+
+const { setSocket: setSaasSocket } = require('./services/whatsappSaas');
+setSaasSocket(io);
+
 logger.info('✅ Express trust proxy enabled');
 
 // --- SECURITY MIDDLEWARES ---

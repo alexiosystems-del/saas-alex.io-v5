@@ -44,6 +44,11 @@ const usageTable = 'tenant_usage_metrics';
 const whatsappSockets = new Map(); // Shared map for Baileys sockets
 const connectionStates = new Map(); // State machine: 'idle', 'connecting', 'online', 'failed'
 const maxReconnectAttempts = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 5);
+let ioInstance = null;
+
+const setSocket = (io) => {
+    ioInstance = io;
+};
 
 // --- EVENT LOG SYSTEM (ring buffer per bot, max 100 events) ---
 const botEventLogs = new Map(); // key: instanceId, value: Array<{timestamp, level, message, meta}>
@@ -199,6 +204,9 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
     if (memoryConfig && memoryConfig.tenantId) {
         payload.tenant_id = memoryConfig.tenantId;
         payload.owner_email = memoryConfig.ownerEmail || null;
+        payload.custom_prompt = memoryConfig.customPrompt || null;
+        payload.voice_enabled = memoryConfig.voiceEnabled ?? false;
+        payload.voice = memoryConfig.voice || 'nova';
     }
 
     const { provider, ...dbPayload } = payload;
@@ -210,7 +218,7 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         if (error) {
             if (error.message.includes('column') && error.message.includes('does not exist')) {
                 // FALLBACK: Schema mismatch, try without new columns
-                const { voice_enabled, voice, translate_inbound, ...safePayload } = dbPayload;
+                const { voice_enabled, voice, translate_inbound, custom_prompt, ...safePayload } = dbPayload;
                 await supabase.from(sessionsTable).upsert(safePayload, { onConflict: 'instance_id' });
                 console.warn(`⚠️ [${instanceId}] Schema mismatch detected. Saved basic session info only.`);
             } else {
@@ -232,12 +240,12 @@ const hydrateSessionStatus = async () => {
         // Try primary query with all columns
         let { data, error } = await supabase
             .from(sessionsTable)
-            .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email,voice_enabled,voice,translate_inbound')
+            .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email,voice_enabled,voice,translate_inbound,custom_prompt')
             .order('updated_at', { ascending: false })
             .limit(200);
 
         if (error && error.message.includes('column') && error.message.includes('does not exist')) {
-            console.warn('⚠️ Schema mismatch (voice/translation columns missing). Falling back to basic hydration.');
+            console.warn('⚠️ Schema mismatch (voice/translation/prompt columns missing). Falling back to basic hydration.');
             const fallback = await supabase
                 .from(sessionsTable)
                 .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email')
@@ -275,7 +283,8 @@ const hydrateSessionStatus = async () => {
                     provider: 'baileys',
                     voiceEnabled: row.voice_enabled ?? false,
                     voice: row.voice ?? 'nova',
-                    translateInboundToSpanish: row.translate_inbound ?? false
+                    translateInboundToSpanish: row.translate_inbound ?? false,
+                    customPrompt: row.custom_prompt
                 });
             }
         }
@@ -819,6 +828,13 @@ async function connectToWhatsApp(instanceId, config, res = null) {
                             companyName: config.companyName,
                             qr_code: url
                         });
+                        
+                        // BROADCAST TO FRONTEND (Saas Integration Fix)
+                        if (ioInstance) {
+                            ioInstance.emit('wa_qr', { qr, instanceId, status: 'QR_READY' });
+                            ioInstance.emit('wa_status', { status: 'QR_READY', instanceId });
+                        }
+
                         if (res && !res.headersSent) {
                             res.json({ success: true, qr_code: url, instance_id: instanceId });
                         }
@@ -865,12 +881,16 @@ async function connectToWhatsApp(instanceId, config, res = null) {
                     clearSessionRuntime(instanceId);
                 }
             } else if (connection === 'open') {
-            connectionStates.set(instanceId, 'online');
-            await releaseLock(lockKey); // Success! Release lock.
-            reconnectAttempts.set(instanceId, 0);
-            updateSessionStatus(instanceId, 'online', { companyName: config.companyName, qr_code: null }).catch(() => null);
-            console.log(`✅ [${instanceId}] ${config.companyName} ONLINE!`);
-        }
+                connectionStates.set(instanceId, 'online');
+                await releaseLock(lockKey); // Success! Release lock.
+                reconnectAttempts.set(instanceId, 0);
+                updateSessionStatus(instanceId, 'online', { companyName: config.companyName, qr_code: null }).catch(() => null);
+                console.log(`✅ [${instanceId}] ${config.companyName} ONLINE!`);
+                
+                if (ioInstance) {
+                    ioInstance.emit('wa_status', { status: 'READY', instanceId });
+                }
+            }
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -2540,6 +2560,7 @@ const restoreSessions = async () => {
 module.exports = {
     router,
     restoreSessions,
+    setSocket,
     whatsappSockets, // Export sockets for broadcast and other services
     logBotEvent,
     updateSessionStatus,

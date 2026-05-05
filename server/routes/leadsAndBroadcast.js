@@ -85,6 +85,7 @@ router.post('/bots', async (req, res) => {
                 meta_access_token: req.body.accessToken,
                 meta_phone_number_id: req.body.metaPhoneNumberId,
                 dialog_api_key: req.body.d360ApiKey,
+                custom_prompt: prompt || null,
                 updated_at: new Date().toISOString()
             })
             .select()
@@ -157,6 +158,7 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
             if (updates.d360ApiKey) sessionUpdate.dialog_api_key = updates.d360ApiKey;
             if (updates.target_language) sessionUpdate.target_language = updates.target_language;
+            if (updates.prompt) sessionUpdate.custom_prompt = updates.prompt;
 
             if (Object.keys(sessionUpdate).length > 0) {
                 const { error } = await supabase

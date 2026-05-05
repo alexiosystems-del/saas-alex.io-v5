@@ -218,10 +218,10 @@ const WhatsAppConnect = () => {
                             <div className="flex flex-col gap-2 w-full max-w-xs mt-4">
                                 {diagnostics ? (
                                     <>
-                                        <StatusBadge label="Gemini AI" value={diagnostics.providers.gemini ? 'OK' : 'Error'} ok={diagnostics.providers.gemini} />
-                                        <StatusBadge label="OpenAI" value={diagnostics.providers.openai ? 'OK' : 'Error'} ok={diagnostics.providers.openai} />
-                                        <StatusBadge label="DeepSeek" value={diagnostics.providers.deepseek ? 'OK' : 'Error'} ok={diagnostics.providers.deepseek} />
-                                        <StatusBadge label="WhatsApp" value={diagnostics.whatsapp.status} ok={diagnostics.whatsapp.status === 'READY'} />
+                                        <StatusBadge label="Gemini AI" value={diagnostics.providers?.gemini ? 'OK' : 'Error'} ok={diagnostics.providers?.gemini} />
+                                        <StatusBadge label="OpenAI" value={diagnostics.providers?.openai ? 'OK' : 'Error'} ok={diagnostics.providers?.openai} />
+                                        <StatusBadge label="DeepSeek" value={diagnostics.providers?.deepseek ? 'OK' : 'Error'} ok={diagnostics.providers?.deepseek} />
+                                        <StatusBadge label="WhatsApp" value={diagnostics.whatsapp?.status || 'Unknown'} ok={diagnostics.whatsapp?.status === 'READY'} />
                                         <div className="mt-4 pt-4 border-t border-slate-700 w-full flex justify-center">
                                             <button
                                                 onClick={fetchDiagnostics}
