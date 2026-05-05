@@ -128,7 +128,7 @@ app.use(helmet({
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "img-src": ["'self'", "data:", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com"],
-            "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.onrender.com", "wss://*.onrender.com", "https://*.google.com", "https://*.openai.com", "ws://localhost:*"]
+            "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.onrender.com", "wss://*.onrender.com", "https://*.google.com", "https://*.openai.com", ...(process.env.NODE_ENV !== 'production' ? ["ws://localhost:*"] : [])]
         }
     }
 }));
