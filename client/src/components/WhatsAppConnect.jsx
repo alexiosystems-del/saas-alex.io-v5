@@ -177,20 +177,25 @@ const WhatsAppConnect = () => {
                                         onClick={async () => {
                                             setStatus('CONNECTING');
                                             try {
-                                                const res = await api.post('/saas/connect', { companyName: 'Alex Bot' });
+                                                const res = await api.post('/api/saas/connect', { companyName: 'Alex Bot' });
                                                 const instanceId = res.data.instance_id;
                                                 const poll = setInterval(async () => {
-                                                    const s = await api.get('/whatsapp/status');
-                                                    if (s.data.status === 'READY') {
-                                                        setStatus('READY');
-                                                        setQrCode(null);
-                                                        clearInterval(poll);
-                                                    } else if (s.data.qr) {
-                                                        setQrCode(s.data.qr);
-                                                        setStatus('QR_READY');
+                                                    try {
+                                                        const s = await api.get(`/api/saas/status/${instanceId}`);
+                                                        if (s.data.status === 'online' || s.data.status === 'READY') {
+                                                            setStatus('READY');
+                                                            setQrCode(null);
+                                                            clearInterval(poll);
+                                                        } else if (s.data.qr_code) {
+                                                            setQrCode(s.data.qr_code);
+                                                            setStatus('QR_READY');
+                                                        }
+                                                    } catch (err) {
+                                                        console.error("Polling error:", err.message);
                                                     }
                                                 }, 4000);
                                             } catch (e) {
+                                                console.error("Connect error:", e.message);
                                                 setStatus('DISCONNECTED');
                                             }
                                         }}

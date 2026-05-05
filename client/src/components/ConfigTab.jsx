@@ -45,6 +45,11 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     const [copiedToken, setCopiedToken] = useState(false);
     const [showToken, setShowToken] = useState(false);
     const [channelWizard, setChannelWizard] = useState('instagram');
+    const [localPrompt, setLocalPrompt] = useState(configDraft.customPrompt || '');
+
+    useEffect(() => {
+        setLocalPrompt(configDraft.customPrompt || '');
+    }, [configDraft.customPrompt]);
 
     useEffect(() => {
         const prompt = configDraft?.customPrompt || configDraft?.prompt || configDraft?.custom_prompt || '';
@@ -175,7 +180,10 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     </div>
                     <textarea className="w-full rounded-xl p-4 text-sm resize-none h-64 focus:outline-none font-mono leading-relaxed"
                         style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                        value={configDraft.customPrompt || ''} onChange={e => setConfigDraft(p => ({ ...p, customPrompt: e.target.value }))} />
+                        value={localPrompt} 
+                        onChange={e => setLocalPrompt(e.target.value)}
+                        onBlur={() => setConfigDraft(p => ({ ...p, customPrompt: localPrompt }))}
+                    />
                     <div className="mt-3 flex justify-between items-center">
                         <p className="text-[10px] text-slate-500 italic">Este prompt define la personalidad, límites y objetivos comerciales de tu bot.</p>
                         <span className="text-[10px] font-bold text-slate-600">{(configDraft.customPrompt || '').length} caracteres</span>

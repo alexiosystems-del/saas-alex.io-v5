@@ -4,10 +4,10 @@ import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info,
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
+  { id: 'strategy', title: 'Estrategia', icon: Zap, color: '#f59e0b' },
   { id: 'channels', title: 'Conectores', icon: GlobeIcon, color: '#0ea5e9' },
   { id: 'voice', title: 'Voz y Audio', icon: Mic, color: '#ec4899' },
-  { id: 'limits', title: 'Límites', icon: ShieldAlert, color: '#f59e0b' },
-  { id: 'summary', title: 'Manifiesto de Despliegue', icon: CheckCircle2, color: '#10b981' }
+  { id: 'summary', title: 'Despliegue', icon: CheckCircle2, color: '#10b981' }
 ];
 
 const VOICE_OPTIONS = [
@@ -181,6 +181,85 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             </div>
           </div>
         );
+      case 'strategy':
+        return (
+          <div className="space-y-6">
+            <div className="bg-indigo-600/10 border border-indigo-500/20 p-6 rounded-3xl relative overflow-hidden group">
+                <div className="relative z-10">
+                    <h4 className="text-white font-bold mb-1 flex items-center gap-2">
+                        <Zap size={16} className="text-amber-400" /> Ingeniería de Prompt Pro
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mb-4">Genera el cerebro de tu bot basándote en tu identidad de negocio.</p>
+                    
+                    <button 
+                        onClick={async () => {
+                            setValidating('prompt');
+                            try {
+                                const res = await fetch('/api/saas/generate-prompt', {
+                                    method: 'POST',
+                                    headers: { 
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${localStorage.getItem('alex_io_token')}`
+                                    },
+                                    body: JSON.stringify({
+                                        businessName: data.businessName,
+                                        businessType: data.industry,
+                                        extra: data.products,
+                                        tone: data.tone,
+                                        objective: data.salesStyle
+                                    })
+                                });
+                                const result = await res.json();
+                                if (result.prompt) {
+                                    handleChange('systemPrompt', result.prompt);
+                                }
+                            } catch (e) {
+                                console.error("Error generating prompt:", e);
+                            } finally {
+                                setValidating(null);
+                            }
+                        }}
+                        disabled={validating === 'prompt'}
+                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {validating === 'prompt' ? <Loader className="animate-spin" size={14} /> : <Zap size={14} />}
+                        Generar Cerebro con IA
+                    </button>
+                </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/5">
+              <div className="flex justify-between mb-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Límite de Palabras por Respuesta</label>
+                <span className="text-xs font-mono font-bold text-indigo-400">{data.maxWords} palabras</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="300"
+                value={data.maxWords}
+                onChange={(e) => handleChange('maxWords', parseInt(e.target.value))}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
+                <span>CONCISO</span>
+                <span>DETALLADO</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">System Prompt (El Cerebro del Agente)</label>
+              <textarea
+                value={data.systemPrompt || ''}
+                onChange={(e) => handleChange('systemPrompt', e.target.value)}
+                rows={10}
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-4 text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all resize-none leading-relaxed"
+                placeholder="Aquí aparecerán las instrucciones detalladas de tu bot..."
+              />
+              <p className="text-[9px] text-slate-600 mt-2 italic">Puedes editar este texto manualmente o generarlo automáticamente con el botón superior.</p>
+            </div>
+          </div>
+        );
       case 'channels':
         return (
           <div className="space-y-6">
@@ -351,47 +430,6 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
             )}
           </div>
         );
-      case 'limits':
-        const wordRisk = data.maxWords > 150 ? 'high' : data.maxWords > 80 ? 'med' : 'low';
-        return (
-          <div className="space-y-10 py-4">
-            <div className="relative">
-              <div className="flex justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Capacidad de Respuesta</label>
-                </div>
-                <span className={`text-lg font-mono font-bold ${wordRisk === 'high' ? 'text-red-400' : 'text-emerald-400'}`}>{data.maxWords} <span className="text-[10px] opacity-50 uppercase">palabras</span></span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="300"
-                value={data.maxWords}
-                onChange={(e) => handleChange('maxWords', parseInt(e.target.value))}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-              />
-              <div className="flex justify-between mt-2 text-[9px] text-slate-500 font-mono">
-                <span>CONCISO</span>
-                <span>EXTENSO</span>
-              </div>
-            </div>
-
-            <div className="relative">
-              <div className="flex justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Memoria de Sesión</label>
-                </div>
-                <span className="text-lg font-mono font-bold text-indigo-400">{data.maxMessages} <span className="text-[10px] opacity-50 uppercase">msgs</span></span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="500"
-                value={data.maxMessages}
-                onChange={(e) => handleChange('maxMessages', parseInt(e.target.value))}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
           </div>
         );
       case 'summary':
