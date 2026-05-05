@@ -64,7 +64,7 @@ router.get('/bots', async (req, res) => {
 router.post('/bots', async (req, res) => {
     try {
         const tenantId = req.tenant.id;
-        const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy } = req.body;
+        const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy, target_language } = req.body;
         const instanceId = 'v5_' + crypto.randomUUID();
 
         // Insert into whatsapp_sessions
@@ -81,7 +81,7 @@ router.post('/bots', async (req, res) => {
                 provider: channel || 'baileys',
                 status: 'pending',
                 voice_enabled: voice_enabled || false,
-                target_language: 'es',
+                target_language: target_language || 'es',
                 meta_access_token: req.body.accessToken,
                 meta_phone_number_id: req.body.metaPhoneNumberId,
                 dialog_api_key: req.body.d360ApiKey,
@@ -156,6 +156,7 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.accessToken) sessionUpdate.meta_access_token = updates.accessToken;
             if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
             if (updates.d360ApiKey) sessionUpdate.dialog_api_key = updates.d360ApiKey;
+            if (updates.target_language) sessionUpdate.target_language = updates.target_language;
 
             if (Object.keys(sessionUpdate).length > 0) {
                 const { error } = await supabase

@@ -388,6 +388,7 @@ const SaasDashboard = () => {
                       voice_enabled: data.voiceEnabled === true,
                       voice: data.voice || 'nova',
                       channel: data.provider || 'baileys',
+                      target_language: data.targetLanguage || 'es',
                       accessToken: data.accessToken,
                       d360ApiKey: data.d360ApiKey,
                       discordToken: data.discordToken,

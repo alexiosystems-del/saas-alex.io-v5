@@ -49,7 +49,8 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
     discordAppId: config?.discordAppId || '',
     tiktokAccessToken: config?.tiktokAccessToken || '',
     tiktokSellerId: config?.tiktokSellerId || '',
-    manychatToken: config?.manychatToken || ''
+    manychatToken: config?.manychatToken || '',
+    targetLanguage: config?.targetLanguage || 'es'
   });
 
   const [validating, setValidating] = useState(null);
@@ -158,6 +159,23 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                   <option value="profesional">Profesional y Serio</option>
                   <option value="divertido">Divertido y Cercano</option>
                   <option value="autoridad">Líder de Opinión / Autoridad</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Idioma Nativo del Agente</label>
+                <select
+                  value={data.targetLanguage || 'es'}
+                  onChange={(e) => handleChange('targetLanguage', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none appearance-none"
+                >
+                  <option value="es">Español (Latino / España)</option>
+                  <option value="en">English (Universal)</option>
+                  <option value="fr">Français (France / Canada)</option>
+                  <option value="de">Deutsch (Deutschland)</option>
+                  <option value="zh">Mandarin Chinese (Zhōngwén)</option>
+                  <option value="hi">Hindi (Bhārat)</option>
+                  <option value="ar">Arabic (العربية)</option>
+                  <option value="pt">Português (Brasil / Portugal)</option>
                 </select>
               </div>
             </div>
