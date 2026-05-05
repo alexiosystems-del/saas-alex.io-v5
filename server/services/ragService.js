@@ -115,8 +115,8 @@ async function queryKnowledgeBase(tenantId, instanceId, queryText, limit = 3) {
 
         if (error) throw error;
 
-        // Return only the text chunks with a similarity score > threshold (e.g. 0.76)
-        return data.filter(doc => doc.similarity > 0.78).map(doc => doc.chunk_content).join('\n\n---\n\n');
+        // Return only the text chunks with a similarity score > threshold (e.g. 0.72)
+        return data.filter(doc => doc.similarity > 0.72).map(doc => doc.chunk_content).join('\n\n---\n\n');
     } catch (err) {
         console.error(`❌ Error consultando base de conocimiento RAG:`, err.message);
         return null; // Silent fail gracefully so the bot keeps chatting

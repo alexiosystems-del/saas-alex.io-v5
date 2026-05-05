@@ -316,7 +316,8 @@ router.post('/broadcast', async (req, res) => {
                     .replace(/{temperatura}/gi, lead.temp || '');
 
                 try {
-                    const adapter = getAdapter(config, global.whatsappSessions);
+                    const { whatsappSockets } = require('../services/whatsappSaas');
+                    const adapter = getAdapter(config, whatsappSockets);
                     if (!adapter) throw new Error('No se pudo inicializar el conector');
 
                     await adapter.sendMessage(rawPhone, personalizedMsg, { mediaUrl, mediaType });
@@ -339,6 +340,17 @@ router.post('/broadcast', async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// --- GET /api/saas/broadcast/status/:id ---
+router.get('/broadcast/status/:id', (req, res) => {
+    const job = broadcastJobs.get(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Campaña no encontrada' });
+    
+    res.json({
+        ...job,
+        progress: job.total > 0 ? Math.round((job.sent + job.failed) / job.total * 100) : 0
+    });
 });
 
 // --- POST /api/saas/leads/bulk (Import External Base) ---

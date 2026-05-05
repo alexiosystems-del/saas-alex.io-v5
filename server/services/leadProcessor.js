@@ -64,7 +64,7 @@ Reglas: RESPONDE ÚNICAMENTE CON EL JSON VÁLIDO.
         
         if (!extraction.is_lead) score = Math.max(0, score - 50);
 
-        // 1. Guardar en Supabase para analíticas internas
+        // 1. Guardar en Supabase para analíticas internas (Simple CRM)
         const { error } = await supabase.from('leads').upsert({
             tenant_id: tenantId,
             instance_id: instanceId,
@@ -73,15 +73,35 @@ Reglas: RESPONDE ÚNICAMENTE CON EL JSON VÁLIDO.
             name: extraction.name || 'desconocido',
             email: extraction.email || null,
             temperature: temp,
-            score: score, // Añadimos score para el dashboard
+            score: score, 
             summary: extraction.summary || 'Sin interés claro detectado.',
             updated_at: new Date().toISOString()
         }, { onConflict: 'instance_id, remote_jid' });
 
         if (error) {
-            console.error('❌ [LeadProcessor] Supabase Error:', error.message);
+            console.error('❌ [LeadProcessor] Supabase Error (leads):', error.message);
         } else {
-            console.log(`🔥 [LeadProcessor] Lead analizado [Score: ${score}]: ${remoteJid}`);
+            console.log(`🔥 [LeadProcessor] Lead analizado en Simple CRM [Score: ${score}]: ${remoteJid}`);
+        }
+
+        // 1b. Guardar en crm_leads (Enterprise CRM Pro)
+        try {
+            const { upsertLeadPro } = require('./crmProService');
+            await upsertLeadPro({
+                business_id: tenantId,
+                phone: (remoteJid || '').split('@')[0],
+                name: extraction.name !== 'desconocido' ? extraction.name : null,
+                email: extraction.email,
+                source: 'whatsapp',
+                stage: temp === 'HOT' ? 'qualified' : (temp === 'WARM' ? 'contacted' : 'new'),
+                score: score,
+                last_message: extraction.summary,
+                tags: [temp, 'AI_EXTRACTED'],
+                instanceId: instanceId
+            });
+            console.log(`🏢 [LeadProcessor] Lead sincronizado con CRM PRO: ${remoteJid}`);
+        } catch (crmErr) {
+            console.warn('⚠️ [LeadProcessor] Fallo al guardar en CRM Pro:', crmErr.message);
         }
 
         // 2. Sincronizar con HubSpot si el bot tiene token configurado

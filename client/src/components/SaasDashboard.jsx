@@ -20,7 +20,8 @@ import {
   Send,
   Cloud,
   Book,
-  TrendingUp
+  TrendingUp,
+  QrCode
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
@@ -31,7 +32,8 @@ import CrmProTab from './CrmProTab';
 import SettingsTab from './SettingsTab';
 import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
-import KnowledgeTab from './KnowledgeTab';
+import KnowledgeBase from './KnowledgeBase';
+import WhatsAppConnect from './WhatsAppConnect';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
@@ -57,6 +59,7 @@ const SaasDashboard = () => {
     { id: 'campaigns', label: 'Growth Campaigns', icon: Send },
     { id: 'intelligence', label: 'Analytics SRE', icon: BarChart3 },
     { id: 'config', label: 'Connectors', icon: Cloud },
+    { id: 'whatsapp', label: 'WhatsApp QR', icon: QrCode },
     { id: 'billing', label: 'Premium Billing', icon: CreditCard },
   ];
 
@@ -103,13 +106,15 @@ const SaasDashboard = () => {
       case 'intelligence':
         return <EnterpriseAnalytics />;
       case 'knowledge':
-        return <KnowledgeTab />;
+        return <KnowledgeBase instanceId={selectedBotId} tenantId={localStorage.getItem('alex_io_tenant')} />;
       case 'leads':
         return <CrmProTab />;
       case 'billing':
         return <BillingTab />;
       case 'settings':
         return <SettingsTab />;
+      case 'whatsapp':
+        return <WhatsAppConnect />;
       case 'livechat':
         return <LiveChat instanceId={selectedBotId} />;
       case 'campaigns':

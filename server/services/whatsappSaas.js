@@ -895,6 +895,7 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 // --- ENDPOINTS ---
 router.post('/connect', async (req, res) => {
     const { 
+        instanceId: existingId,
         companyName, customPrompt, voice, maxWords, maxMessages, voiceEnabled,
         provider = 'baileys',
         metaPhoneNumberId, metaAccessToken, metaVerifyToken,
@@ -909,7 +910,7 @@ router.post('/connect', async (req, res) => {
         return res.status(400).json({ error: 'companyName es requerido.' });
     }
 
-    const instanceId = `alex_${Date.now()}`;
+    const instanceId = existingId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
 
     // 1. Prepare credentials object for encryption
@@ -2539,6 +2540,7 @@ const restoreSessions = async () => {
 module.exports = {
     router,
     restoreSessions,
+    whatsappSockets, // Export sockets for broadcast and other services
     logBotEvent,
     updateSessionStatus,
     trackEvent,

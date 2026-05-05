@@ -86,7 +86,7 @@ const WhatsAppConnect = () => {
 
     const fetchStatus = async () => {
         try {
-            const res = await api.get('/whatsapp/status');
+            const res = await api.get('/api/saas/status');
             setStatus(res.data.status);
             if (res.data.qr) setQrCode(res.data.qr);
         } catch (e) {
@@ -96,7 +96,7 @@ const WhatsAppConnect = () => {
 
     const fetchCloudStatus = async () => {
         try {
-            const res = await api.get('/api/whatsapp/cloud/status');
+            const res = await api.get('/api/saas/whatsapp/cloud/status');
             setCloudStatus(res.data);
         } catch (e) {
             console.warn("Could not fetch Cloud API status:", e.message);
@@ -164,10 +164,10 @@ const WhatsAppConnect = () => {
                                         onClick={async () => {
                                             setStatus('CONNECTING');
                                             try {
-                                                const res = await api.post('/saas/connect', { companyName: 'Alex Bot' });
+                                                const res = await api.post('/api/saas/connect', { companyName: 'Alex Bot' });
                                                 const instanceId = res.data.instance_id;
                                                 const poll = setInterval(async () => {
-                                                    const s = await api.get('/whatsapp/status');
+                                                    const s = await api.get('/api/saas/status');
                                                     if (s.data.status === 'READY') {
                                                         setStatus('READY');
                                                         setQrCode(null);

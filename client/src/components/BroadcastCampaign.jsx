@@ -179,7 +179,15 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body:    JSON.stringify({
           instanceId: selectedBot === "all" ? instanceId : selectedBot,
-          phones: selectedPhones,
+          recipients: selectedPhones.map(p => {
+            const lead = leads.find(l => l.phone === p);
+            return {
+              phone: p,
+              name: lead?.name || 'cliente',
+              temp: lead?.temp || 'COLD',
+              tag: lead?.tag || ''
+            };
+          }),
           message,
           mediaType:  mediaUrl ? mediaType : null,
           mediaUrl:   mediaUrl || null,

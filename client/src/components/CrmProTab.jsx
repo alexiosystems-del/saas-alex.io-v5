@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, TrendingUp, Users, Search, Filter, MessageSquare, Phone, Calendar, MoreVertical, Star, ChevronRight, ArrowUpRight, ArrowDownRight, UserPlus, Zap } from 'lucide-react';
+import { Target, TrendingUp, Users, Search, Filter, MessageSquare, Phone, Calendar, MoreVertical, Star, ChevronRight, ArrowUpRight, ArrowDownRight, UserPlus, Zap, RefreshCw } from 'lucide-react';
+import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
 
 const STAGES = [
   { id: 'new', label: 'Nuevos', color: 'bg-blue-500' },
@@ -10,19 +11,33 @@ const STAGES = [
 ];
 
 export default function CrmProTab() {
-  const [leads, setLeads] = useState([
-    { id: 1, name: 'Juan Pérez', phone: '+54 11 2345 6789', stage: 'new', score: 85, lastMsg: 'Me interesa el plan premium', time: '2 min ago', tags: ['Inversor', 'Hot'] },
-    { id: 2, name: 'María García', phone: '+34 612 345 678', stage: 'qualified', score: 92, lastMsg: '¿Tienen soporte 24/7?', time: '1 hour ago', tags: ['Enterprise'] },
-    { id: 3, name: 'Carlos Ruiz', phone: '+52 55 1234 5678', stage: 'engaged', score: 45, lastMsg: 'Lo voy a pensar', time: '3 hours ago', tags: ['Follow-up'] }
-  ]);
-
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const { data } = await fetchJsonWithApiFallback('/api/crm/leads', {
+        headers: getAuthHeaders()
+      });
+      setLeads(data.leads || []);
+    } catch (err) {
+      console.error('Error fetching leads:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
   const stats = [
-    { label: 'Leads Totales', value: '1,284', change: '+12%', icon: Users, color: 'text-blue-400' },
-    { label: 'Tasa de Conversión', value: '18.4%', change: '+3.2%', icon: Target, color: 'text-emerald-400' },
-    { label: 'Valor Estimado', value: '$42,500', change: '+8%', icon: TrendingUp, color: 'text-amber-400' }
+    { label: 'Leads Totales', value: leads.length.toString(), change: '+0%', icon: Users, color: 'text-blue-400' },
+    { label: 'Tasa de Conversión', value: '18.4%', change: '+0%', icon: Target, color: 'text-emerald-400' },
+    { label: 'Valor Estimado', value: `$${(leads.length * 150).toLocaleString()}`, change: '+0%', icon: TrendingUp, color: 'text-amber-400' }
   ];
 
   return (
@@ -101,24 +116,37 @@ export default function CrmProTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {leads.map((lead) => (
-                <tr key={lead.id} className="group hover:bg-white/5 transition-all">
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-20 text-center">
+                    <RefreshCw className="animate-spin text-indigo-500 mx-auto mb-4" size={32} />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">Sincronizando Leads...</p>
+                  </td>
+                </tr>
+              ) : leads.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-20 text-center text-slate-500 italic text-sm">
+                    No se encontraron leads en la base de datos.
+                  </td>
+                </tr>
+              ) : leads.map((lead, idx) => (
+                <tr key={idx} className="group hover:bg-white/5 transition-all">
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xs">
-                        {lead.name.split(' ').map(n => n[0]).join('')}
+                        {(lead.name || 'C').split(' ').map(n => n[0]).join('')}
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-white">{lead.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">{lead.phone}</div>
+                        <div className="text-sm font-bold text-white">{lead.name || 'Lead Anónimo'}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">+{lead.phone}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${STAGES.find(s => s.id === lead.stage)?.color}`} />
+                        <div className={`w-2 h-2 rounded-full ${STAGES.find(s => s.id === lead.stage)?.color || 'bg-slate-500'}`} />
                         <span className="text-[10px] font-black text-white uppercase tracking-wider">
-                            {STAGES.find(s => s.id === lead.stage)?.label}
+                            {STAGES.find(s => s.id === (lead.stage || 'new'))?.label}
                         </span>
                     </div>
                   </td>
@@ -127,17 +155,17 @@ export default function CrmProTab() {
                         <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden min-w-[80px]">
                             <motion.div 
                                 initial={{ width: 0 }}
-                                animate={{ width: `${lead.score}%` }}
-                                className={`h-full ${lead.score > 80 ? 'bg-emerald-500' : lead.score > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                animate={{ width: `${lead.score || (lead.temp === 'HOT' ? 90 : lead.temp === 'WARM' ? 50 : 20)}%` }}
+                                className={`h-full ${(lead.score || 0) > 80 || lead.temp === 'HOT' ? 'bg-emerald-500' : (lead.score || 0) > 50 || lead.temp === 'WARM' ? 'bg-amber-500' : 'bg-red-500'}`}
                             />
                         </div>
-                        <span className="text-xs font-mono font-black text-white">{lead.score}</span>
+                        <span className="text-xs font-mono font-black text-white">{lead.score || (lead.temp === 'HOT' ? 90 : lead.temp === 'WARM' ? 50 : 20)}</span>
                     </div>
                   </td>
                   <td className="px-6 py-5">
                     <div className="max-w-[200px]">
-                        <div className="text-[11px] text-slate-300 truncate font-medium">"{lead.lastMsg}"</div>
-                        <div className="text-[9px] text-slate-600 mt-1 uppercase font-black">{lead.time}</div>
+                        <div className="text-[11px] text-slate-300 truncate font-medium">"{lead.lastMsg || 'Sin mensajes registrados'}"</div>
+                        <div className="text-[9px] text-slate-600 mt-1 uppercase font-black">{lead.time || 'Reciente'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-5">
