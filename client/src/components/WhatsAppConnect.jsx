@@ -32,9 +32,11 @@ const WhatsAppConnect = () => {
         try {
             const socketUrl = getSocketUrl();
             console.log("🌐 Socket Target:", socketUrl);
+            const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
             socketRef.current = io(socketUrl, {
                 reconnection: true,
-                reconnectionAttempts: 5
+                reconnectionAttempts: 5,
+                auth: { token }
             });
 
             socketRef.current.on('connect', () => console.log("✅ Socket Connected"));

@@ -9,10 +9,24 @@ const helmet = require('helmet');
 
 // --- CONFIGURATION ---
 const app = express();
-app.set('trust proxy', 1); // Trust Render's load balancer (1 hop)
+const http = require('http');
+const { Server } = require('socket.io');
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: true,
+        credentials: true
+    }
+});
+
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
+// Inject Socket.io into services
+const whatsappService = require('./services/whatsappClient');
+whatsappService.setSocket(io);
 logger.info('✅ Express trust proxy enabled');
 
 // --- SECURITY MIDDLEWARES ---
@@ -25,6 +39,20 @@ const botPool = require('./services/botPoolRouter');
 
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
+
+// Socket.io Auth Middleware
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication error: Token missing'));
+    try {
+        const decoded = jwt.verify(token, getJwtSecret());
+        socket.tenant = decoded;
+        next();
+    } catch (err) {
+        next(new Error('Authentication error: Invalid token'));
+    }
+});
+
 let limiterStore = undefined;
 
 if (isRedisEnabled) {
@@ -375,7 +403,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- START SERVER ---
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
     logger.info(`🧠 AI Brain Listo... backend está esperando, 50 sin drama`);
