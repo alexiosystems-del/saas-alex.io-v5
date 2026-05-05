@@ -129,23 +129,35 @@ const MODEL_COST_PER_1K = {
 };
 const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
-function detectLanguage(text = '', history = []) {
+function detectLanguage(text = '', history = [], forcedLanguage = '') {
+    const forced = String(forcedLanguage || '').trim().toLowerCase();
+    if (['es', 'en', 'pt', 'fr', 'de', 'it'].includes(forced)) return forced;
+
     const recentHistory = (history || [])
-        .slice(-6)
+        .slice(-8)
         .filter(h => h && h.role === 'user')
         .map(h => h.content || h.text || '')
         .join(' ');
     const sample = `${String(text || '')} ${recentHistory}`.trim().toLowerCase();
     if (!sample) return 'es';
 
-    const spanishSignals = [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde'];
-    const englishSignals = [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how'];
-    const score = (signals) => signals.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
-    
-    const es = score(spanishSignals);
-    const en = score(englishSignals);
-    if (en > es) return 'en';
-    return 'es';
+    const signals = {
+        es: [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde', 'precio', 'cuánto'],
+        en: [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how', 'price'],
+        pt: [' não ', ' você ', ' obrigado', ' olá', ' preciso', ' quero', ' para ', ' preço', 'quanto custa'],
+        fr: [' bonjour', ' merci', ' je ', ' vous ', ' avec ', ' prix ', ' combien', ' besoin'],
+        de: [' hallo', ' danke', ' ich ', ' und ', ' mit ', ' preis', ' brauche'],
+        it: [' ciao', ' grazie', ' io ', ' con ', ' precio', ' quanto costa']
+    };
+
+    const score = (tokens) => tokens.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
+    const ranked = Object.entries(signals)
+        .map(([lang, tokens]) => [lang, score(tokens)])
+        .sort((a, b) => b[1] - a[1]);
+
+    const [bestLang, bestScore] = ranked[0] || ['es', 0];
+    if (bestScore === 0) return 'es';
+    return bestLang;
 }
 
 function getVoiceForLanguage(lang, configuredVoice) {
@@ -442,7 +454,7 @@ async function chat(message, history = [], botConfig = {}, metadata = {}) {
         try {
             console.log(`🧠 [MODO DIOS] Intentando con ${currentModel} (Intento ${attempts + 1})`);
             // Nota: Aquí llamamos a generateResponse u otra función interna según la arquitectura
-            response = await generateResponse({ message, history, botConfig });
+            response = await generateResponse({ message, history, botConfig, metadata });
             
             const qualityScore = auditResponseQuality(response, botConfig);
             
@@ -469,7 +481,7 @@ function auditResponseQuality(text, config) {
     return score;
 }
 
-async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
+async function generateResponse({ message, history = [], botConfig = {}, metadata = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
     const provider = botConfig.provider || 'baileys';
@@ -580,7 +592,8 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         return null;
     }
 
-    const detectedLanguage = detectLanguage(message, history);
+    const forcedLanguage = metadata?.language || metadata?.userLanguage || botConfig?.language || botConfig?.default_language || '';
+    const detectedLanguage = detectLanguage(message, history, forcedLanguage);
     // Force conciseness
     systemPrompt += `\n\nREGLA ESTRICTA: Tu respuesta DEBE tener como MÁXIMO ${maxWords} palabras. Sé muy conciso y directo.`;
     systemPrompt += `\n\nREGLA DE IDIOMA: Detecta el idioma del usuario y responde en ese idioma. Idioma detectado para este turno: ${detectedLanguage}.`;
