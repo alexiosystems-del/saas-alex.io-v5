@@ -1,139 +1,56 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Zap, Shield, Globe, MessageSquare, ArrowRight, 
+  Moon, Sun, Play, CheckCircle, Smartphone, 
+  Bot, Award, ZapOff, Sparkles, Languages
+} from 'lucide-react';
 
-const G = '#D4A843';
-const GH = '#E0BC6A';
-const GD = '#D4A84318';
-const GB = '#D4A84338';
-
-const plans = [
-  {
-    name: 'Starter',
-    price: 97,
-    annual: 77,
-    desc: 'Para empezar a convertir',
-    features: ['1 Bot IA activo', '1.000 mensajes/mes', '1 canal conectado', 'Respuestas automáticas', 'Soporte por email'],
-    cta: 'Comenzar gratis',
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    price: 197,
-    annual: 157,
-    desc: 'El más elegido por pymes',
-    features: ['5 Bots IA activos', '10.000 mensajes/mes', '3 canales conectados', 'CRM + extracción de leads', 'Auto-healing incluido', 'Soporte prioritario 24h'],
-    cta: 'Activar Pro',
-    highlight: true,
-  },
-  {
-    name: 'Scale',
-    price: 397,
-    annual: 317,
-    desc: 'Infraestructura enterprise',
-    features: ['Bots ilimitados', 'Mensajes ilimitados', 'Todos los canales', 'Multi-agente cognitivo', 'RAG / base de conocimiento', 'Onboarding dedicado + SLA'],
-    cta: 'Hablar con ventas',
-    highlight: false,
-  },
-];
-
-const channels = [
-  { label: 'WhatsApp', color: '#25D366' },
-  { label: 'TikTok', color: '#ff2d55' },
-  { label: 'Discord', color: '#5865F2' },
-  { label: 'Reddit', color: '#FF4500' },
-  { label: 'Instagram', color: '#E1306C' },
-  { label: 'Facebook', color: '#1877F2' },
-];
-
-const metrics = [
-  { value: '+40%', label: 'Más conversiones' },
-  { value: '+30%', label: 'Ventas cerradas' },
-  { value: '99.9%', label: 'Uptime garantizado' },
-  { value: '24/7', label: 'Sin interrupciones' },
-];
-
-const steps = [
-  { icon: '01', title: 'Mensaje entra', desc: 'El cliente escribe en su idioma, en cualquier canal.' },
-  { icon: '02', title: 'IA analiza', desc: 'Detecta intención, contexto y urgencia al instante.' },
-  { icon: '03', title: 'Responde', desc: 'Respuesta personalizada en milisegundos.' },
-  { icon: '04', title: 'Convierte', desc: 'Guía al cliente hasta el cierre sin fricción.' },
-  { icon: '05', title: 'Auto-sana', desc: 'Si algo falla, se recupera solo. Sin intervención.' },
-];
-
-const languages = [
-  { flag: '🇦🇷', lang: 'Español', reply: '¡Hola! Soy ALEX, tu asistente cognitivo. ¿En qué puedo ayudarte hoy?' },
-  { flag: '🇺🇸', lang: 'English', reply: "Hi! I'm ALEX, your cognitive assistant. How can I help you today?" },
-  { flag: '🇧🇷', lang: 'Português', reply: 'Olá! Sou ALEX, seu assistente cognitivo. Como posso ajudar você hoje?' },
-  { flag: '🇫🇷', lang: 'Français', reply: 'Bonjour! Je suis ALEX, votre assistant cognitif. Comment puis-je vous aider?' },
-  { flag: '🇩🇪', lang: 'Deutsch', reply: 'Hallo! Ich bin ALEX, Ihr kognitiver Assistent. Wie kann ich Ihnen helfen?' },
-  { flag: '🇮🇹', lang: 'Italiano', reply: 'Ciao! Sono ALEX, il tuo assistente cognitivo. Come posso aiutarti oggi?' },
-];
-
-const countries = ['🇦🇷 Argentina', '🇲🇽 México', '🇧🇷 Brasil', '🇨🇴 Colombia', '🇨🇱 Chile', '🇺🇸 USA', '🇪🇸 España', '🇵🇪 Perú', '🇺🇾 Uruguay', '🇧🇴 Bolivia', '🇩🇪 Alemania', '🇫🇷 Francia'];
-
-function useInView(threshold = 0.12) {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setInView(true);
-    }, { threshold });
-
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-
-  return [ref, inView];
-}
-
-function FadeIn({ children, delay = 0 }) {
-  const [ref, inView] = useInView();
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        opacity: inView ? 1 : 0,
-        transform: inView ? 'translateY(0)' : 'translateY(24px)',
-        transition: `opacity .65s ease ${delay}s, transform .65s ease ${delay}s`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default function LandingPage() {
+const LandingPage = () => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState('onyx'); // 'onyx' or 'silver'
   const [billing, setBilling] = useState('monthly');
-  const [activeLang, setActiveLang] = useState(0);
   const [msg, setMsg] = useState('');
   const [chat, setChat] = useState([
-    { from: 'bot', text: 'Hola 👋 Soy ALEX, tu asistente cognitivo. Preguntame lo que quieras — precios, funcionalidades, idiomas.' },
+    { from: 'bot', text: 'Bienvenido a la nueva era del comercio cognitivo. Soy ALEX. ¿Cómo puedo elevar tu negocio hoy?' },
   ]);
   const [typing, setTyping] = useState(false);
   const chatRef = useRef(null);
-  const currentYear = new Date().getFullYear();
 
-  const activateDemoMode = () => {
-    localStorage.setItem('demo_mode', 'true');
-    localStorage.setItem('alex_io_role', 'SUPERADMIN');
-    localStorage.setItem('demo_email', 'demo@alex.io');
-    localStorage.setItem('alex_io_tenant', 'tenant_demo');
-    navigate('/superadmin');
-  };
+  // Toggle theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
-  const goToLogin = () => {
-    localStorage.removeItem('demo_mode');
-    navigate('/login');
-  };
+  const toggleTheme = () => setTheme(prev => prev === 'onyx' ? 'silver' : 'onyx');
 
-  // getReply se elimina, ahora llamamos al backend
-  async function sendMessage() {
+  const plans = [
+    {
+      name: 'Essential',
+      price: 97,
+      desc: 'El primer paso hacia la autonomía.',
+      features: ['1 Agente Cognitivo', '1.000 Mensajes de alta fidelidad', '1 Canal de entrada', 'Soporte Silver'],
+    },
+    {
+      name: 'Enterprise',
+      price: 197,
+      desc: 'Potencia absoluta para negocios en crecimiento.',
+      features: ['5 Agentes Cognitivos', '10.000 Mensajes', 'Multicanal unificado', 'Auto-healing SRE', 'Soporte Gold 24/7'],
+      highlight: true,
+    },
+    {
+      name: 'Prestige',
+      price: 397,
+      desc: 'Infraestructura de ultra-lujo sin límites.',
+      features: ['Agentes ilimitados', 'Cognición RAG avanzada', 'Onboarding de guante blanco', 'SLA de grado bancario'],
+    },
+  ];
+
+  const sendMessage = async () => {
     if (!msg.trim()) return;
-    const userMessage = { from: 'user', text: msg };
-    setChat((current) => [...current, userMessage]);
+    const userMsg = { from: 'user', text: msg };
+    setChat(prev => [...prev, userMsg]);
     setMsg('');
     setTyping(true);
 
@@ -142,354 +59,215 @@ export default function LandingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          senderId: 'landing_usr_' + Math.floor(Math.random() * 10000),
-          text: userMessage.text,
-          metadata: { tenantId: 'demo-tenant', isLanding: true }
+          senderId: 'landing_' + Math.random().toString(36).substring(7),
+          text: userMsg.text,
+          metadata: { isLanding: true }
         })
       });
       const data = await response.json();
-      // Accept reply from both success AND error responses
-      if (data && data.reply) {
-        setChat((current) => [...current, { from: 'bot', text: data.reply }]);
-      } else {
-        setChat((current) => [...current, { from: 'bot', text: 'Error inesperado del servidor.' }]);
-      }
+      if (data?.reply) setChat(prev => [...prev, { from: 'bot', text: data.reply }]);
     } catch (err) {
-      console.error(err);
-      setChat((current) => [...current, { from: 'bot', text: 'Parece que no tengo conexión con el backend ahora mismo.' }]);
+      setChat(prev => [...prev, { from: 'bot', text: 'Estoy procesando una actualización profunda. Intenta de nuevo en un momento.' }]);
     } finally {
       setTyping(false);
     }
-  }
-
-  useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, [chat, typing]);
-
-  const price = (plan) => (billing === 'annual' ? plan.annual : plan.price);
-  const saving = (plan) => (plan.price - plan.annual) * 12;
+  };
 
   return (
-    <div style={{ background: '#07090C', color: '#EDE9E3', fontFamily: "'DM Sans','Helvetica Neue',sans-serif", minHeight: '100vh', overflowX: 'hidden' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        .serif{font-family:'DM Serif Display',serif;}
-        nav a{color:#6B7280;text-decoration:none;font-size:14px;transition:color .2s;}
-        nav a:hover{color:#EDE9E3;}
-        .btn-g{background:${G};color:#07090C;border:none;padding:13px 26px;border-radius:8px;font-weight:500;font-size:15px;cursor:pointer;transition:background .2s,transform .15s;font-family:inherit;}
-        .btn-g:hover{background:${GH};transform:translateY(-1px);}
-        .btn-o{background:transparent;color:#EDE9E3;border:1px solid #2A2F38;padding:12px 26px;border-radius:8px;font-size:15px;cursor:pointer;transition:border-color .2s,background .2s;font-family:inherit;}
-        .btn-o:hover{border-color:#4B5563;background:#111418;}
-        .card{background:#0D1117;border:1px solid #1E2530;border-radius:16px;padding:1.75rem;}
-        .card-g{background:#0D1117;border:2px solid ${GB};border-radius:16px;padding:1.75rem;position:relative;}
-        .tag{display:inline-block;background:${GD};color:${G};border:1px solid ${GB};font-size:12px;padding:4px 14px;border-radius:100px;margin-bottom:1.5rem;letter-spacing:.04em;}
-        .pill{display:inline-flex;align-items:center;gap:8px;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:8px 16px;font-size:13px;color:#9CA3AF;}
-        .dot{width:8px;height:8px;border-radius:50%;}
-        .metric{background:#0D1117;border:1px solid #1E2530;border-radius:12px;padding:1.5rem;text-align:center;}
-        .bubble-bot{background:#1A1F28;border-radius:4px 16px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;color:#E5E7EB;}
-        .bubble-user{background:${G};color:#07090C;border-radius:16px 4px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;margin-left:auto;}
-        .tdot{width:6px;height:6px;background:#6B7280;border-radius:50%;display:inline-block;animation:blink 1.2s infinite;}
-        .tdot:nth-child(2){animation-delay:.2s;}
-        .tdot:nth-child(3){animation-delay:.4s;}
-        @keyframes blink{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
-        .lang-btn{background:transparent;border:1px solid #1E2530;border-radius:100px;padding:7px 14px;font-size:13px;color:#9CA3AF;cursor:pointer;transition:all .2s;font-family:inherit;}
-        .lang-btn.active{border-color:${GB};color:${G};background:${GD};}
-        .billing-toggle{display:flex;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:3px;width:fit-content;margin:0 auto 2.5rem;}
-        .btog{background:transparent;border:none;padding:8px 20px;border-radius:100px;font-size:13px;cursor:pointer;color:#9CA3AF;font-family:inherit;transition:all .2s;}
-        .btog.on{background:${G};color:#07090C;font-weight:500;}
-        .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:${G};color:#07090C;font-size:11px;font-weight:500;padding:3px 14px;border-radius:100px;white-space:nowrap;}
-        .country-tag{background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:6px 14px;font-size:13px;color:#9CA3AF;}
-        footer a{color:#374151;text-decoration:none;font-size:13px;}
-        footer a:hover{color:#9CA3AF;}
-        input[type=text]{background:#1A1F28;border:1px solid #2A2F38;border-radius:8px;color:#EDE9E3;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;width:100%;transition:border-color .2s;}
-        input[type=text]:focus{border-color:${GB};}
-        input[type=text]::placeholder{color:#4B5563;}
-        @media (max-width: 1024px){
-          .steps-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .healing-grid{grid-template-columns:1fr !important;}
-          .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-        }
-        @media (max-width: 768px){
-          .steps-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:1fr !important;}
-          .nav-links{display:none !important;}
-          .metrics-grid{grid-template-columns:1fr !important;}
-        }
-      `}</style>
-      <nav style={{ borderBottom: '1px solid #1E2530', padding: '0 2rem', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#07090C', zIndex: 100 }}>
-        <div className="serif" style={{ fontSize: 22 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div className="nav-links" style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <a href="#como-funciona">Cómo funciona</a>
-          <a href="#canales">Canales</a>
-          <a href="#planes">Planes</a>
-          <a href="#demo">Demo</a>
-          <button className="btn-g" style={{ padding: '8px 20px', fontSize: 13 }} onClick={goToLogin}>Probar gratis →</button>
+    <div className="min-h-screen transition-colors duration-700 bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-[var(--accent-gold)] selection:text-white">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full z-50 glass-sidebar backdrop-blur-xl border-b border-[var(--border)] px-6 py-4 flex justify-between items-center transition-all duration-700">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-2xl font-bold tracking-tight"
+          style={{ fontFamily: 'var(--font-title)' }}
+        >
+          ALEX <span className="text-[var(--accent-gold)] italic">IO</span>
+        </motion.div>
+
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest">
+          {['Arquitectura', 'Canales', 'Elite', 'Inversión'].map(item => (
+            <a key={item} href={`#${item.toLowerCase()}`} className="hover:text-[var(--accent-gold)] transition-colors duration-300">
+              {item}
+            </a>
+          ))}
+          <button 
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-[var(--glass-bg-hover)] transition-all duration-500 text-[var(--accent-gold)]"
+          >
+            {theme === 'onyx' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button 
+            onClick={() => navigate('/login')}
+            className="px-6 py-2 border border-[var(--accent-gold)] rounded-full text-[var(--accent-gold)] hover:bg-[var(--accent-gold)] hover:text-white transition-all duration-500 font-bold"
+          >
+            ENTRAR
+          </button>
         </div>
       </nav>
 
-      <section style={{ textAlign: 'center', padding: '100px 2rem 60px', maxWidth: 780, margin: '0 auto', position: 'relative' }}>
-        <div style={{ position: 'absolute', width: 560, height: 560, background: `radial-gradient(circle,${GD} 0%,transparent 70%)`, top: -80, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
-        <div className="tag">Sistema autónomo enterprise — activo en 12 países</div>
-        <h1 className="serif" style={{ fontSize: 'clamp(40px,6vw,70px)', lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: '1.25rem' }}>
-          Tu empresa opera sola.<br />
-          <em style={{ color: G, fontStyle: 'italic' }}>Vos cerrás ventas.</em>
-        </h1>
-        <p style={{ fontSize: 18, color: '#9CA3AF', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 2.5rem' }}>
-          ALEX IO responde, vende y gestiona tu comunicación 24/7 — en cualquier idioma, para cualquier país del mundo. Se detecta, se protege y se recupera solo.
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-g" onClick={goToLogin}>Probar en WhatsApp →</button>
-          <button className="btn-o" onClick={activateDemoMode}>Ver demo en vivo</button>
+      {/* Hero Section */}
+      <section className="relative pt-40 pb-20 px-6 max-w-7xl mx-auto text-center overflow-hidden">
+        {/* Animated Orbs */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none opacity-20">
+          <div className="absolute top-10 left-1/4 w-64 h-64 bg-[var(--accent-gold)] rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-[var(--accent-gold)] rounded-full blur-[150px] animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
-        <p style={{ marginTop: '1.5rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos · Cancelás cuando quieras</p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10"
+        >
+          <span className="inline-flex items-center gap-2 px-4 py-1 rounded-full border border-[var(--accent-gold)] text-[var(--accent-gold)] text-xs font-bold tracking-[0.2em] mb-8 bg-[var(--glass-bg)]">
+            <Sparkles size={14} /> EL ESTÁNDAR DE ORO EN IA EMPRESARIAL
+          </span>
+          <h1 className="text-6xl md:text-8xl font-bold leading-[1.05] mb-8" style={{ fontFamily: 'var(--font-title)' }}>
+            Tu empresa opera en el <br />
+            <span className="text-[var(--accent-gold)] italic">silencio de la perfección.</span>
+          </h1>
+          <p className="text-lg md:text-xl text-[var(--text-secondary)] max-w-2xl mx-auto mb-12 font-light leading-relaxed">
+            Arquitectura cognitiva de alta fidelidad diseñada para marcas que exigen autonomía absoluta, 
+            traducción en tiempo real y una experiencia de cliente sin fricciones.
+          </p>
+
+          <div className="flex flex-col md:flex-row gap-6 justify-center items-center">
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-10 py-5 bg-[var(--accent-gold)] text-white rounded-full font-bold text-lg hover:scale-105 transition-all duration-500 shadow-[0_0_40px_rgba(197,160,40,0.3)] flex items-center gap-3"
+            >
+              INICIAR ASCENSIÓN <ArrowRight size={20} />
+            </button>
+            <button 
+              className="px-10 py-5 glass-btn-ghost rounded-full font-bold text-lg border border-[var(--border)] hover:bg-[var(--glass-bg-hover)] transition-all duration-500 flex items-center gap-3"
+            >
+              SOLICITAR DEMO <Play size={20} />
+            </button>
+          </div>
+        </motion.div>
       </section>
 
-      <section style={{ padding: '0 2rem 80px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ background: '#0D1117', border: '1px solid #1E2530', borderRadius: 16, overflow: 'hidden', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', maxWidth: 860, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: G, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', cursor: 'pointer' }} onClick={activateDemoMode}>
-                <div style={{ width: 0, height: 0, borderTop: '12px solid transparent', borderBottom: '12px solid transparent', borderLeft: '20px solid #07090C', marginLeft: 4 }} />
-              </div>
-              <p style={{ fontSize: 13, color: '#4B5563' }}>Tu video va aquí · 1080p o 4K · máx 90 segundos</p>
-            </div>
-            <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#07090C99', border: '1px solid #1E2530', borderRadius: 100, padding: '6px 18px', fontSize: 13, color: '#9CA3AF', whiteSpace: 'nowrap' }}>
-              ALEX IO — 90 segundos que cambian tu negocio
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '0 2rem 90px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-            {metrics.map((metric) => (
-              <div className="metric" key={metric.label}>
-                <div className="serif" style={{ fontSize: 34, color: G, marginBottom: 6 }}>{metric.value}</div>
-                <div style={{ fontSize: 13, color: '#6B7280' }}>{metric.label}</div>
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
-            <div className="tag">El problema real</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-              Cada mensaje sin respuesta<br />es una venta que perdiste
-            </h2>
-            <p style={{ color: '#6B7280', fontSize: 17, lineHeight: 1.7 }}>
-              No es falta de clientes. Es falta de sistema. Tu competidor que responde en 2 minutos cierra ventas que vos perdiste mientras dormías.
-            </p>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="como-funciona" style={{ padding: '100px 2rem', maxWidth: 1000, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-            <div className="tag">El proceso</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2 }}>Sin humanos. Sin fricción.<br />Sin pérdidas.</h2>
-          </div>
-        </FadeIn>
-        <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 20 }}>
-          {steps.map((step, i) => (
-            <FadeIn key={step.icon} delay={i * 0.1}>
-              <div style={{ textAlign: 'center' }}>
-                <div className="serif" style={{ fontSize: 44, color: `${G}22`, lineHeight: 1, marginBottom: 8 }}>{step.icon}</div>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>{step.title}</div>
-                <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>{step.desc}</div>
-              </div>
-            </FadeIn>
+      {/* Metrics Section */}
+      <section className="py-20 px-6 border-y border-[var(--border)] bg-[var(--glass-bg)]">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
+          {[
+            { value: '+60%', label: 'Conversión de Leads' },
+            { value: '24/7', label: 'Operación Autónoma' },
+            { value: '99.9%', label: 'Uptime Cognitivo' },
+            { value: '12', label: 'Mercados Globales' },
+          ].map((m, i) => (
+            <motion.div 
+              key={m.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <div className="text-4xl md:text-5xl font-bold text-[var(--accent-gold)] mb-2" style={{ fontFamily: 'var(--font-title)' }}>{m.value}</div>
+              <div className="text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase">{m.label}</div>
+            </motion.div>
           ))}
         </div>
       </section>
 
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div className="healing-grid" style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
-            <div>
-              <div className="tag">Diferencial enterprise</div>
-              <h2 className="serif" style={{ fontSize: 'clamp(26px,3.5vw,40px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-                ALEX IO no solo funciona.<br />
-                <em style={{ color: G }}>Se cura solo.</em>
-              </h2>
-              <p style={{ color: '#9CA3AF', lineHeight: 1.7, marginBottom: '1.5rem' }}>
-                Cuando una API externa cae o un canal se degrada, ALEX IO lo detecta, se suspende para proteger recursos y se recupera automáticamente — sin que nadie toque nada.
-              </p>
-              {[['🛡️', 'Detecta anomalías en tiempo real'], ['⏸️', 'Se pausa antes de fallar'], ['🔄', 'Se recupera sin intervención humana']].map(([icon, text]) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, color: '#9CA3AF', marginBottom: 10 }}>
-                  <span style={{ fontSize: 16 }}>{icon}</span>{text}
-                </div>
-              ))}
+      {/* Features Grid */}
+      <section className="py-32 px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-24">
+          <h2 className="text-4xl md:text-6xl font-bold mb-6" style={{ fontFamily: 'var(--font-title)' }}>Insignias del Sistema</h2>
+          <p className="text-[var(--text-secondary)] max-w-xl mx-auto">Tecnología de vanguardia para líderes que no aceptan menos que la excelencia operativa.</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            { icon: <Languages size={32} />, title: 'Cognición Políglota', desc: 'Traducción fluida en 12 idiomas con detección automática de intención y dialecto.' },
+            { icon: <ZapOff size={32} />, title: 'Auto-Healing SRE', desc: 'Sistemas con resiliencia activa: si una API externa falla, ALEX se recupera sin intervención.' },
+            { icon: <Shield size={32} />, title: 'Seguridad de Elite', desc: 'Encriptación de grado militar y cumplimiento de privacidad para datos sensibles de clientes.' },
+            { icon: <Bot size={32} />, title: 'Agentes Multimodales', desc: 'Desde voz hasta texto y archivos, ALEX comprende y procesa cualquier flujo de información.' },
+            { icon: <Globe size={32} />, title: 'Despliegue Global', desc: 'Operación en WhatsApp, TikTok, Discord y más, unificada bajo un solo centro de mando.' },
+            { icon: <Award size={32} />, title: 'Calidad Premium', desc: 'Entrenamiento específico por industria para garantizar un tono de marca impecable.' },
+          ].map((f, i) => (
+            <div key={f.title} className="glass-card p-10 border border-[var(--border)] hover:border-[var(--accent-gold)] transition-all duration-500">
+              <div className="text-[var(--accent-gold)] mb-6">{f.icon}</div>
+              <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'var(--font-title)' }}>{f.title}</h3>
+              <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{f.desc}</p>
             </div>
-            <div className="card" style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 2, color: '#4B5563' }}>
-              <div style={{ color: G, marginBottom: 8, fontSize: 11, letterSpacing: '.08em' }}>AUTO-HEALING LOG</div>
-              <div><span style={{ color: '#6B7280' }}>22:14:01</span> <span style={{ color: '#9CA3AF' }}>canal=whatsapp</span> success_rate=97%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#F59E0B' }}>DEGRADACIÓN detectada</span> rate=84%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#EF4444' }}>instancia suspendida</span> auto_paused=true</div>
-              <div><span style={{ color: '#6B7280' }}>22:31:12</span> evaluando recuperación...</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: G }}>RECUPERADO ✓</span> rate=99.1%</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: '#9CA3AF' }}>alerta enviada</span> canal=discord</div>
-            </div>
-          </div>
-        </FadeIn>
+          ))}
+        </div>
       </section>
 
-      <section style={{ padding: '100px 2rem', maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Global desde el día 1</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1rem' }}>
-            Vendé para cualquier país.<br />
-            <em style={{ color: G }}>Tu cliente lo verá en su idioma.</em>
-          </h2>
-          <p style={{ color: '#6B7280', fontSize: 16, lineHeight: 1.7, maxWidth: 540, margin: '0 auto 2.5rem' }}>
-            ALEX detecta automáticamente el idioma del cliente y responde en el mismo. Sin configuración extra. Sin barreras de mercado.
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-            {languages.map((language, index) => (
-              <button key={language.lang} className={`lang-btn${activeLang === index ? ' active' : ''}`} onClick={() => setActiveLang(index)}>
-                {language.flag} {language.lang}
+      {/* Pricing / Investment */}
+      <section id="inversión" className="py-32 px-6 bg-[var(--bg-secondary)] transition-colors duration-700">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-6xl font-bold mb-6" style={{ fontFamily: 'var(--font-title)' }}>Inversión en Crecimiento</h2>
+            <div className="flex justify-center items-center gap-4 text-sm font-bold tracking-widest">
+              <span className={billing === 'monthly' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>MENSUAL</span>
+              <button 
+                onClick={() => setBilling(b => b === 'monthly' ? 'annual' : 'monthly')}
+                className="w-12 h-6 bg-[var(--accent-gold)] rounded-full relative p-1"
+              >
+                <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${billing === 'annual' ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
-            ))}
-          </div>
-          <div className="card" style={{ maxWidth: 420, margin: '0 auto', textAlign: 'left', padding: '1rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, borderBottom: '1px solid #1E2530', paddingBottom: 10 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: G }} />
-              <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — {languages[activeLang].lang}</span>
-            </div>
-            <div className="bubble-bot">{languages[activeLang].reply}</div>
-          </div>
-          <div style={{ marginTop: '2.5rem' }}>
-            <p style={{ fontSize: 13, color: '#4B5563', marginBottom: '1rem' }}>Activo en más de 12 países</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-              {countries.map((country) => <div key={country} className="country-tag">{country}</div>)}
+              <span className={billing === 'annual' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>ANUAL (SAVE 20%)</span>
             </div>
           </div>
-        </FadeIn>
-      </section>
 
-      <section id="canales" style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Multi-canal</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', marginBottom: '1rem', lineHeight: 1.2 }}>
-            Un solo cerebro.<br />Toda tu comunicación.
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 16 }}>
-            Conectá tus canales y ALEX los gestiona todos desde un centro de control unificado.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', maxWidth: 600, margin: '0 auto' }}>
-            {channels.map((channel) => (
-              <div key={channel.label} className="pill">
-                <div className="dot" style={{ background: channel.color }} />{channel.label}
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="demo" style={{ padding: '100px 2rem' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 480, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <div className="tag">Demo en vivo</div>
-              <h2 className="serif" style={{ fontSize: 32, lineHeight: 1.2 }}>Hablá con ALEX ahora</h2>
-              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>Preguntale precios, funcionalidades, idiomas — lo que quieras</p>
-            </div>
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #1E2530', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: G }} />
-                <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — el Cognitivo</span>
-                <span style={{ fontSize: 11, color: '#4B5563', marginLeft: 'auto' }}>En línea ahora</span>
-              </div>
-              <div ref={chatRef} style={{ height: 260, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: 12, scrollBehavior: 'smooth' }}>
-                {chat.map((message, index) => (
-                  <div key={`${message.from}-${index}`} style={{ display: 'flex', justifyContent: message.from === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <div className={message.from === 'bot' ? 'bubble-bot' : 'bubble-user'}>{message.text}</div>
-                  </div>
-                ))}
-                {typing && (
-                  <div style={{ display: 'flex', gap: 4, padding: '10px 14px', background: '#1A1F28', borderRadius: '4px 16px 16px 16px', width: 'fit-content' }}>
-                    <span className="tdot" /><span className="tdot" /><span className="tdot" />
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '12px 16px', borderTop: '1px solid #1E2530', display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="Escribí tu mensaje..." value={msg} onChange={(event) => setMsg(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} />
-                <button className="btn-g" style={{ padding: '10px 16px', whiteSpace: 'nowrap', fontSize: 13 }} onClick={sendMessage}>Enviar</button>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="planes" style={{ padding: '80px 2rem 100px', background: '#0A0D11', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <div className="tag">Precios</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2, marginBottom: '2rem' }}>Empezá hoy. Escalá mañana.</h2>
-            <div className="billing-toggle">
-              <button className={`btog${billing === 'monthly' ? ' on' : ''}`} onClick={() => setBilling('monthly')}>Mensual</button>
-              <button className={`btog${billing === 'annual' ? ' on' : ''}`} onClick={() => setBilling('annual')}>Anual — 20% off</button>
-            </div>
-          </div>
-        </FadeIn>
-        <div className="plans-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 22, maxWidth: 960, margin: '0 auto', alignItems: 'start' }}>
-          {plans.map((plan, index) => (
-            <FadeIn key={plan.name} delay={index * 0.1}>
-              <div className={plan.highlight ? 'card-g' : 'card'}>
-                {plan.highlight && <div className="plan-badge">Más popular ⚡</div>}
-                <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>{plan.desc}</div>
-                <div className="serif" style={{ fontSize: 20, marginBottom: 6 }}>{plan.name}</div>
-                <div className="serif" style={{ fontSize: 42, color: plan.highlight ? G : '#EDE9E3', lineHeight: 1.1, marginBottom: 2 }}>
-                  ${price(plan)}<span style={{ fontSize: 15, color: '#6B7280', fontFamily: 'inherit' }}>/mes</span>
+          <div className="grid md:grid-cols-3 gap-8">
+            {plans.map((p, i) => (
+              <div key={p.name} className={`relative p-10 rounded-3xl transition-all duration-500 ${p.highlight ? 'bg-[var(--bg-primary)] shadow-2xl scale-105 border-2 border-[var(--accent-gold)]' : 'bg-[var(--glass-bg)] border border-[var(--border)]'}`}>
+                {p.highlight && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[var(--accent-gold)] text-white px-4 py-1 rounded-full text-xs font-bold">MÁS ELEGIDO</div>}
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'var(--font-title)' }}>{p.name}</h3>
+                <p className="text-[var(--text-secondary)] text-sm mb-8 h-10">{p.desc}</p>
+                <div className="text-5xl font-bold mb-8" style={{ fontFamily: 'var(--font-title)' }}>
+                  ${billing === 'monthly' ? p.price : Math.round(p.price * 0.8)}
+                  <span className="text-sm font-normal text-[var(--text-secondary)]">/mes</span>
                 </div>
-                {billing === 'annual'
-                  ? <div style={{ fontSize: 12, color: G, marginBottom: 4 }}>Ahorrás ${saving(plan)}/año</div>
-                  : <div style={{ fontSize: 12, color: '#4B5563', marginBottom: 4 }}>o ${plan.annual}/mes pagando anual</div>
-                }
-                <div style={{ height: 1, background: '#1E2530', margin: '1.25rem 0' }} />
-                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1.5rem' }}>
-                  {plan.features.map((feature) => (
-                    <li key={`${plan.name}-${feature}`} style={{ fontSize: 13, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: G, fontSize: 12 }}>✓</span>{feature}
+                <ul className="space-y-4 mb-12">
+                  {p.features.map(f => (
+                    <li key={f} className="flex items-center gap-3 text-sm">
+                      <CheckCircle size={16} className="text-[var(--accent-gold)]" /> {f}
                     </li>
                   ))}
                 </ul>
-                <button className={plan.highlight ? 'btn-g' : 'btn-o'} style={{ width: '100%' }} onClick={plan.name === 'Scale' ? activateDemoMode : goToLogin}>{plan.cta}</button>
+                <button className={`w-full py-4 rounded-full font-bold transition-all duration-500 ${p.highlight ? 'bg-[var(--accent-gold)] text-white hover:shadow-[0_0_20px_rgba(197,160,40,0.4)]' : 'border border-[var(--border)] hover:border-[var(--accent-gold)]'}`}>
+                  SELECCIONAR
+                </button>
               </div>
-            </FadeIn>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      <section style={{ padding: '100px 2rem', textAlign: 'center', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <h2 className="serif" style={{ fontSize: 'clamp(32px,5vw,56px)', lineHeight: 1.15, marginBottom: '1.5rem' }}>
-            Mientras vos dormís,<br />
-            <em style={{ color: G }}>tu empresa sigue creciendo.</em>
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 17 }}>No es el futuro. Ya está pasando — en 12 países, en 6 idiomas.</p>
-          <button className="btn-g" style={{ fontSize: 16, padding: '16px 36px' }} onClick={activateDemoMode}>Activar ALEX IO ahora →</button>
-          <p style={{ marginTop: '1.25rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos</p>
-        </FadeIn>
-      </section>
+      {/* Footer */}
+      <footer className="py-20 px-6 border-t border-[var(--border)]">
+        <div className="max-w-7xl mx-auto flex flex-col md:row justify-between items-center gap-12">
+          <div className="text-center md:text-left">
+            <div className="text-3xl font-bold mb-4" style={{ fontFamily: 'var(--font-title)' }}>
+              ALEX <span className="text-[var(--accent-gold)] italic">IO</span>
+            </div>
+            <p className="text-[var(--text-secondary)] text-sm max-w-xs">Arquitectos de negocios y ventas impulsados por inteligencia cognitiva.</p>
+          </div>
+          
+          <div className="flex gap-12 text-xs font-bold tracking-[0.2em] text-[var(--text-secondary)]">
+            <a href="#" className="hover:text-[var(--accent-gold)]">PRIVACIDAD</a>
+            <a href="#" className="hover:text-[var(--accent-gold)]">TÉRMINOS</a>
+            <a href="#" className="hover:text-[var(--accent-gold)]">SOPORTE</a>
+          </div>
 
-      <footer style={{ borderTop: '1px solid #1E2530', padding: '1.75rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div className="serif" style={{ fontSize: 18 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
-          <a href="#">Privacidad</a>
-          <a href="#">Términos</a>
-          <a href="#">Contacto</a>
+          <div className="text-[var(--text-secondary)] text-xs">
+            © {new Date().getFullYear()} ALEX IO SYSTEMS. DISEÑADO PARA EL ÉXITO.
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: '#374151' }}>© {currentYear} ALEX IO — Tu arquitecto de negocios & ventas IA</div>
       </footer>
+
+      {/* Global CSS for themes */}
+      <style>{`
+        [data-theme="onyx"] .glass-sidebar { background: rgba(8, 8, 8, 0.8); }
+        [data-theme="silver"] .glass-sidebar { background: rgba(226, 232, 240, 0.8); }
+      `}</style>
     </div>
   );
-}
+};
+
+export default LandingPage;

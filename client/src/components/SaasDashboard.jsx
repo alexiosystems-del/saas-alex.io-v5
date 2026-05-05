@@ -50,6 +50,13 @@ const SaasDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedBotId, setSelectedBotId] = useState(null);
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'onyx');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'onyx' ? 'silver' : 'onyx');
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
@@ -178,10 +185,10 @@ const SaasDashboard = () => {
                     <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-black uppercase tracking-widest">SRE_COMMAND_CENTER_V5.5</span>
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[9px] font-black uppercase tracking-widest">SYSTEM_OPTIMIZED</span>
                 </div>
-                <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
-                  Neural Command Center <span className="text-[var(--accent)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
+                <h1 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter uppercase italic" style={{ fontFamily: 'var(--font-title)' }}>
+                  Neural Command Center <span className="text-[var(--accent-gold)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
                 </h1>
-                <p className="text-slate-500 mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
+                <p className="text-[var(--text-secondary)] mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
               </div>
               <div className="flex gap-4">
                   <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl px-6 py-4 shadow-xl">
@@ -308,13 +315,17 @@ const SaasDashboard = () => {
       {/* Sidebar */}
       <div className="w-80 glass-sidebar flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl z-20">
         <div className="p-8">
-          <div className="flex items-center gap-3 mb-10 group cursor-pointer">
+          <div className="flex items-center gap-3 mb-10 group cursor-pointer" onClick={toggleTheme}>
             <div className="w-12 h-12 bg-gradient-to-br from-[var(--accent-gold)] to-[var(--accent-gold-hover)] rounded-2xl flex items-center justify-center shadow-lg shadow-gold-500/30 group-hover:scale-110 transition-transform">
-              <Bot size={28} className="text-white" />
+              {theme === 'onyx' ? <Sun size={28} className="text-white" /> : <Moon size={28} className="text-white" />}
             </div>
             <div>
-              <h2 className="text-2xl font-black text-[var(--accent-gold)] tracking-tighter italic">ALEX IO</h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">Neural OS</p>
+              <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter italic" style={{ fontFamily: 'var(--font-title)' }}>
+                ALEX <span className="text-[var(--accent-gold)]">IO</span>
+              </h2>
+              <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-[0.3em]">
+                {theme === 'onyx' ? 'Onyx Black' : 'Silver Luxury'}
+              </p>
             </div>
           </div>
 
