@@ -53,7 +53,8 @@ router.get('/bots', async (req, res) => {
             industry: s.industry,
             objective: s.objective,
             total_messages: s.total_messages || 0,
-            company_name: s.company_name
+            company_name: s.company_name,
+            customPrompt: s.custom_prompt
         })) });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -158,7 +159,9 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
             if (updates.d360ApiKey) sessionUpdate.dialog_api_key = updates.d360ApiKey;
             if (updates.target_language) sessionUpdate.target_language = updates.target_language;
-            if (updates.prompt) sessionUpdate.custom_prompt = updates.prompt;
+            if (updates.prompt !== undefined) sessionUpdate.custom_prompt = updates.prompt;
+
+            console.log(`[BOTS] Attempting to update session ${botId} for tenant ${tenantId}`, sessionUpdate);
 
             if (Object.keys(sessionUpdate).length > 0) {
                 const { error } = await supabase
@@ -166,14 +169,18 @@ router.put('/bots/:id', async (req, res) => {
                     .update(sessionUpdate)
                     .eq('instance_id', botId)
                     .eq('tenant_id', tenantId);
-                if (error) throw error;
+                if (error) {
+                    console.error(`[BOTS] Supabase session update error:`, error);
+                    throw error;
+                }
+                console.log(`[BOTS] Session ${botId} updated successfully.`);
             }
 
         // Update bot_configs (best-effort)
         try {
             const configUpdate = {};
             if (updates.name) configUpdate.name = updates.name;
-            if (updates.prompt) configUpdate.custom_prompt = updates.prompt;
+            if (updates.prompt !== undefined) configUpdate.custom_prompt = updates.prompt;
             if (updates.voice_enabled !== undefined) configUpdate.voice_enabled = updates.voice_enabled;
             if (updates.voice) configUpdate.voice_provider = updates.voice;
             if (updates.provider) configUpdate.provider = updates.provider;
@@ -183,10 +190,12 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.manychatToken) configUpdate.manychat_token = updates.manychatToken;
             
             if (Object.keys(configUpdate).length > 0) {
-                await supabase
+                const { error: cfgErr } = await supabase
                     .from('bot_configs')
                     .update(configUpdate)
                     .eq('instance_id', botId);
+                if (cfgErr) console.warn('[BOTS] bot_configs update failed:', cfgErr.message);
+                else console.log(`[BOTS] bot_configs ${botId} updated successfully.`);
             }
         } catch (e) {
             console.warn('[BOTS] bot_configs update failed:', e.message);
