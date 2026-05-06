@@ -294,17 +294,19 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // --- FRONTEND CONFIGURATION (Vite dist support) ---
-const clientPath = fs.existsSync(path.resolve(__dirname, '../client/dist')) 
-    ? path.resolve(__dirname, '../client/dist')
-    : path.resolve(__dirname, '../client/build');
-logger.info(`🔍 Serving frontend from: ${clientPath}`);
-
-if (fs.existsSync(path.join(clientPath, 'index.html'))) {
-    logger.info(`✅ Frontend build found at ${clientPath}`);
+const clientPath = path.resolve(__dirname, '../client/dist');
+if (fs.existsSync(clientPath)) {
+    logger.info(`✅ Frontend build found at ${clientPath}. Preparing static serving...`);
+    
     // Static assets first (JS, CSS, Images)
-    app.use(express.static(clientPath, {
+    app.use('/assets', express.static(path.join(clientPath, 'assets'), {
         maxAge: '1y',
         immutable: true,
+        fallthrough: false // If not found in assets folder, return 404, don't fall through to SPA
+    }));
+
+    app.use(express.static(clientPath, {
+        maxAge: '1d',
         setHeaders: (res, filePath) => {
             if (filePath.endsWith('.html')) {
                 res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -312,7 +314,12 @@ if (fs.existsSync(path.join(clientPath, 'index.html'))) {
         }
     }));
 } else {
-    logger.warn(`⚠️ Frontend build NOT found at ${clientPath}. Check Render build command.`);
+    logger.warn(`⚠️ Frontend build NOT found at ${clientPath}. Checking alternate paths...`);
+    const altPath = path.resolve(__dirname, '../client/dist');
+    if (fs.existsSync(altPath)) {
+        logger.info(`✅ Found frontend at alternate path: ${altPath}`);
+        app.use(express.static(altPath));
+    }
 }
 
 // --- API ROUTES ---
@@ -700,22 +707,22 @@ app.get('/api/metrics/:instance_id/:channel', authenticateTenant, (req, res) => 
 // --- SPA CATCH-ALL (must be AFTER all API routes) ---
 app.get('*', (req, res, next) => {
     // Si la ruta empieza por /api/, no es para el frontend
-    if (req.path.startsWith('/api/')) {
-        return next();
-    }
+    if (req.path.startsWith('/api/')) return next();
     
-    // Si es un asset que no se encontró en express.static
-    if (req.path.startsWith('/assets/')) {
-        console.warn(`⚠️ Asset 404: ${req.path}`);
-        return res.status(404).type('text/plain').send('Asset not found');
+    // Si es un asset que no se encontró arriba, retornamos 404 real para evitar SyntaxErrors
+    const isAsset = req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|json)$/);
+    if (isAsset) {
+        console.warn(`⚠️ [SPA] Asset Missing: ${req.path}`);
+        return res.status(404).send('Asset not found');
     }
 
-    // Para todo lo demás, servir index.html (SPA routing)
-    if (fs.existsSync(path.join(clientPath, 'index.html'))) {
+    // Para todo lo demás, servir index.html
+    const indexPath = path.join(clientPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.sendFile(path.join(clientPath, 'index.html'));
+        return res.sendFile(indexPath);
     } else {
-        return res.status(404).send('Frontend not built');
+        return res.status(404).send('ALEX IO: Frontend not built or path incorrect.');
     }
 });
 
