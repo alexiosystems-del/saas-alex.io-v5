@@ -13,10 +13,32 @@ const fs = require('fs');
 const app = express();
 const http = require('http');
 const { Server } = require('socket.io');
+
+// --- SECURE CORS CONFIG ---
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : [];
+
+if (allowedOrigins.length === 0) {
+    allowedOrigins.push(
+        'https://whatsapp-fullstack-ylsx.onrender.com',
+        'https://whatsapp-fullstack-1-yjao.onrender.com'
+    );
+    if (process.env.NODE_ENV !== 'production') {
+        allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+    }
+}
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: true,
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
         credentials: true
     }
 });
@@ -102,22 +124,6 @@ app.use(globalLimiter);
 app.use(requestLogger);
 
 // --- SECURE CORS (PHASE 1) ---
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : [];
-
-// Default fallback for common URLs
-if (allowedOrigins.length === 0) {
-    allowedOrigins.push(
-        'https://whatsapp-fullstack-ylsx.onrender.com',
-        'https://whatsapp-fullstack-1-yjao.onrender.com'
-    );
-    // Localhost only in non-production
-    if (process.env.NODE_ENV !== 'production') {
-        allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
-    }
-}
-
 app.use(cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
