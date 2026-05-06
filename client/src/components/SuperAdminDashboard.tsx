@@ -63,6 +63,7 @@ const SuperAdminDashboard = () => {
     const [stats, setStats] = useState<GlobalStats>({ total_users: 0, active_bots: 0, total_revenue: 0, total_messages: 0, bots_with_errors: 0, estimated_daily_cost: 0 });
     const [clients, setClients] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedBot, setExpandedBot] = useState<string | null>(null);
     const [botDetails, setBotDetails] = useState<any>(null);
@@ -72,12 +73,35 @@ const SuperAdminDashboard = () => {
     const [aiDiag, setAiDiag] = useState<any>(null);
     const [systemLogs, setSystemLogs] = useState<any[]>([]);
 
-    useEffect(() => { fetchGlobalData(); const iv = setInterval(fetchGlobalData, 30000); return () => clearInterval(iv); }, []);
+    useEffect(() => { 
+        const headers = getAuthHeaders();
+        if (!headers['Authorization']) {
+            console.error('🔒 [SuperAdmin] No Authorization token found in localStorage.');
+            setAuthError(true);
+            setLoading(false);
+            return;
+        }
+        fetchGlobalData(); 
+        const iv = setInterval(fetchGlobalData, 30000); 
+        return () => clearInterval(iv); 
+    }, []);
 
     const fetchGlobalData = async () => {
         try {
             setLoading(true);
-            const { response, data } = await fetchJsonWithApiFallback('/api/saas/superadmin/clients', { headers: { ...getAuthHeaders() } });
+            const headers = getAuthHeaders();
+            if (!headers['Authorization']) {
+                setAuthError(true);
+                return;
+            }
+
+            const { response, data } = await fetchJsonWithApiFallback('/api/saas/superadmin/clients', { headers });
+            
+            if (response.status === 401 || response.status === 403) {
+                setAuthError(true);
+                return;
+            }
+
             if (response.ok && data.clients) {
                 const totalMsgs = data.clients.reduce((acc: number, c: any) => acc + (c.usage?.messages_sent || 0), 0);
                 const allBots = data.clients.flatMap((c: any) => c.bots || []);
@@ -87,9 +111,10 @@ const SuperAdminDashboard = () => {
                 allBots.forEach((b: any) => { if (b.ai_usage) { totalCost += (b.ai_usage.openai?.tokens || 0) / 1e6 * 0.60; totalCost += (b.ai_usage.deepseek?.tokens || 0) / 1e6 * 0.28; } });
                 setClients(data.clients);
                 setStats({ total_users: data.clients.length, active_bots: allBots.length, total_revenue: revenue, total_messages: totalMsgs, bots_with_errors: allBots.filter((b: any) => b.last_error).length, estimated_daily_cost: totalCost });
+                setAuthError(false);
             }
             try {
-                const healthRes = await fetchJsonWithApiFallback('/api/sre/health', { headers: { ...getAuthHeaders() } });
+                const healthRes = await fetchJsonWithApiFallback('/api/sre/health', { headers });
                 if (healthRes.response.ok && healthRes.data) {
                     const raw = healthRes.data.health || healthRes.data || {};
                     setHealthData({
@@ -101,17 +126,20 @@ const SuperAdminDashboard = () => {
                     });
                 }
             } catch (e: any) { console.warn('SRE Health fetch failed:', e.message); }
-            // Fetch AI Diagnostics
+            
             try {
                 const diagRes = await fetchJsonWithApiFallback('/api/diagnostics/ai', {});
                 if (diagRes.response.ok && diagRes.data) setAiDiag(diagRes.data);
             } catch (e: any) { console.warn('AI Diag fetch failed:', e.message); }
-            // Fetch System Logs
+
             try {
-                const logsRes = await fetchJsonWithApiFallback('/api/sre/logs', { headers: { ...getAuthHeaders() } });
+                const logsRes = await fetchJsonWithApiFallback('/api/sre/logs', { headers });
                 if (logsRes.response.ok && logsRes.data) setSystemLogs(logsRes.data.logs || []);
             } catch (e: any) { console.warn('System logs fetch failed:', e.message); }
-        } catch (err: any) { console.error("SuperAdmin Error:", err.message); }
+
+        } catch (err: any) { 
+            console.error("SuperAdmin Global Fetch Error:", err.message);
+        }
         finally { setLoading(false); }
     };
 
@@ -136,7 +164,18 @@ const SuperAdminDashboard = () => {
         finally { setActionLoading(null); }
     };
 
-    const filteredClients = clients.filter(c => c.email?.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (authError) return (
+        <div style={{ minHeight: '100vh', background: T.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font, padding: 20 }}>
+            <div style={glassCard({ padding: 40, textAlign: 'center', maxWidth: 400 })}>
+                <ShieldAlert size={48} style={{ color: T.danger, marginBottom: 20 }} />
+                <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 12 }}>Sesión Requerida</h2>
+                <p style={{ color: T.textMuted, fontSize: 14, marginBottom: 24 }}>Tu sesión de SuperAdmin ha expirado o no es válida para producción. Por favor, re-identifícate.</p>
+                <button onClick={() => window.location.href = '#/superadmin-login'} style={{ background: T.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                    IR A LOGIN SEGURO
+                </button>
+            </div>
+        </div>
+    );
 
     if (loading && clients.length === 0) return (
         <div style={{ minHeight: '100vh', background: T.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font }}>
