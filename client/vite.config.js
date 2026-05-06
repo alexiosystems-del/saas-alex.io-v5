@@ -14,13 +14,13 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     base: '/',
     build: {
-      outDir: 'build',
+      outDir: 'dist',
       sourcemap: false,
       rollupOptions: {
         output: {
-          entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
-          chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
-          assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
+          entryFileNames: `assets/[name]-[hash].js`,
+          chunkFileNames: `assets/[name]-[hash].js`,
+          assetFileNames: `assets/[name]-[hash].[ext]`,
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
             supabase: ['@supabase/supabase-js'],
