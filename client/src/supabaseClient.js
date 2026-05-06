@@ -15,15 +15,21 @@ const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const finalUrl = envUrl || FALLBACK_URL;
 const finalKey = envKey || FALLBACK_KEY;
 
-console.log(`[Supabase] Booting... URL: ${finalUrl.slice(0, 15)}..., Key: ${finalKey ? 'OK' : 'MISSING'}`);
+const diagnostics = {
+  envUrl: !!envUrl,
+  envKey: !!envKey,
+  usingFallback: !envUrl,
+  urlValid: isValidSupabaseUrl(finalUrl),
+  keyValid: isValidJwt(finalKey),
+  version: '2.3.0-DIAGNOSTIC'
+};
 
 try {
-  console.log('[Supabase] Initializing with final settings...');
   supabase = createClient(finalUrl, finalKey, {
     auth: { persistSession: true, autoRefreshToken: true },
   });
 } catch (e) {
-  console.error('❌ Error fatal inicializando Supabase:', e.message);
+  console.error('❌ Supabase Init Error:', e.message);
 }
 
-export { supabase }
+export { supabase, diagnostics }

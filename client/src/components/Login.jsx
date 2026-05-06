@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, diagnostics } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, ArrowLeft, Globe as GlobeIcon, Mail } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -41,7 +41,9 @@ export default function Login() {
     const handleAuth = async (e) => {
         e.preventDefault();
         if (!supabase) {
-            showMsg(`Error Crítico (V2.1.5-FORCE-SYNC): No se pudo conectar con el motor de autenticación. Por favor, usá el botón de recarga forzada (Ctrl+F5).`);
+            const diagStr = JSON.stringify(diagnostics);
+            showMsg(`Error de Configuración: El servicio de autenticación no está disponible. Detalles: ${diagStr}. Ver: ${diagnostics.version}`);
+            console.error('Supabase client is null. Diagnostics:', diagnostics);
             return;
         }
         setLoading(true);
@@ -269,6 +271,20 @@ export default function Login() {
                         className="ml-2 text-cyan-400 font-bold hover:text-cyan-300 transition-colors"
                     >
                         {isSignUp ? 'Ingresá aquí' : 'Registrate gratis'}
+                    </button>
+                </div>
+
+                {/* Diagnostic Footer */}
+                <div className="mt-8 pt-6 border-t border-white/5">
+                    <button 
+                        onClick={() => {
+                            const info = `ALEX IO DIAGNOSTIC\nVersion: ${diagnostics.version}\nEnv URL: ${diagnostics.envUrl}\nEnv Key: ${diagnostics.envKey}\nFallback: ${diagnostics.usingFallback}\nURL Valid: ${diagnostics.urlValid}\nKey Valid: ${diagnostics.keyValid}`;
+                            navigator.clipboard.writeText(info);
+                            showMsg('✅ Diagnóstico copiado al portapapeles', 'success');
+                        }}
+                        className="w-full py-2 rounded-lg bg-white/5 text-[10px] text-white/20 hover:text-white/50 transition-colors uppercase tracking-widest font-bold"
+                    >
+                        Copiar Diagnóstico de Sistema
                     </button>
                 </div>
             </motion.div>
