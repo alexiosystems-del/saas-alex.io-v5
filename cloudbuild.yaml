@@ -1,0 +1,44 @@
+steps:
+  # 1. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '--tag', 'gcr.io/$PROJECT_ID/alex-io-v5',
+      '--build-arg', 'VITE_SUPABASE_URL=$_SUPABASE_URL',
+      '--build-arg', 'VITE_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY',
+      '--build-arg', 'VITE_API_URL=$_API_URL',
+      '.'
+    ]
+
+  # 2. Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/alex-io-v5']
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'alex-io-v5',
+      '--image', 'gcr.io/$PROJECT_ID/alex-io-v5',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'NODE_ENV=production,SUPABASE_URL=$_SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$_SUPABASE_SERVICE_ROLE_KEY,OPENAI_API_KEY=$_OPENAI_API_KEY,GEMINI_API_KEY=$_GEMINI_API_KEY,DEEPSEEK_API_KEY=$_DEEPSEEK_API_KEY,ANTHROPIC_API_KEY=$_ANTHROPIC_API_KEY,JWT_SECRET=$_JWT_SECRET'
+    ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/alex-io-v5'
+
+substitutions:
+  _SUPABASE_URL: ''
+  _SUPABASE_ANON_KEY: ''
+  _SUPABASE_SERVICE_ROLE_KEY: ''
+  _API_URL: ''
+  _OPENAI_API_KEY: ''
+  _GEMINI_API_KEY: ''
+  _DEEPSEEK_API_KEY: ''
+  _ANTHROPIC_API_KEY: ''
+  _JWT_SECRET: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -689,31 +689,78 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     let usedModel = '';
     let finalScore = 0;
 
-    for (const model of cascadeModels) {
-        try {
-            console.log(`🧠 [CASCADE] Intentando con ${model.id}...`);
-            const text = await model.call();
-            
-            // --- PHASE 3: CONFIDENCE AI (REAL EVALUATION) ---
-            const evalResult = await evaluateAI(message, text);
-            finalScore = evalResult.score;
+    const telemetry = [];
 
-            if (evalResult.decision === 'accept' || model.id === 'minimax') {
-                responseText = text;
-                usedModel = model.id;
-                break;
-            } else {
-                console.warn(`🔄 [ConfidenceAI] Decisión: RETRY. Score: ${evalResult.score}`);
+    for (const model of cascadeModels) {
+        let retries = 0;
+        const maxRetries = 1; // 1 retry + initial attempt = 2 max
+        let modelSuccess = false;
+
+        while (retries <= maxRetries) {
+            const startAttempt = Date.now();
+            try {
+                console.log(`🧠 [CASCADE] Intentando con ${model.id} (Intento ${retries + 1})...`);
+                
+                // Call the model (timeouts are already inside cascadeDefinitions)
+                const text = await model.call();
+                
+                if (!text) throw new Error('Empty response from model');
+
+                // --- PHASE 3: CONFIDENCE AI (REAL EVALUATION) ---
+                const evalResult = await evaluateAI(message, text);
+                finalScore = evalResult.score;
+
+                if (evalResult.decision === 'accept' || model.id === 'minimax') {
+                    responseText = text;
+                    usedModel = model.id;
+                    modelSuccess = true;
+                    circuitBreaker.recordSuccess(model.id.toUpperCase());
+                    
+                    telemetry.push({
+                        provider: model.id,
+                        latency: Date.now() - startAttempt,
+                        attempt: retries + 1,
+                        status: 'SUCCESS',
+                        score: finalScore
+                    });
+                    break;
+                } else {
+                    console.warn(`🔄 [ConfidenceAI] Decisión: RETRY. Score: ${evalResult.score}`);
+                    throw new Error(`Low confidence score: ${finalScore}`);
+                }
+            } catch (err) {
+                const latency = Date.now() - startAttempt;
+                console.warn(`⚠️ [CASCADE] Falló ${model.id} (Intento ${retries + 1}):`, err.message);
+                
+                telemetry.push({
+                    provider: model.id,
+                    latency,
+                    attempt: retries + 1,
+                    status: 'FAIL',
+                    error: err.message
+                });
+
+                if (retries < maxRetries) {
+                    const backoff = Math.pow(2, retries) * 1000;
+                    await new Promise(r => setTimeout(r, backoff));
+                    retries++;
+                } else {
+                    circuitBreaker.recordFailure(model.id.toUpperCase(), err.message);
+                    break; // Move to next model in cascade
+                }
             }
-        } catch (err) {
-            console.warn(`⚠️ [CASCADE] Error en ${model.id}:`, err.message);
         }
+        if (modelSuccess) break;
     }
 
     if (!responseText) {
-        responseText = 'Hola, soy ALEX. Estoy experimentando mucha demanda, ¿en qué puedo ayudarte?';
-        usedModel = 'safeguard';
+        console.error('🚨 [CASCADE FATAL] Todos los modelos fallaron. Usando contingencia.');
+        responseText = 'Hola, soy ALEX IO. Mis sistemas están procesando muchas peticiones. ¿Podrías intentar en unos momentos?';
+        usedModel = 'contingency';
     }
+
+    // Log full cascade telemetry for analysis
+    console.log(`📊 [CASCADE TELEMETRY] Finalizado en ${Date.now() - start}ms. Usado: ${usedModel}. Intentos: ${telemetry.length}`);
 
     // --- PHASE 3/4/5: POST-RESPONSE AUTOMATION (Memory, CRM, Analytics, Automations) ---
     const latency = Date.now() - start;

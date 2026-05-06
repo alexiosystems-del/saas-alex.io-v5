@@ -37,8 +37,7 @@ const isKeyValid = (key) => {
 const supabaseKey = (isKeyValid(process.env.SUPABASE_SERVICE_ROLE_KEY) ? process.env.SUPABASE_SERVICE_ROLE_KEY : null)
     || (isKeyValid(process.env.SUPABASE_ANON_KEY) ? process.env.SUPABASE_ANON_KEY : null)
     || (isKeyValid(process.env.SUPABASE_KEY) ? process.env.SUPABASE_KEY : null)
-    || (isKeyValid(process.env.VITE_SUPABASE_ANON_KEY) ? process.env.VITE_SUPABASE_ANON_KEY : null)
-    || SUPABASE_KEY_FALLBACK;
+    || (isKeyValid(process.env.VITE_SUPABASE_ANON_KEY) ? process.env.VITE_SUPABASE_ANON_KEY : null);
 
 let supabase = null;
 let supabaseAdmin = null;
@@ -65,6 +64,10 @@ if (supabaseUrl && supabaseKey) {
 }
 
 if (!supabase) {
+    if (process.env.NODE_ENV === 'production') {
+        console.error("⛔ FATAL: Supabase configuration missing in production. Exiting.");
+        process.exit(1);
+    }
     console.error("⛔ FATAL: Supabase client could not be initialized. Missing URL or Key.");
 }
 
@@ -77,7 +80,6 @@ module.exports = {
 // Startup log
 const keySource = !isDummyKey(process.env.SUPABASE_SERVICE_ROLE_KEY) ? 'SERVICE_ROLE_KEY'
     : !isDummyKey(process.env.SUPABASE_ANON_KEY) ? 'ANON_KEY'
-        : supabaseKey === SUPABASE_KEY_FALLBACK ? 'HARDCODED_FALLBACK'
-            : 'OTHER';
+    : 'OTHER';
 
 console.log(`🔗 Supabase Status: ${supabase ? '✅ Connected' : '❌ Disabled'} (source: ${keySource}, url: ${supabaseUrl ? 'OK' : 'MISSING'})`);

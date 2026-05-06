@@ -50,30 +50,54 @@ function mask(v) {
   return `${v.slice(0, 4)}...${v.slice(-4)}`;
 }
 
+const isJson = process.argv.includes('--json');
 let failures = 0;
-console.log('🧪 ALEX IO readiness check');
-console.log(`📅 ${new Date().toISOString()}`);
-console.log('');
+const results = [];
 
 for (const check of checks) {
   const missing = check.vars.filter((name) => !process.env[name]);
-  if (missing.length === 0) {
-    console.log(`✅ ${check.area}`);
+  const status = missing.length === 0 ? 'PASS' : 'FAIL';
+  if (status === 'FAIL') failures += 1;
+
+  results.push({
+    area: check.area,
+    status,
+    missing,
+    vars: check.vars.reduce((acc, v) => {
+      acc[v] = mask(process.env[v]);
+      return acc;
+    }, {})
+  });
+}
+
+if (isJson) {
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    success: failures === 0,
+    failures,
+    results
+  }, null, 2));
+} else {
+  console.log('🧪 ALEX IO readiness check');
+  console.log(`📅 ${new Date().toISOString()}`);
+  console.log('');
+
+  for (const res of results) {
+    console.log(`${res.status === 'PASS' ? '✅' : '❌'} ${res.area}`);
+    if (res.status === 'FAIL') {
+      console.log(`   Missing: ${res.missing.join(', ')}`);
+    }
+    for (const [name, val] of Object.entries(res.vars)) {
+      console.log(`   - ${name}: ${val}`);
+    }
+  }
+
+  console.log('');
+  if (failures > 0) {
+    console.log(`❌ Readiness failed in ${failures} area(s).`);
   } else {
-    failures += 1;
-    console.log(`❌ ${check.area}`);
-    console.log(`   Missing: ${missing.join(', ')}`);
-  }
-
-  for (const v of check.vars) {
-    console.log(`   - ${v}: ${mask(process.env[v])}`);
+    console.log('✅ Platform appears ready at env-level.');
   }
 }
 
-console.log('');
-if (failures > 0) {
-  console.log(`❌ Readiness failed in ${failures} area(s).`);
-  process.exit(1);
-}
-
-console.log('✅ Platform appears ready at env-level.');
+if (failures > 0) process.exit(1);
