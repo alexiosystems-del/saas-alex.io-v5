@@ -15,6 +15,8 @@ const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const finalUrl = envUrl || FALLBACK_URL;
 const finalKey = envKey || FALLBACK_KEY;
 
+console.log(`[Supabase] Booting... URL: ${finalUrl.slice(0, 15)}..., Key: ${finalKey ? 'OK' : 'MISSING'}`);
+
 if (!isValidSupabaseUrl(finalUrl)) {
   console.error('❌ VITE_SUPABASE_URL inválida. Debe ser https://<project-ref>.supabase.co');
 } else if (!isValidJwt(finalKey)) {
