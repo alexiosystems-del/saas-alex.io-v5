@@ -119,17 +119,7 @@ if (allowedOrigins.length === 0) {
 }
 
 app.use(cors({
-    origin: (origin, callback) => {
-        // Permitir peticiones sin origen (como apps móviles o curl)
-        if (!origin) return callback(null, true);
-        
-        if (allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
-            callback(null, true);
-        } else {
-            console.warn(`🔒 [CORS] Bloqueado origen no permitido: ${origin}`);
-            callback(new Error('No permitido por CORS'));
-        }
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']

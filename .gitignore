@@ -7,7 +7,10 @@ node_modules
 coverage
 
 # Production
-# client/build allowed for Render bypass
+client/dist
+client/build
+dist
+build
 
 # Misc
 .DS_Store

@@ -2506,14 +2506,26 @@ const restoreSessions = async () => {
 
         // 3. Buscar TODAS las sesiones que deberían estar activas
         //    (online + cualquier sesión reciente que pudo quedar disconnected por un deploy)
-        const { data: sessions, error } = await supabase
+        const recoveryColumns = 'instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email';
+        let { data: sessions, error } = await supabase
             .from(sessionsTable)
-            .select('*')
-            .in('status', ['online', 'connecting', 'disconnected'])
+            .select(recoveryColumns)
+            .in('status', ['online', 'connecting', 'disconnected', 'qr_ready'])
             .order('updated_at', { ascending: false });
 
         if (error) {
-            console.warn('⚠️ [RECOVERY] No se pudieron buscar sesiones:', error.message);
+            console.warn('⚠️ [RECOVERY] Error querying sessions, trying basic fallback:', error.message);
+            const fallback = await supabase
+                .from(sessionsTable)
+                .select('instance_id,status,updated_at')
+                .in('status', ['online', 'connecting', 'disconnected', 'qr_ready'])
+                .limit(200);
+            sessions = fallback.data;
+            error = fallback.error;
+        }
+
+        if (error) {
+            console.warn('⚠️ [RECOVERY] Recovery aborted after fallback failed:', error.message);
             return;
         }
 
