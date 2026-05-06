@@ -41,9 +41,7 @@ export default function Login() {
     const handleAuth = async (e) => {
         e.preventDefault();
         if (!supabase) {
-            const urlState = import.meta.env.VITE_SUPABASE_URL ? 'PRESENT' : 'MISSING';
-            const keyState = import.meta.env.VITE_SUPABASE_ANON_KEY ? 'PRESENT' : 'MISSING';
-            showMsg(`Error de Configuración (V2.1.2): Supabase no disponible. URL: ${urlState}, KEY: ${keyState}. Por favor, recargá la página.`);
+            showMsg(`Error Crítico (V2.1.5-FORCE-SYNC): No se pudo conectar con el motor de autenticación. Por favor, usá el botón de recarga forzada (Ctrl+F5).`);
             return;
         }
         setLoading(true);

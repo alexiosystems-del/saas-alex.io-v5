@@ -17,18 +17,13 @@ const finalKey = envKey || FALLBACK_KEY;
 
 console.log(`[Supabase] Booting... URL: ${finalUrl.slice(0, 15)}..., Key: ${finalKey ? 'OK' : 'MISSING'}`);
 
-if (!isValidSupabaseUrl(finalUrl)) {
-  console.error('❌ VITE_SUPABASE_URL inválida. Debe ser https://<project-ref>.supabase.co');
-} else if (!isValidJwt(finalKey)) {
-  console.error('❌ VITE_SUPABASE_ANON_KEY inválida. Debe ser JWT de Supabase (prefijo eyJ...).');
-} else {
-  try {
-    supabase = createClient(finalUrl, finalKey, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-  } catch (e) {
-    console.error('❌ Error fatal inicializando Supabase:', e.message);
-  }
+try {
+  console.log('[Supabase] Initializing with final settings...');
+  supabase = createClient(finalUrl, finalKey, {
+    auth: { persistSession: true, autoRefreshToken: true },
+  });
+} catch (e) {
+  console.error('❌ Error fatal inicializando Supabase:', e.message);
 }
 
 export { supabase }
