@@ -15,19 +15,26 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 // --- SECURE CORS CONFIG ---
+const productionOrigins = [
+    'https://whatsapp-fullstack-ylsx.onrender.com',
+    'https://whatsapp-fullstack-1-yjao.onrender.com'
+];
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
 
-if (allowedOrigins.length === 0) {
-    allowedOrigins.push(
-        'https://whatsapp-fullstack-ylsx.onrender.com',
-        'https://whatsapp-fullstack-1-yjao.onrender.com'
-    );
-    if (process.env.NODE_ENV !== 'production') {
-        allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
-    }
+// Always include production defaults
+productionOrigins.forEach(o => {
+    if (!allowedOrigins.includes(o)) allowedOrigins.push(o);
+});
+
+// Localhost only in non-production
+if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
 }
+
+console.log(`🔒 [SECURITY] Allowed Origins: ${allowedOrigins.join(', ')}`);
 
 const server = http.createServer(app);
 const io = new Server(server, {
