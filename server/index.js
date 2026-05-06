@@ -99,24 +99,35 @@ const tenantLimiter = rateLimit({
 app.use(globalLimiter);
 app.use(requestLogger);
 
-// --- SECURE CORS (PHASE 0) ---
+// --- SECURE CORS (PHASE 1) ---
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
 
-// Auto-include common Render URLs if not explicitly set
+// Default fallback for common URLs
 if (allowedOrigins.length === 0) {
     allowedOrigins.push(
         'https://whatsapp-fullstack-ylsx.onrender.com',
-        'https://whatsapp-fullstack-1-yjao.onrender.com',
-        'http://localhost:5173',
-        'http://localhost:3000'
+        'https://whatsapp-fullstack-1-yjao.onrender.com'
     );
+    // Localhost only in non-production
+    if (process.env.NODE_ENV !== 'production') {
+        allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+    }
 }
 
-// --- CORS CONFIGURATION (PERMISSIVE UNTIL STRICT LIST VALIDATED) ---
 app.use(cors({
-    origin: true,
+    origin: (origin, callback) => {
+        // Permitir peticiones sin origen (como apps móviles o curl)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
+            callback(null, true);
+        } else {
+            console.warn(`🔒 [CORS] Bloqueado origen no permitido: ${origin}`);
+            callback(new Error('No permitido por CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
