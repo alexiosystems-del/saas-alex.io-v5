@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Save, Shield, Layout, MessageSquare, Activity } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+};
+
 interface WhatsAppAccount {
     account_name: string;
     phone_number: string;
@@ -43,24 +51,13 @@ const AdminDashboard = () => {
     }, [user]);
 
     const fetchConfigs = async () => {
-        setLoading(true);
+        if (!user) return;
         try {
-            const res = await fetch('/api/saas/bots'); // Re-using existing route
+            const res = await fetch('/api/saas/bots', { headers: getAuthHeaders() });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            
-            // Map backend bots to the BotConfig interface
-            const mappedConfigs = (data.bots || []).map((b: any) => ({
-                id: b.id,
-                constitution: b.prompt,
-                conversation_structure: '',
-                system_prompt: b.prompt,
-                whatsapp_accounts: {
-                    account_name: b.name,
-                    phone_number: b.phone || 'Pendiente'
-                }
-            }));
-            setConfigs(mappedConfigs);
+            const json = await res.json();
+            const data = json.bots || json || [];
+            if (data) setConfigs(data as BotConfig[]);
         } catch (err: any) {
             console.error("❌ Error fetching configs:", err.message);
         } finally {
@@ -70,27 +67,27 @@ const AdminDashboard = () => {
 
     const fetchLogs = async (configId: string) => {
         try {
-            const res = await fetch(`/api/saas/leads?instance_id=${configId}`);
-            const data = await res.json();
-            // This is a simplified log view
-            setLogs([]); 
+            const res = await fetch(`/api/saas/messages?instance_id=${configId}`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            if (json.messages) setLogs(json.messages as MessageLog[]);
         } catch (err: any) {
             console.error("❌ Error fetching logs:", err.message);
         }
     };
 
     const handleSave = async () => {
-        if (!selectedConfig) return;
+        if (!selectedConfig || !user) return;
         try {
             const res = await fetch(`/api/saas/bots/${selectedConfig.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
-                    name: selectedConfig.whatsapp_accounts?.account_name,
-                    prompt: selectedConfig.constitution
+                    constitution: selectedConfig.constitution,
+                    conversation_structure: selectedConfig.conversation_structure,
+                    system_prompt: selectedConfig.system_prompt
                 })
             });
-
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             alert('Configuración guardada en ALEX IO 🚀');
         } catch (err: any) {

@@ -1,495 +1,696 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Zap, Shield, Globe, MessageSquare, ArrowRight, 
+  Moon, Sun, Play, CheckCircle, Smartphone, 
+  Bot, Award, ZapOff, Sparkles, Languages,
+  Cpu, Repeat, TrendingUp, Users, Layers,
+  Instagram, Facebook, MessageCircle, Music2, Share2,
+  Calendar, CheckCircle2, AlertCircle, PhoneCall
+} from 'lucide-react';
 
-const G = '#D4A843';
-const GH = '#E0BC6A';
-const GD = '#D4A84318';
-const GB = '#D4A84338';
-
-const plans = [
-  {
-    name: 'Starter',
-    price: 97,
-    annual: 77,
-    desc: 'Para empezar a convertir',
-    features: ['1 Bot IA activo', '1.000 mensajes/mes', '1 canal conectado', 'Respuestas automáticas', 'Soporte por email'],
-    cta: 'Comenzar gratis',
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    price: 197,
-    annual: 157,
-    desc: 'El más elegido por pymes',
-    features: ['5 Bots IA activos', '10.000 mensajes/mes', '3 canales conectados', 'CRM + extracción de leads', 'Auto-healing incluido', 'Soporte prioritario 24h'],
-    cta: 'Activar Pro',
-    highlight: true,
-  },
-  {
-    name: 'Scale',
-    price: 397,
-    annual: 317,
-    desc: 'Infraestructura enterprise',
-    features: ['Bots ilimitados', 'Mensajes ilimitados', 'Todos los canales', 'Multi-agente cognitivo', 'RAG / base de conocimiento', 'Onboarding dedicado + SLA'],
-    cta: 'Hablar con ventas',
-    highlight: false,
-  },
-];
-
-const channels = [
-  { label: 'WhatsApp', color: '#25D366' },
-  { label: 'TikTok', color: '#ff2d55' },
-  { label: 'Discord', color: '#5865F2' },
-  { label: 'Reddit', color: '#FF4500' },
-  { label: 'Instagram', color: '#E1306C' },
-  { label: 'Facebook', color: '#1877F2' },
-];
-
-const metrics = [
-  { value: '+40%', label: 'Más conversiones' },
-  { value: '+30%', label: 'Ventas cerradas' },
-  { value: '99.9%', label: 'Uptime garantizado' },
-  { value: '24/7', label: 'Sin interrupciones' },
-];
-
-const steps = [
-  { icon: '01', title: 'Mensaje entra', desc: 'El cliente escribe en su idioma, en cualquier canal.' },
-  { icon: '02', title: 'IA analiza', desc: 'Detecta intención, contexto y urgencia al instante.' },
-  { icon: '03', title: 'Responde', desc: 'Respuesta personalizada en milisegundos.' },
-  { icon: '04', title: 'Convierte', desc: 'Guía al cliente hasta el cierre sin fricción.' },
-  { icon: '05', title: 'Auto-sana', desc: 'Si algo falla, se recupera solo. Sin intervención.' },
-];
-
-const languages = [
-  { flag: '🇦🇷', lang: 'Español', reply: '¡Hola! Soy ALEX, tu asistente cognitivo. ¿En qué puedo ayudarte hoy?' },
-  { flag: '🇺🇸', lang: 'English', reply: "Hi! I'm ALEX, your cognitive assistant. How can I help you today?" },
-  { flag: '🇧🇷', lang: 'Português', reply: 'Olá! Sou ALEX, seu assistente cognitivo. Como posso ajudar você hoje?' },
-  { flag: '🇫🇷', lang: 'Français', reply: 'Bonjour! Je suis ALEX, votre assistant cognitif. Comment puis-je vous aider?' },
-  { flag: '🇩🇪', lang: 'Deutsch', reply: 'Hallo! Ich bin ALEX, Ihr kognitiver Assistent. Wie kann ich Ihnen helfen?' },
-  { flag: '🇮🇹', lang: 'Italiano', reply: 'Ciao! Sono ALEX, il tuo assistente cognitivo. Come posso aiutarti oggi?' },
-];
-
-const countries = ['🇦🇷 Argentina', '🇲🇽 México', '🇧🇷 Brasil', '🇨🇴 Colombia', '🇨🇱 Chile', '🇺🇸 USA', '🇪🇸 España', '🇵🇪 Perú', '🇺🇾 Uruguay', '🇧🇴 Bolivia', '🇩🇪 Alemania', '🇫🇷 Francia'];
-
-function useInView(threshold = 0.12) {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setInView(true);
-    }, { threshold });
-
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-
-  return [ref, inView];
-}
-
-function FadeIn({ children, delay = 0 }) {
-  const [ref, inView] = useInView();
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        opacity: inView ? 1 : 0,
-        transform: inView ? 'translateY(0)' : 'translateY(24px)',
-        transition: `opacity .65s ease ${delay}s, transform .65s ease ${delay}s`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default function LandingPage() {
+const LandingPage = () => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState('onyx'); // 'onyx' or 'silver'
   const [billing, setBilling] = useState('monthly');
-  const [activeLang, setActiveLang] = useState(0);
-  const [msg, setMsg] = useState('');
-  const [chat, setChat] = useState([
-    { from: 'bot', text: 'Hola 👋 Soy ALEX, tu asistente cognitivo. Preguntame lo que quieras — precios, funcionalidades, idiomas.' },
-  ]);
-  const [typing, setTyping] = useState(false);
-  const chatRef = useRef(null);
-  const currentYear = new Date().getFullYear();
+  const [demoStep, setDemoStep] = useState(-1); // -1: Not started, 0-5: Questions, 6: Success
+  const [demoData, setDemoData] = useState({});
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef(null);
 
-  const activateDemoMode = () => {
-    localStorage.setItem('demo_mode', 'true');
-    localStorage.setItem('alex_io_role', 'SUPERADMIN');
-    localStorage.setItem('demo_email', 'demo@alex.io');
-    localStorage.setItem('alex_io_tenant', 'tenant_demo');
-    navigate('/superadmin');
+  // Toggle theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'onyx' ? 'silver' : 'onyx');
+
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) element.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const goToLogin = () => {
-    localStorage.removeItem('demo_mode');
-    navigate('/login');
+  // Demo Logic
+  const demoQuestions = [
+    { id: 'vendes', text: "¡Hola! Soy ALEX. Empecemos el diagnóstico. ¿Qué vendes exactamente?", placeholder: "Ej: Software, Cursos, Ropa..." },
+    { id: 'ticket', text: "¿Cuál es tu ticket promedio de venta? (en USD)", placeholder: "Ej: 100" },
+    { id: 'canal', text: "¿Cuál es tu canal principal de atención hoy?", placeholder: "Ej: WhatsApp, Instagram..." },
+    { id: 'volumen', text: "¿Cuántos leads recibes al mes aproximadamente?", placeholder: "Ej: 500" },
+    { id: 'objecion', text: "¿Cuál es la objeción principal que te dan tus clientes?", placeholder: "Ej: Es caro, lo voy a pensar..." },
+    { id: 'llamada', text: "Perfecto. Estamos listos para escalar. ¿Tienes disponibilidad para una llamada de diagnóstico mañana?", placeholder: "Ej: Sí, a las 10am" }
+  ];
+
+  const handleDemoNext = (val) => {
+    if (!val) return;
+    const currentQ = demoQuestions[demoStep];
+    setDemoData(prev => ({ ...prev, [currentQ.id]: val }));
+    
+    setIsTyping(true);
+    setTimeout(() => {
+      setDemoStep(prev => prev + 1);
+      setIsTyping(false);
+    }, 1000);
   };
-
-  // getReply se elimina, ahora llamamos al backend
-  async function sendMessage() {
-    if (!msg.trim()) return;
-    const userMessage = { from: 'user', text: msg };
-    setChat((current) => [...current, userMessage]);
-    setMsg('');
-    setTyping(true);
-
-    try {
-      const response = await fetch('/api/webhooks/webchat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderId: 'landing_usr_' + Math.floor(Math.random() * 10000),
-          text: userMessage.text,
-          metadata: { tenantId: 'demo-tenant', isLanding: true }
-        })
-      });
-      const data = await response.json();
-      // Accept reply from both success AND error responses
-      if (data && data.reply) {
-        setChat((current) => [...current, { from: 'bot', text: data.reply }]);
-      } else {
-        setChat((current) => [...current, { from: 'bot', text: 'Error inesperado del servidor.' }]);
-      }
-    } catch (err) {
-      console.error(err);
-      setChat((current) => [...current, { from: 'bot', text: 'Parece que no tengo conexión con el backend ahora mismo.' }]);
-    } finally {
-      setTyping(false);
-    }
-  }
 
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, [chat, typing]);
-
-  const price = (plan) => (billing === 'annual' ? plan.annual : plan.price);
-  const saving = (plan) => (plan.price - plan.annual) * 12;
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [demoStep, isTyping]);
 
   return (
-    <div style={{ background: '#07090C', color: '#EDE9E3', fontFamily: "'DM Sans','Helvetica Neue',sans-serif", minHeight: '100vh', overflowX: 'hidden' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        .serif{font-family:'DM Serif Display',serif;}
-        nav a{color:#6B7280;text-decoration:none;font-size:14px;transition:color .2s;}
-        nav a:hover{color:#EDE9E3;}
-        .btn-g{background:${G};color:#07090C;border:none;padding:13px 26px;border-radius:8px;font-weight:500;font-size:15px;cursor:pointer;transition:background .2s,transform .15s;font-family:inherit;}
-        .btn-g:hover{background:${GH};transform:translateY(-1px);}
-        .btn-o{background:transparent;color:#EDE9E3;border:1px solid #2A2F38;padding:12px 26px;border-radius:8px;font-size:15px;cursor:pointer;transition:border-color .2s,background .2s;font-family:inherit;}
-        .btn-o:hover{border-color:#4B5563;background:#111418;}
-        .card{background:#0D1117;border:1px solid #1E2530;border-radius:16px;padding:1.75rem;}
-        .card-g{background:#0D1117;border:2px solid ${GB};border-radius:16px;padding:1.75rem;position:relative;}
-        .tag{display:inline-block;background:${GD};color:${G};border:1px solid ${GB};font-size:12px;padding:4px 14px;border-radius:100px;margin-bottom:1.5rem;letter-spacing:.04em;}
-        .pill{display:inline-flex;align-items:center;gap:8px;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:8px 16px;font-size:13px;color:#9CA3AF;}
-        .dot{width:8px;height:8px;border-radius:50%;}
-        .metric{background:#0D1117;border:1px solid #1E2530;border-radius:12px;padding:1.5rem;text-align:center;}
-        .bubble-bot{background:#1A1F28;border-radius:4px 16px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;color:#E5E7EB;}
-        .bubble-user{background:${G};color:#07090C;border-radius:16px 4px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;margin-left:auto;}
-        .tdot{width:6px;height:6px;background:#6B7280;border-radius:50%;display:inline-block;animation:blink 1.2s infinite;}
-        .tdot:nth-child(2){animation-delay:.2s;}
-        .tdot:nth-child(3){animation-delay:.4s;}
-        @keyframes blink{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
-        .lang-btn{background:transparent;border:1px solid #1E2530;border-radius:100px;padding:7px 14px;font-size:13px;color:#9CA3AF;cursor:pointer;transition:all .2s;font-family:inherit;}
-        .lang-btn.active{border-color:${GB};color:${G};background:${GD};}
-        .billing-toggle{display:flex;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:3px;width:fit-content;margin:0 auto 2.5rem;}
-        .btog{background:transparent;border:none;padding:8px 20px;border-radius:100px;font-size:13px;cursor:pointer;color:#9CA3AF;font-family:inherit;transition:all .2s;}
-        .btog.on{background:${G};color:#07090C;font-weight:500;}
-        .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:${G};color:#07090C;font-size:11px;font-weight:500;padding:3px 14px;border-radius:100px;white-space:nowrap;}
-        .country-tag{background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:6px 14px;font-size:13px;color:#9CA3AF;}
-        footer a{color:#374151;text-decoration:none;font-size:13px;}
-        footer a:hover{color:#9CA3AF;}
-        input[type=text]{background:#1A1F28;border:1px solid #2A2F38;border-radius:8px;color:#EDE9E3;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;width:100%;transition:border-color .2s;}
-        input[type=text]:focus{border-color:${GB};}
-        input[type=text]::placeholder{color:#4B5563;}
-        @media (max-width: 1024px){
-          .steps-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .healing-grid{grid-template-columns:1fr !important;}
-          .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-        }
-        @media (max-width: 768px){
-          .steps-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:1fr !important;}
-          .nav-links{display:none !important;}
-          .metrics-grid{grid-template-columns:1fr !important;}
-        }
-      `}</style>
-      <nav style={{ borderBottom: '1px solid #1E2530', padding: '0 2rem', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#07090C', zIndex: 100 }}>
-        <div className="serif" style={{ fontSize: 22 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div className="nav-links" style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <a href="#como-funciona">Cómo funciona</a>
-          <a href="#canales">Canales</a>
-          <a href="#planes">Planes</a>
-          <a href="#demo">Demo</a>
-          <button className="btn-g" style={{ padding: '8px 20px', fontSize: 13 }} onClick={goToLogin}>Probar gratis →</button>
+    <div className="min-h-screen transition-colors duration-700 bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-[var(--accent-gold)] selection:text-white overflow-x-hidden">
+      
+      {/* ─── NAVIGATION ─── */}
+      <nav className="fixed top-0 w-full z-50 glass backdrop-blur-xl border-b border-[var(--border)] px-6 py-4 flex justify-between items-center transition-all duration-700">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-2xl font-bold tracking-tighter flex items-center gap-2 cursor-pointer"
+          style={{ fontFamily: 'var(--font-title)' }}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <div className="w-8 h-8 bg-[var(--accent-gold)] rounded-lg flex items-center justify-center text-white rotate-12">A</div>
+          ALEX <span className="text-[var(--accent-gold)] italic">IO</span>
+        </motion.div>
+
+        <div className="hidden lg:flex items-center gap-8 text-[10px] font-bold uppercase tracking-[0.2em]">
+          {[
+            { label: 'Canales', id: 'canales' },
+            { label: 'Arquitectura Elite', id: 'arquitectura' },
+            { label: 'Inversión', id: 'inversion' },
+            { label: 'Roadmap v2', id: 'roadmap' }
+          ].map(item => (
+            <button 
+              key={item.id} 
+              onClick={() => scrollToSection(item.id)}
+              className="hover:text-[var(--accent-gold)] transition-colors duration-300"
+            >
+              {item.label}
+            </button>
+          ))}
+          
+          <div className="flex items-center gap-4 border-l border-[var(--border)] pl-8">
+            <button 
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-[var(--glass-bg-hover)] transition-all duration-500 text-[var(--accent-gold)]"
+            >
+              {theme === 'onyx' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-6 py-2 border border-[var(--accent-gold)] rounded-full text-[var(--accent-gold)] hover:bg-[var(--accent-gold)] hover:text-white transition-all duration-500 font-bold"
+            >
+              DEMO
+            </button>
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-6 py-2 bg-[var(--accent-gold)] text-white rounded-full hover:shadow-[0_0_20px_var(--accent-gold-glow)] transition-all duration-500 font-bold"
+            >
+              ACTIVAR ALEX IO
+            </button>
+          </div>
         </div>
       </nav>
 
-      <section style={{ textAlign: 'center', padding: '100px 2rem 60px', maxWidth: 780, margin: '0 auto', position: 'relative' }}>
-        <div style={{ position: 'absolute', width: 560, height: 560, background: `radial-gradient(circle,${GD} 0%,transparent 70%)`, top: -80, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
-        <div className="tag">Sistema autónomo enterprise — activo en 12 países</div>
-        <h1 className="serif" style={{ fontSize: 'clamp(40px,6vw,70px)', lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: '1.25rem' }}>
-          Tu empresa opera sola.<br />
-          <em style={{ color: G, fontStyle: 'italic' }}>Vos cerrás ventas.</em>
-        </h1>
-        <p style={{ fontSize: 18, color: '#9CA3AF', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 2.5rem' }}>
-          ALEX IO responde, vende y gestiona tu comunicación 24/7 — en cualquier idioma, para cualquier país del mundo. Se detecta, se protege y se recupera solo.
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-g" onClick={goToLogin}>Probar en WhatsApp →</button>
-          <button className="btn-o" onClick={activateDemoMode}>Ver demo en vivo</button>
+      {/* ─── HERO SECTION ─── */}
+      <section className="relative pt-52 pb-32 px-6 max-w-7xl mx-auto text-center">
+        {/* Orbs Background */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-[var(--accent-gold)] opacity-[0.03] blur-[150px] animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-[var(--accent-gold)] opacity-[0.05] blur-[180px] animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
-        <p style={{ marginTop: '1.5rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos · Cancelás cuando quieras</p>
-      </section>
 
-      <section style={{ padding: '0 2rem 80px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ background: '#0D1117', border: '1px solid #1E2530', borderRadius: 16, overflow: 'hidden', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', maxWidth: 860, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: G, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', cursor: 'pointer' }} onClick={activateDemoMode}>
-                <div style={{ width: 0, height: 0, borderTop: '12px solid transparent', borderBottom: '12px solid transparent', borderLeft: '20px solid #07090C', marginLeft: 4 }} />
-              </div>
-              <p style={{ fontSize: 13, color: '#4B5563' }}>Tu video va aquí · 1080p o 4K · máx 90 segundos</p>
-            </div>
-            <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#07090C99', border: '1px solid #1E2530', borderRadius: 100, padding: '6px 18px', fontSize: 13, color: '#9CA3AF', whiteSpace: 'nowrap' }}>
-              ALEX IO — 90 segundos que cambian tu negocio
-            </div>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-10"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[var(--accent-gold)] text-[var(--accent-gold)] text-[10px] font-black tracking-[0.3em] mb-10 bg-[var(--glass-bg)] uppercase">
+            <Zap size={14} className="fill-current" /> La Nueva Frontera del Cierre Automático
           </div>
-        </FadeIn>
-      </section>
+          
+          <h1 className="text-5xl md:text-8xl font-black leading-[0.95] mb-10 tracking-tight" style={{ fontFamily: 'var(--font-title)' }}>
+            Cada mensaje que no respondes es <br />
+            <span className="text-[var(--accent-gold)] italic underline decoration-1 underline-offset-8">dinero perdido.</span>
+          </h1>
+          
+          <p className="text-xl md:text-2xl text-[var(--text-secondary)] max-w-3xl mx-auto mb-16 font-medium leading-snug">
+            ALEX IO responde, califica y convierte clientes automáticamente en WhatsApp y redes sociales, 24/7.
+          </p>
 
-      <section style={{ padding: '0 2rem 90px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-            {metrics.map((metric) => (
-              <div className="metric" key={metric.label}>
-                <div className="serif" style={{ fontSize: 34, color: G, marginBottom: 6 }}>{metric.value}</div>
-                <div style={{ fontSize: 13, color: '#6B7280' }}>{metric.label}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-20">
+            {[
+              { icon: <Repeat size={20} />, text: "Respuestas en segundos" },
+              { icon: <TrendingUp size={20} />, text: "Seguimiento automático" },
+              { icon: <Users size={20} />, text: "Más ventas sin contratar equipo" },
+              { icon: <Languages size={20} />, text: "IA multilingüe con contexto" }
+            ].map((item, i) => (
+              <div key={i} className="flex flex-col items-center gap-3 p-6 glass-card border border-[var(--border)] group hover:border-[var(--accent-gold)] transition-all">
+                <div className="text-[var(--accent-gold)] group-hover:scale-110 transition-transform">{item.icon}</div>
+                <span className="text-[11px] font-bold uppercase tracking-widest leading-tight">{item.text}</span>
               </div>
             ))}
           </div>
-        </FadeIn>
+
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+            <button 
+              onClick={() => navigate('/login')}
+              className="w-full sm:w-auto px-12 py-6 bg-[var(--accent-gold)] text-white rounded-2xl font-black text-xl hover:scale-105 transition-all duration-500 shadow-[0_20px_40px_rgba(197,160,40,0.25)] flex items-center justify-center gap-4"
+            >
+              ACTIVAR ALEX IO <ArrowRight size={24} />
+            </button>
+            <button 
+              onClick={() => scrollToSection('demo')}
+              className="w-full sm:w-auto px-12 py-6 glass-card rounded-2xl font-black text-xl border border-[var(--border)] hover:bg-[var(--glass-bg-hover)] transition-all duration-500 flex items-center justify-center gap-4"
+            >
+              VER DEMO EN VIVO <Play size={24} className="fill-current" />
+            </button>
+          </div>
+
+          <p className="mt-10 text-[var(--text-secondary)] text-sm font-bold tracking-widest uppercase opacity-50">
+            Configuración en minutos. Sin código.
+          </p>
+        </motion.div>
       </section>
 
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
-            <div className="tag">El problema real</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-              Cada mensaje sin respuesta<br />es una venta que perdiste
+      {/* ─── PROBLEMA SECTION ─── */}
+      <section className="py-32 px-6 bg-[var(--bg-secondary)]/30 border-y border-[var(--border)]">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-20 items-center">
+          <div>
+            <h2 className="text-4xl md:text-6xl font-black mb-8 leading-tight">
+              Esto ya está pasando <br />
+              <span className="text-[var(--accent-gold)]">en tu negocio:</span>
             </h2>
-            <p style={{ color: '#6B7280', fontSize: 17, lineHeight: 1.7 }}>
-              No es falta de clientes. Es falta de sistema. Tu competidor que responde en 2 minutos cierra ventas que vos perdiste mientras dormías.
-            </p>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="como-funciona" style={{ padding: '100px 2rem', maxWidth: 1000, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-            <div className="tag">El proceso</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2 }}>Sin humanos. Sin fricción.<br />Sin pérdidas.</h2>
-          </div>
-        </FadeIn>
-        <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 20 }}>
-          {steps.map((step, i) => (
-            <FadeIn key={step.icon} delay={i * 0.1}>
-              <div style={{ textAlign: 'center' }}>
-                <div className="serif" style={{ fontSize: 44, color: `${G}22`, lineHeight: 1, marginBottom: 8 }}>{step.icon}</div>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>{step.title}</div>
-                <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>{step.desc}</div>
-              </div>
-            </FadeIn>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div className="healing-grid" style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
-            <div>
-              <div className="tag">Diferencial enterprise</div>
-              <h2 className="serif" style={{ fontSize: 'clamp(26px,3.5vw,40px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-                ALEX IO no solo funciona.<br />
-                <em style={{ color: G }}>Se cura solo.</em>
-              </h2>
-              <p style={{ color: '#9CA3AF', lineHeight: 1.7, marginBottom: '1.5rem' }}>
-                Cuando una API externa cae o un canal se degrada, ALEX IO lo detecta, se suspende para proteger recursos y se recupera automáticamente — sin que nadie toque nada.
-              </p>
-              {[['🛡️', 'Detecta anomalías en tiempo real'], ['⏸️', 'Se pausa antes de fallar'], ['🔄', 'Se recupera sin intervención humana']].map(([icon, text]) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, color: '#9CA3AF', marginBottom: 10 }}>
-                  <span style={{ fontSize: 16 }}>{icon}</span>{text}
+            <div className="space-y-6">
+              {[
+                "Te escriben y no respondes a tiempo",
+                "Respondes tarde y se van",
+                "No haces seguimiento y no compran"
+              ].map((text, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 glass rounded-xl border-l-4 border-[var(--accent-gold)]">
+                  <AlertCircle className="text-[var(--accent-gold)] shrink-0" size={24} />
+                  <span className="text-lg font-bold">{text}</span>
                 </div>
               ))}
             </div>
-            <div className="card" style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 2, color: '#4B5563' }}>
-              <div style={{ color: G, marginBottom: 8, fontSize: 11, letterSpacing: '.08em' }}>AUTO-HEALING LOG</div>
-              <div><span style={{ color: '#6B7280' }}>22:14:01</span> <span style={{ color: '#9CA3AF' }}>canal=whatsapp</span> success_rate=97%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#F59E0B' }}>DEGRADACIÓN detectada</span> rate=84%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#EF4444' }}>instancia suspendida</span> auto_paused=true</div>
-              <div><span style={{ color: '#6B7280' }}>22:31:12</span> evaluando recuperación...</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: G }}>RECUPERADO ✓</span> rate=99.1%</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: '#9CA3AF' }}>alerta enviada</span> canal=discord</div>
-            </div>
+            <p className="mt-12 text-3xl font-black text-[var(--text-primary)]">
+              Cada conversación perdida = <br />
+              <span className="text-red-500 italic">ingreso perdido.</span>
+            </p>
           </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '100px 2rem', maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Global desde el día 1</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1rem' }}>
-            Vendé para cualquier país.<br />
-            <em style={{ color: G }}>Tu cliente lo verá en su idioma.</em>
-          </h2>
-          <p style={{ color: '#6B7280', fontSize: 16, lineHeight: 1.7, maxWidth: 540, margin: '0 auto 2.5rem' }}>
-            ALEX detecta automáticamente el idioma del cliente y responde en el mismo. Sin configuración extra. Sin barreras de mercado.
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-            {languages.map((language, index) => (
-              <button key={language.lang} className={`lang-btn${activeLang === index ? ' active' : ''}`} onClick={() => setActiveLang(index)}>
-                {language.flag} {language.lang}
-              </button>
-            ))}
-          </div>
-          <div className="card" style={{ maxWidth: 420, margin: '0 auto', textAlign: 'left', padding: '1rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, borderBottom: '1px solid #1E2530', paddingBottom: 10 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: G }} />
-              <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — {languages[activeLang].lang}</span>
-            </div>
-            <div className="bubble-bot">{languages[activeLang].reply}</div>
-          </div>
-          <div style={{ marginTop: '2.5rem' }}>
-            <p style={{ fontSize: 13, color: '#4B5563', marginBottom: '1rem' }}>Activo en más de 12 países</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-              {countries.map((country) => <div key={country} className="country-tag">{country}</div>)}
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="canales" style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Multi-canal</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', marginBottom: '1rem', lineHeight: 1.2 }}>
-            Un solo cerebro.<br />Toda tu comunicación.
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 16 }}>
-            Conectá tus canales y ALEX los gestiona todos desde un centro de control unificado.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', maxWidth: 600, margin: '0 auto' }}>
-            {channels.map((channel) => (
-              <div key={channel.label} className="pill">
-                <div className="dot" style={{ background: channel.color }} />{channel.label}
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="demo" style={{ padding: '100px 2rem' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 480, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <div className="tag">Demo en vivo</div>
-              <h2 className="serif" style={{ fontSize: 32, lineHeight: 1.2 }}>Hablá con ALEX ahora</h2>
-              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>Preguntale precios, funcionalidades, idiomas — lo que quieras</p>
-            </div>
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #1E2530', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: G }} />
-                <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — el Cognitivo</span>
-                <span style={{ fontSize: 11, color: '#4B5563', marginLeft: 'auto' }}>En línea ahora</span>
-              </div>
-              <div ref={chatRef} style={{ height: 260, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: 12, scrollBehavior: 'smooth' }}>
-                {chat.map((message, index) => (
-                  <div key={`${message.from}-${index}`} style={{ display: 'flex', justifyContent: message.from === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <div className={message.from === 'bot' ? 'bubble-bot' : 'bubble-user'}>{message.text}</div>
-                  </div>
-                ))}
-                {typing && (
-                  <div style={{ display: 'flex', gap: 4, padding: '10px 14px', background: '#1A1F28', borderRadius: '4px 16px 16px 16px', width: 'fit-content' }}>
-                    <span className="tdot" /><span className="tdot" /><span className="tdot" />
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '12px 16px', borderTop: '1px solid #1E2530', display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="Escribí tu mensaje..." value={msg} onChange={(event) => setMsg(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} />
-                <button className="btn-g" style={{ padding: '10px 16px', whiteSpace: 'nowrap', fontSize: 13 }} onClick={sendMessage}>Enviar</button>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="planes" style={{ padding: '80px 2rem 100px', background: '#0A0D11', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <div className="tag">Precios</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2, marginBottom: '2rem' }}>Empezá hoy. Escalá mañana.</h2>
-            <div className="billing-toggle">
-              <button className={`btog${billing === 'monthly' ? ' on' : ''}`} onClick={() => setBilling('monthly')}>Mensual</button>
-              <button className={`btog${billing === 'annual' ? ' on' : ''}`} onClick={() => setBilling('annual')}>Anual — 20% off</button>
-            </div>
-          </div>
-        </FadeIn>
-        <div className="plans-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 22, maxWidth: 960, margin: '0 auto', alignItems: 'start' }}>
-          {plans.map((plan, index) => (
-            <FadeIn key={plan.name} delay={index * 0.1}>
-              <div className={plan.highlight ? 'card-g' : 'card'}>
-                {plan.highlight && <div className="plan-badge">Más popular ⚡</div>}
-                <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>{plan.desc}</div>
-                <div className="serif" style={{ fontSize: 20, marginBottom: 6 }}>{plan.name}</div>
-                <div className="serif" style={{ fontSize: 42, color: plan.highlight ? G : '#EDE9E3', lineHeight: 1.1, marginBottom: 2 }}>
-                  ${price(plan)}<span style={{ fontSize: 15, color: '#6B7280', fontFamily: 'inherit' }}>/mes</span>
+          <div className="relative">
+            <div className="absolute -inset-4 bg-[var(--accent-gold)] opacity-10 blur-3xl rounded-full" />
+            <div className="relative glass-card p-2 border border-[var(--border)] overflow-hidden rounded-[32px] shadow-2xl">
+              <div className="bg-[#050510] aspect-video flex items-center justify-center text-[var(--text-secondary)] font-mono text-xs">
+                {/* Simulated Error Logs */}
+                <div className="p-8 space-y-2 w-full">
+                  <div className="text-red-400 opacity-80">[10:02:45] Lead "Juan Pérez" connected via WhatsApp</div>
+                  <div className="text-yellow-400 opacity-60">[10:05:00] Waiting for response...</div>
+                  <div className="text-yellow-400 opacity-40">[10:15:00] Still waiting...</div>
+                  <div className="text-red-500 font-bold">[10:20:00] ALERT: Lead Juan Pérez marked as LOST (No response)</div>
+                  <div className="pt-4 text-cyan-400 animate-pulse underline">$500 potential revenue vanished.</div>
                 </div>
-                {billing === 'annual'
-                  ? <div style={{ fontSize: 12, color: G, marginBottom: 4 }}>Ahorrás ${saving(plan)}/año</div>
-                  : <div style={{ fontSize: 12, color: '#4B5563', marginBottom: 4 }}>o ${plan.annual}/mes pagando anual</div>
-                }
-                <div style={{ height: 1, background: '#1E2530', margin: '1.25rem 0' }} />
-                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1.5rem' }}>
-                  {plan.features.map((feature) => (
-                    <li key={`${plan.name}-${feature}`} style={{ fontSize: 13, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: G, fontSize: 12 }}>✓</span>{feature}
-                    </li>
-                  ))}
-                </ul>
-                <button className={plan.highlight ? 'btn-g' : 'btn-o'} style={{ width: '100%' }} onClick={plan.name === 'Scale' ? activateDemoMode : goToLogin}>{plan.cta}</button>
               </div>
-            </FadeIn>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SOLUCIÓN SECTION ─── */}
+      <section className="py-40 px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-24">
+          <h2 className="text-5xl md:text-7xl font-black mb-8">
+            ALEX IO convierte conversaciones <br />
+            en <span className="text-[var(--accent-gold)]">ventas automáticamente.</span>
+          </h2>
+          <p className="text-xl text-[var(--text-secondary)] max-w-2xl mx-auto font-medium">
+            No es un chatbot rígido. Es una capa operativa de IA que:
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-8">
+          {[
+            { title: "Entiende Intención", desc: "No solo lee palabras, interpreta el deseo real del cliente.", icon: <Zap /> },
+            { title: "Responde con Contexto", desc: "Usa la historia de la conversación para respuestas precisas.", icon: <Layers /> },
+            { title: "Guía al Cierre", desc: "Empuja al cliente hacia la compra o agendamiento de forma natural.", icon: <Award /> },
+            { title: "Recupera Leads", desc: "Seguimiento inteligente a quienes dejaron de responder.", icon: <Repeat /> }
+          ].map((item, i) => (
+            <div key={i} className="p-10 glass-card border border-[var(--border)] hover:border-[var(--accent-gold)] transition-all group">
+              <div className="w-14 h-14 bg-[var(--accent-gold)]/10 rounded-2xl flex items-center justify-center text-[var(--accent-gold)] mb-8 group-hover:scale-110 transition-transform">
+                {item.icon}
+              </div>
+              <h3 className="text-xl font-black mb-4 uppercase tracking-tighter">{item.title}</h3>
+              <p className="text-[var(--text-secondary)] text-sm font-medium leading-relaxed">{item.desc}</p>
+            </div>
           ))}
         </div>
       </section>
 
-      <section style={{ padding: '100px 2rem', textAlign: 'center', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <h2 className="serif" style={{ fontSize: 'clamp(32px,5vw,56px)', lineHeight: 1.15, marginBottom: '1.5rem' }}>
-            Mientras vos dormís,<br />
-            <em style={{ color: G }}>tu empresa sigue creciendo.</em>
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 17 }}>No es el futuro. Ya está pasando — en 12 países, en 6 idiomas.</p>
-          <button className="btn-g" style={{ fontSize: 16, padding: '16px 36px' }} onClick={activateDemoMode}>Activar ALEX IO ahora →</button>
-          <p style={{ marginTop: '1.25rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos</p>
-        </FadeIn>
+      {/* ─── DEMO SECTION (CHAT VIVO) ─── */}
+      <section id="demo" className="py-32 px-6 bg-gradient-to-b from-transparent to-[var(--bg-secondary)]/20">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <span className="px-4 py-1 rounded-full bg-green-500/10 text-green-500 text-[10px] font-black tracking-widest uppercase mb-6 inline-block border border-green-500/20">
+              Modo Cierre Activo (6 preguntas)
+            </span>
+            <h2 className="text-4xl md:text-6xl font-black mb-4">Prueba a ALEX en vivo</h2>
+            <p className="text-[var(--text-secondary)] font-medium">En 6 interacciones, ALEX identifica tu potencial y empuja al cierre.</p>
+          </div>
+
+          <div className="glass-card border border-[var(--border)] overflow-hidden shadow-2xl max-w-2xl mx-auto">
+            {/* Chat Header */}
+            <div className="p-6 border-b border-[var(--border)] flex items-center justify-between bg-[var(--bg-primary)]/50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-[var(--accent-gold)] rounded-full flex items-center justify-center text-white font-black">A</div>
+                <div>
+                  <div className="text-sm font-black">ALEX IO — Agente AI</div>
+                  <div className="text-[10px] text-green-500 font-bold flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> EN LINEA
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--border)]" />
+                <div className="w-2 h-2 rounded-full bg-[var(--border)]" />
+              </div>
+            </div>
+
+            {/* Chat Body */}
+            <div className="h-[400px] overflow-y-auto p-6 space-y-6 bg-[var(--bg-primary)]/20">
+              {demoStep === -1 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                  <Bot size={48} className="text-[var(--accent-gold)] opacity-30" />
+                  <button 
+                    onClick={() => setDemoStep(0)}
+                    className="px-8 py-4 bg-[var(--accent-gold)] text-white rounded-xl font-black uppercase tracking-widest hover:scale-105 transition-all"
+                  >
+                    INICIAR DEMO DE CIERRE
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {demoQuestions.slice(0, demoStep + 1).map((q, i) => (
+                    <div key={i} className="space-y-4">
+                      {/* Bot Message */}
+                      <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="flex gap-3 max-w-[80%]"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-[var(--accent-gold)]/20 flex items-center justify-center text-[var(--accent-gold)] font-bold text-xs shrink-0">A</div>
+                        <div className="p-4 rounded-2xl rounded-tl-none bg-[var(--glass-bg)] border border-[var(--border)] text-sm font-medium">
+                          {q.text}
+                        </div>
+                      </motion.div>
+                      
+                      {/* User Message (If already answered) */}
+                      {demoData[q.id] && (
+                        <div className="flex justify-end">
+                          <div className="p-4 rounded-2xl rounded-tr-none bg-[var(--accent-gold)] text-white text-sm font-bold shadow-lg shadow-[var(--accent-gold-glow)]">
+                            {demoData[q.id]}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {isTyping && (
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[var(--accent-gold)]/20 flex items-center justify-center text-[var(--accent-gold)] font-bold text-xs shrink-0">A</div>
+                      <div className="p-4 rounded-2xl rounded-tl-none bg-[var(--glass-bg)] border border-[var(--border)] flex gap-1">
+                        <div className="w-1.5 h-1.5 bg-[var(--accent-gold)] rounded-full animate-bounce" />
+                        <div className="w-1.5 h-1.5 bg-[var(--accent-gold)] rounded-full animate-bounce [animation-delay:0.2s]" />
+                        <div className="w-1.5 h-1.5 bg-[var(--accent-gold)] rounded-full animate-bounce [animation-delay:0.4s]" />
+                      </div>
+                    </div>
+                  )}
+
+                  {demoStep === 6 && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-8 bg-green-500/10 border border-green-500/20 rounded-3xl text-center space-y-4"
+                    >
+                      <CheckCircle2 size={48} className="mx-auto text-green-500" />
+                      <h4 className="text-xl font-black">¡Diagnóstico Completado!</h4>
+                      <p className="text-sm text-[var(--text-secondary)] font-medium">He calificado tu negocio como ELITE. Estás listo para escalar a 10k mensajes/mes con ALEX.</p>
+                      <button 
+                        onClick={() => navigate('/login')}
+                        className="w-full py-4 bg-green-500 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-green-500/20"
+                      >
+                        ACTIVAR AHORA
+                      </button>
+                    </motion.div>
+                  )}
+                  <div ref={chatEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            {demoStep >= 0 && demoStep < 6 && (
+              <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/50">
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleDemoNext(e.target.input.value);
+                    e.target.reset();
+                  }}
+                  className="flex gap-3"
+                >
+                  <input 
+                    name="input"
+                    type="text" 
+                    placeholder={demoQuestions[demoStep].placeholder}
+                    className="flex-1 px-6 py-4 rounded-xl glass border border-[var(--border)] focus:border-[var(--accent-gold)] outline-none font-medium text-sm transition-all"
+                    autoFocus
+                  />
+                  <button className="w-12 h-12 bg-[var(--accent-gold)] text-white rounded-xl flex items-center justify-center hover:scale-105 transition-all">
+                    <ArrowRight size={20} />
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-12 flex justify-center gap-6">
+            <button 
+              onClick={() => setDemoStep(-1)}
+              className="text-[10px] font-black tracking-widest uppercase opacity-30 hover:opacity-100 transition-opacity"
+            >
+              Reiniciar Demo
+            </button>
+          </div>
+        </div>
       </section>
 
-      <footer style={{ borderTop: '1px solid #1E2530', padding: '1.75rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div className="serif" style={{ fontSize: 18 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
-          <a href="#">Privacidad</a>
-          <a href="#">Términos</a>
-          <a href="#">Contacto</a>
+      {/* ─── CANALES SECTION ─── */}
+      <section id="canales" className="py-32 px-6 border-y border-[var(--border)]">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-4xl md:text-6xl font-black mb-16">Funciona donde están <br /><span className="text-[var(--accent-gold)]">tus clientes:</span></h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-8">
+            {[
+              { icon: <MessageCircle />, name: "WhatsApp", color: "#25D366" },
+              { icon: <Instagram />, name: "Instagram", color: "#E4405F" },
+              { icon: <Facebook />, name: "Facebook", color: "#1877F2" },
+              { icon: <Music2 />, name: "TikTok", color: "#000000" },
+              { icon: <Share2 />, name: "Discord", color: "#5865F2" },
+              { icon: <Globe />, name: "Webchat", color: "var(--accent-gold)" }
+            ].map((channel, i) => (
+              <div key={i} className="flex flex-col items-center gap-4 group">
+                <div className="w-20 h-20 glass-card border border-[var(--border)] rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-500 relative overflow-hidden">
+                   <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity" style={{ backgroundColor: channel.color }} />
+                   <div className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors scale-125">{channel.icon}</div>
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest">{channel.name}</span>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-20 p-8 glass-card border border-[var(--accent-gold)]/20 inline-block">
+            <p className="text-lg font-black uppercase tracking-tighter">
+              Un solo cerebro, <span className="text-[var(--accent-gold)]">múltiples canales,</span> misma conversación.
+            </p>
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: '#374151' }}>© {currentYear} ALEX IO — Tu arquitecto de negocios & ventas IA</div>
-      </footer>
+      </section>
+
+      {/* ─── ARQUITECTURA ELITE SECTION ─── */}
+      <section id="arquitectura" className="py-40 px-6 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-20 items-center">
+          <div>
+            <span className="text-[var(--accent-gold)] font-black tracking-[0.3em] uppercase text-[10px] mb-6 block">Ingeniería de Alta Fidelidad</span>
+            <h2 className="text-4xl md:text-7xl font-black mb-8 leading-[0.9]">Arquitectura de ejecución para no caerse cuando más vendes.</h2>
+            <p className="text-[var(--text-secondary)] text-lg mb-12 font-medium">Traducción en vivo, continuidad de servicio y resiliencia de respuesta.</p>
+            
+            <div className="grid sm:grid-cols-2 gap-6">
+              {[
+                "Failover inteligente",
+                "Detección de idioma",
+                "Memoria contextual",
+                "RAG para respuestas",
+                "Auto-healing operativo",
+                "Observabilidad total"
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-[var(--accent-gold)]" />
+                  <span className="text-sm font-bold uppercase tracking-widest">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="relative">
+            <div className="glass-card p-10 border border-[var(--border)] relative overflow-hidden">
+               {/* Visual representation of architecture */}
+               <div className="space-y-4">
+                  {[
+                    { label: "Canal Inbound", type: "success" },
+                    { label: "Capa de Detección (Whisper/STT)", type: "process" },
+                    { label: "Orquestador ALEX Brain", type: "core" },
+                    { label: "Base de Conocimiento RAG", type: "data" },
+                    { label: "Failover Layer (GPT-4/Claude/Gemini)", type: "process" },
+                    { label: "Output Optimizado", type: "success" }
+                  ].map((layer, i) => (
+                    <div key={i} className={`p-4 border rounded-xl flex items-center justify-between font-mono text-[10px] uppercase tracking-widest ${
+                      layer.type === 'core' ? 'border-[var(--accent-gold)] bg-[var(--accent-gold)]/10 text-[var(--accent-gold)] font-black' : 'border-[var(--border)] opacity-60'
+                    }`}>
+                      {layer.label}
+                      <CheckCircle size={14} />
+                    </div>
+                  ))}
+               </div>
+               {/* Animated Pulse */}
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-[var(--accent-gold)]/20 rounded-full blur-3xl animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── INVERSIÓN SECTION ─── */}
+      <section id="inversion" className="py-40 px-6 bg-[var(--bg-secondary)] transition-colors duration-700">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-24">
+            <h2 className="text-5xl md:text-8xl font-black mb-8 leading-[0.95]">Inversión en Crecimiento</h2>
+            <div className="flex justify-center items-center gap-6 text-xs font-black tracking-[0.2em] uppercase">
+              <span className={billing === 'monthly' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] opacity-50'}>Facturación Mensual</span>
+              <button 
+                onClick={() => setBilling(b => b === 'monthly' ? 'annual' : 'monthly')}
+                className="w-16 h-8 bg-[var(--accent-gold)] rounded-full relative p-1 transition-all"
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-lg transition-transform duration-500 ${billing === 'annual' ? 'translate-x-8' : 'translate-x-0'}`} />
+              </button>
+              <span className={billing === 'annual' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] opacity-50'}>Anual (Save 20%)</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                name: 'Essential',
+                price: 97,
+                desc: '1 agente IA • 1.000 msgs • 1 canal',
+                features: ['Automatización base', 'Soporte vía Ticket', 'Dashboard Lite'],
+                cta: 'EMPEZAR'
+              },
+              {
+                name: 'Enterprise',
+                price: 197,
+                highlight: true,
+                desc: '5 agentes IA • 10.000 msgs • Multicanal',
+                features: ['CRM + Leads integrados', 'Auto-healing SRE', 'Asignación inteligente', 'Soporte Prioritario'],
+                cta: 'ESCALAR AHORA'
+              },
+              {
+                name: 'Prestige',
+                price: 397,
+                desc: 'Agentes ilimitados • Msgs escalables • Todo',
+                features: ['Cognición RAG avanzada', 'Onboarding Guante Blanco', 'Soporte Premium 24/7', 'Account Manager'],
+                cta: 'ACTIVAR TODO'
+              }
+            ].map((p, i) => (
+              <div key={p.name} className={`relative p-12 rounded-[40px] transition-all duration-700 ${p.highlight ? 'bg-[#050510] text-white shadow-2xl scale-105 border-2 border-[var(--accent-gold)]' : 'glass-card border border-[var(--border)]'}`}>
+                {p.highlight && <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-[var(--accent-gold)] text-white px-6 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase">Más Elegido</div>}
+                
+                <h3 className="text-3xl font-black mb-4 uppercase tracking-tighter" style={{ fontFamily: 'var(--font-title)' }}>{p.name}</h3>
+                <p className={`text-sm mb-10 font-bold ${p.highlight ? 'text-gray-400' : 'text-[var(--text-secondary)]'}`}>{p.desc}</p>
+                
+                <div className="text-6xl font-black mb-12 tracking-tighter" style={{ fontFamily: 'var(--font-title)' }}>
+                  <span className="text-2xl font-light opacity-50">$</span>
+                  {billing === 'monthly' ? p.price : Math.round(p.price * 0.8)}
+                  <span className="text-sm font-bold uppercase tracking-widest opacity-40"> /mes</span>
+                </div>
+                
+                <ul className="space-y-6 mb-16">
+                  {p.features.map(f => (
+                    <li key={f} className="flex items-center gap-4 text-sm font-medium">
+                      <CheckCircle2 size={18} className="text-[var(--accent-gold)]" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                
+                <button 
+                  onClick={() => navigate('/login')}
+                  className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] transition-all duration-500 ${
+                    p.highlight ? 'bg-[var(--accent-gold)] text-white hover:shadow-[0_0_40px_var(--accent-gold-glow)]' : 'border border-[var(--border)] hover:border-[var(--accent-gold)] hover:text-[var(--accent-gold)]'
+                  }`}
+                >
+                  {p.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-center mt-20">
+            <p className="text-[var(--text-secondary)] text-sm font-black uppercase tracking-widest opacity-50">Empieza hoy. Cancela cuando quieras.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── ROADMAP SECTION ─── */}
+      <section id="roadmap" className="py-40 px-6 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
+          <div>
+            <span className="text-[var(--accent-gold)] font-black tracking-[0.3em] uppercase text-[10px] mb-6 block">Visión 2026</span>
+            <h2 className="text-5xl md:text-7xl font-black leading-[0.9]">Roadmap v2</h2>
+          </div>
+          <div className="text-right">
+             <div className="text-sm font-black uppercase tracking-widest">Salida Objetivo</div>
+             <div className="text-3xl font-black text-[var(--accent-gold)]">Fines de Octubre 2026</div>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-12 relative">
+           {/* Connecting Line */}
+           <div className="hidden md:block absolute top-12 left-0 w-full h-[2px] bg-[var(--border)] z-0" />
+           
+           {[
+             { phase: "Fase 1", weeks: "Semanas 1–2", title: "Cimientos adaptativos", items: ["Preferencias por usuario", "Logs de interacción", "Eventos de accesibilidad"] },
+             { phase: "Fase 2", weeks: "Semanas 3–4", title: "Detection Layer", items: ["Whisper STT", "Detección de idioma", "Perfilado comportamiento"] },
+             { phase: "Fase 3", weeks: "Semanas 5–6", title: "AIO Engine", items: ["Selector de formato", "Respuesta por contexto", "TTS premium"] },
+             { phase: "Fase 4", weeks: "Semanas 7–8", title: "Lengua de señas", items: ["Hand Talk SDK", "ASL/LIBRAS/LSA", "Partner local"] }
+           ].map((step, i) => (
+             <div key={i} className="relative z-10 group">
+                <div className="w-24 h-24 bg-[var(--bg-primary)] border border-[var(--border)] rounded-full flex items-center justify-center mb-10 group-hover:border-[var(--accent-gold)] transition-all duration-500 shadow-xl">
+                   <div className="w-4 h-4 bg-[var(--accent-gold)] rounded-full group-hover:scale-150 transition-transform" />
+                </div>
+                <div className="text-[10px] font-black text-[var(--accent-gold)] tracking-widest uppercase mb-2">{step.phase} — {step.weeks}</div>
+                <h3 className="text-xl font-black mb-6 uppercase tracking-tighter">{step.title}</h3>
+                <ul className="space-y-3 opacity-60">
+                   {step.items.map(item => <li key={item} className="text-xs font-bold uppercase">• {item}</li>)}
+                </ul>
+             </div>
+           ))}
+        </div>
+      </section>
+
+      {/* ─── CIERRE / FOOTER ─── */}
+      <section className="relative py-40 px-6 overflow-hidden bg-[#050510] text-white">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_50%_50%,var(--accent-gold),transparent)]" />
+        
+        <div className="max-w-5xl mx-auto text-center relative z-10">
+          <h2 className="text-5xl md:text-8xl font-black mb-12 leading-tight">
+            ¿Cuántos clientes estás <br />
+            <span className="text-[var(--accent-gold)] italic">perdiendo hoy?</span>
+          </h2>
+          <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-16 font-medium">
+            Cada día sin ALEX IO es dinero que no vuelve. Automatiza conversación, seguimiento y cierre con una arquitectura lista para escalar.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-6 justify-center">
+             <button 
+                onClick={() => navigate('/login')}
+                className="px-12 py-6 bg-[var(--accent-gold)] text-white rounded-2xl font-black text-xl hover:scale-105 transition-all shadow-[0_20px_40px_rgba(197,160,40,0.4)]"
+             >
+                ACTIVAR ALEX IO
+             </button>
+             <button 
+                onClick={() => scrollToSection('demo')}
+                className="px-12 py-6 border border-white/20 rounded-2xl font-black text-xl hover:bg-white/10 transition-all"
+             >
+                VER DEMO
+             </button>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto mt-40 pt-20 border-t border-white/5 flex flex-col md:row justify-between items-center gap-12 relative z-10">
+          <div className="text-center md:text-left">
+            <div className="text-3xl font-black tracking-tighter mb-4">
+              ALEX <span className="text-[var(--accent-gold)] italic">IO</span>
+            </div>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest max-w-xs">
+              Arquitectos de negocios y ventas impulsados por inteligencia cognitiva.
+            </p>
+          </div>
+          
+          <div className="flex gap-12 text-[10px] font-black tracking-[0.3em] text-gray-500 uppercase">
+            <a href="#" className="hover:text-white transition-colors">Privacidad</a>
+            <a href="#" className="hover:text-white transition-colors">Términos</a>
+            <a href="#" className="hover:text-white transition-colors">Soporte</a>
+          </div>
+
+          <div className="text-gray-600 text-[10px] font-black uppercase tracking-widest">
+            © {new Date().getFullYear()} ALEX IO SYSTEMS. DISEÑADO PARA EL ÉXITO.
+          </div>
+        </div>
+      </section>
+
+      {/* Global Style Adjustments for the new V2 landing */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,900;1,900&family=Instrument+Sans:wght@400;600;700;800&display=swap');
+        
+        :root {
+          --font-title: 'Playfair Display', serif;
+          --font-body: 'Instrument Sans', sans-serif;
+          --accent-gold: #C5A028;
+          --accent-gold-glow: rgba(197, 160, 40, 0.4);
+        }
+
+        .glass {
+          background: rgba(var(--glass-rgb, 255, 255, 255), 0.1);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        [data-theme="onyx"] {
+          --glass-rgb: 0, 0, 0;
+        }
+        
+        [data-theme="silver"] {
+          --glass-rgb: 255, 255, 255;
+        }
+
+        .glass-card {
+          background: var(--glass-bg);
+          backdrop-filter: blur(40px);
+          border: 1px solid var(--glass-border);
+          border-radius: 32px;
+          transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .glass-card:hover {
+          transform: translateY(-8px);
+          border-color: var(--accent-gold);
+          box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: var(--accent-gold);
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
-}
+};
+
+export default LandingPage;
+

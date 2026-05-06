@@ -19,14 +19,23 @@ export const useSubscription = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
         const fetchData = async () => {
             try {
-                const res = await fetch('/api/saas/subscription/usage');
-                if (!res.ok) throw new Error('Failed to fetch subscription');
-                const data = await res.json();
-                
-                setPlan(data.plan);
-                setUsage(data.usage);
+                const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const res = await fetch('/api/saas/subscription/usage', { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.plan) setPlan(data.plan);
+                    if (data.usage) setUsage(data.usage);
+                }
             } catch (err) {
                 console.error("Error fetching subscription data:", err);
             } finally {
@@ -38,16 +47,9 @@ export const useSubscription = () => {
     }, [user]);
 
     const checkLimit = (type: 'bots' | 'messages') => {
-        if (!plan) return true; // Fail safe
-
-        if (type === 'bots') {
-            return usage.bot_count < plan.max_bots;
-        }
-
-        if (type === 'messages') {
-            return usage.messages_sent < plan.max_messages_monthly;
-        }
-
+        if (!plan) return true;
+        if (type === 'bots') return usage.bot_count < plan.max_bots;
+        if (type === 'messages') return usage.messages_sent < plan.max_messages_monthly;
         return true;
     };
 

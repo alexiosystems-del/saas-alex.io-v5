@@ -11,10 +11,28 @@ const fs = require('fs');
 
 // --- CONFIGURATION ---
 const app = express();
-app.set('trust proxy', 1); // Trust Render's load balancer (1 hop)
+const http = require('http');
+const { Server } = require('socket.io');
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: true,
+        credentials: true
+    }
+});
+
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
+// Inject Socket.io into services
+const whatsappService = require('./services/whatsappClient');
+whatsappService.setSocket(io);
+
+const { setSocket: setSaasSocket } = require('./services/whatsappSaas');
+setSaasSocket(io);
+
 logger.info('✅ Express trust proxy enabled');
 
 // --- SECURITY MIDDLEWARES ---
@@ -27,6 +45,20 @@ const botPool = require('./services/botPoolRouter');
 
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
+
+// Socket.io Auth Middleware
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication error: Token missing'));
+    try {
+        const decoded = jwt.verify(token, getJwtSecret());
+        socket.tenant = decoded;
+        next();
+    } catch (err) {
+        next(new Error('Authentication error: Invalid token'));
+    }
+});
+
 let limiterStore = undefined;
 
 if (isRedisEnabled) {
@@ -69,24 +101,35 @@ const tenantLimiter = rateLimit({
 app.use(globalLimiter);
 app.use(requestLogger);
 
-// --- SECURE CORS (PHASE 0) ---
+// --- SECURE CORS (PHASE 1) ---
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
 
-// Auto-include common Render URLs if not explicitly set
+// Default fallback for common URLs
 if (allowedOrigins.length === 0) {
     allowedOrigins.push(
         'https://whatsapp-fullstack-ylsx.onrender.com',
-        'https://whatsapp-fullstack-1-yjao.onrender.com',
-        'http://localhost:5173',
-        'http://localhost:3000'
+        'https://whatsapp-fullstack-1-yjao.onrender.com'
     );
+    // Localhost only in non-production
+    if (process.env.NODE_ENV !== 'production') {
+        allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+    }
 }
 
-// --- CORS CONFIGURATION (PERMISSIVE UNTIL STRICT LIST VALIDATED) ---
 app.use(cors({
-    origin: true,
+    origin: (origin, callback) => {
+        // Permitir peticiones sin origen (como apps móviles o curl)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
+            callback(null, true);
+        } else {
+            console.warn(`🔒 [CORS] Bloqueado origen no permitido: ${origin}`);
+            callback(new Error('No permitido por CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
@@ -98,7 +141,7 @@ app.use(helmet({
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "img-src": ["'self'", "data:", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com"],
-            "connect-src": ["'self'", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com", "https://*.openai.com"]
+            "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.onrender.com", "wss://*.onrender.com", "https://*.google.com", "https://*.openai.com", ...(process.env.NODE_ENV !== 'production' ? ["ws://localhost:*"] : [])]
         }
     }
 }));
@@ -684,7 +727,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- START SERVER ---
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
     logger.info(`🧠 AI Brain Listo... backend está esperando, 50 sin drama`);

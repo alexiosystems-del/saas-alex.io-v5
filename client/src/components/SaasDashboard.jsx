@@ -20,7 +20,10 @@ import {
   Send,
   Cloud,
   Book,
-  TrendingUp
+  TrendingUp,
+  QrCode,
+  Sun,
+  Moon
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
@@ -31,7 +34,16 @@ import CrmProTab from './CrmProTab';
 import SettingsTab from './SettingsTab';
 import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
-import KnowledgeTab from './KnowledgeTab';
+import KnowledgeBase from './KnowledgeBase';
+import WhatsAppConnect from './WhatsAppConnect';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+};
 
 const SaasDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -40,6 +52,13 @@ const SaasDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedBotId, setSelectedBotId] = useState(null);
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'onyx');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'onyx' ? 'silver' : 'onyx');
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
@@ -49,6 +68,7 @@ const SaasDashboard = () => {
     { id: 'campaigns', label: 'Growth Campaigns', icon: Send },
     { id: 'intelligence', label: 'Analytics SRE', icon: BarChart3 },
     { id: 'config', label: 'Connectors', icon: Cloud },
+    { id: 'whatsapp', label: 'WhatsApp QR', icon: QrCode },
     { id: 'billing', label: 'Premium Billing', icon: CreditCard },
   ];
 
@@ -60,14 +80,13 @@ const SaasDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/saas/bots');
+      const res = await fetch('/api/saas/bots', { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      
-      const botsList = data.bots || [];
+      const botsList = data.bots || data || [];
       setBots(botsList);
       if (botsList.length > 0 && !selectedBotId) {
-        setSelectedBotId(botsList[0].id);
+        setSelectedBotId(botsList[0].instance_id || botsList[0].id);
       }
     } catch (err) {
       console.error('Error fetching bots:', err);
@@ -80,13 +99,14 @@ const SaasDashboard = () => {
   const handleDeleteBot = async (botId) => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      const res = await fetch(`/api/saas/bots/${botId}`, {
-        method: 'DELETE'
+      const res = await fetch(`/api/saas/bots/${instanceId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setBots(bots.filter(b => b.id !== botId));
+      setBots(bots.filter(b => (b.instance_id || b.id) !== instanceId));
     } catch (e) {
-      alert('Error al eliminar bot: ' + e.message);
+      alert('Error al eliminar: ' + e.message);
     }
   };
 
@@ -95,13 +115,15 @@ const SaasDashboard = () => {
       case 'intelligence':
         return <EnterpriseAnalytics />;
       case 'knowledge':
-        return <KnowledgeTab />;
+        return <KnowledgeBase instanceId={selectedBotId} tenantId={localStorage.getItem('alex_io_tenant')} />;
       case 'leads':
         return <CrmProTab />;
       case 'billing':
         return <BillingTab />;
       case 'settings':
         return <SettingsTab />;
+      case 'whatsapp':
+        return <WhatsAppConnect />;
       case 'livechat':
         return <LiveChat instanceId={selectedBotId} />;
       case 'campaigns':
@@ -119,20 +141,28 @@ const SaasDashboard = () => {
             }}
             onSave={async () => {
               try {
-                const draft = bots.find(b => b.id === selectedBotId);
+                const draft = bots.find(b => (b.instance_id || b.id) === selectedBotId);
                 if (!draft) return;
-                
-                const res = await fetch(`/api/saas/bots/${draft.id}`, {
+
+                const res = await fetch(`/api/saas/bots/${draft.instance_id || draft.id}`, {
                   method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: getAuthHeaders(),
                   body: JSON.stringify({
-                    name: draft.name,
-                    prompt: draft.prompt,
-                    voice_enabled: draft.voice_enabled,
+                    name: draft.name || draft.company_name,
+                    prompt: draft.customPrompt,
+                    voice_enabled: draft.voiceEnabled,
+                    voice: draft.voice,
+                    provider: draft.provider,
                     industry: draft.industry,
-                    objective: draft.objective
+                    objective: draft.objective,
+                    target_language: draft.target_language
                   })
                 });
+
+                if (!res.ok) {
+                  const errData = await res.json();
+                  throw new Error(errData.error || `HTTP ${res.status}`);
+                }
 
                 if (!res.ok) {
                   const errData = await res.json();
@@ -155,12 +185,22 @@ const SaasDashboard = () => {
                 <div className="flex items-center gap-3 mb-2">
                     <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-black uppercase tracking-widest">SRE_COMMAND_CENTER_V6.0</span>
                 </div>
-                <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Neural Command Center <span className="text-indigo-500">🔱</span></h1>
+                <h1 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter uppercase italic" style={{ fontFamily: 'var(--font-title)' }}>
+                  Neural Command Center <span className="text-[var(--accent-gold)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
+                </h1>
+                <p className="text-[var(--text-secondary)] mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
               </div>
               <div className="flex gap-4">
+                  <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl px-6 py-4 shadow-xl">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Carga Neural Total</p>
+                      <div className="flex items-center gap-3">
+                          <span className="text-2xl font-black text-[var(--text-primary)]">{(totalMessages / 1000).toFixed(1)}k</span>
+                          <TrendingUp size={16} className="text-emerald-500" />
+                      </div>
+                  </div>
                   <button 
                     onClick={() => setShowWizard(true)}
-                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-indigo-600/30 active:scale-95 group"
+                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold-hover)] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-gold-600/30 active:scale-95 group border-none"
                   >
                     <Plus size={20} className="group-hover:rotate-90 transition-transform" />
                     Inicializar Agente
@@ -230,38 +270,63 @@ const SaasDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden font-sans">
       {/* Sidebar */}
-      <div className="w-72 bg-slate-950 border-r border-white/5 flex flex-col">
-        <div className="p-10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center">
-            <Zap className="text-white" fill="currentColor" size={28} />
-          </div>
-          <div>
-            <span className="text-2xl font-black text-white tracking-tighter">ALEX<span className="text-blue-500">IO</span></span>
-          </div>
-        </div>
-        <nav className="flex-1 px-6 space-y-2">
-          {sidebarItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'}`}
-            >
-              <item.icon size={20} />
-              <span className="font-bold text-sm">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+      <div className="w-80 glass-sidebar flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl z-20">
         <div className="p-8">
-          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-600 hover:text-rose-400 hover:bg-rose-400/5 rounded-2xl transition-all font-bold text-sm">
-            <LogOut size={18} /> Deauthorize
+          <div className="flex items-center gap-3 mb-10 group cursor-pointer" onClick={toggleTheme}>
+            <div className="w-12 h-12 bg-gradient-to-br from-[var(--accent-gold)] to-[var(--accent-gold-hover)] rounded-2xl flex items-center justify-center shadow-lg shadow-gold-500/30 group-hover:scale-110 transition-transform">
+              {theme === 'onyx' ? <Sun size={28} className="text-white" /> : <Moon size={28} className="text-white" />}
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter italic" style={{ fontFamily: 'var(--font-title)' }}>
+                ALEX <span className="text-[var(--accent-gold)]">IO</span>
+              </h2>
+              <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-[0.3em]">
+                {theme === 'onyx' ? 'Onyx Black' : 'Silver Luxury'}
+              </p>
+            </div>
+          </div>
+
+          <nav className="space-y-2">
+            {sidebarItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm ${
+                  activeTab === item.id 
+                  ? 'bg-[var(--accent-gold)] text-white shadow-lg shadow-gold-500/30 translate-x-2' 
+                  : 'text-slate-500 hover:text-[var(--accent-gold)] hover:bg-[var(--accent-gold)]/10'
+                }`}
+              >
+                <item.icon size={20} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="mt-auto p-8">
+          <div className="bg-[var(--bg-card)] p-5 rounded-3xl border border-[var(--border)] mb-8 shadow-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Load</span>
+            </div>
+            <p className="text-sm font-bold text-[var(--text-primary)]">Enterprise Elite</p>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full mt-4 overflow-hidden">
+              <div className="h-full bg-[var(--accent-gold)]" style={{ width: '62%' }} />
+            </div>
+          </div>
+
+          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all font-bold text-sm group">
+            <LogOut size={18} />
+            Cerrar Sesión
           </button>
         </div>
       </div>
 
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto">
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
         <div className="max-w-[1400px] mx-auto min-h-full">
           {renderContent()}
         </div>
@@ -269,44 +334,44 @@ const SaasDashboard = () => {
 
       {/* Wizard Modal */}
       {showWizard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-2xl">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowWizard(false)} />
-          <div className="relative w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-md bg-black/40">
+          <div className="absolute inset-0" onClick={() => setShowWizard(false)} />
+          <div className="relative w-full max-w-4xl bg-[var(--bg-primary)] border border-[var(--border)] rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+            <div className="absolute top-8 right-8 z-20">
+              <button 
+                onClick={() => setShowWizard(false)}
+                className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-slate-500 transition-colors border border-[var(--border)]"
+              >
+                <Plus size={24} className="rotate-45" />
+              </button>
+            </div>
             <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
               <EnterpriseWizard 
                 onSave={async (data) => {
                   try {
-                    const generatedPrompt = `Eres un asistente experto en ${data.industry || 'Negocios'}.
-NEGOCIO: ${data.businessName || 'ALEX IO'}
-CLIENTE IDEAL: ${data.targetCustomer || 'Público General'}
-PRODUCTOS: ${data.products || 'Servicios Varios'}
-ESTILO: ${data.salesStyle || 'Consultivo'}
-TONO: ${data.tone || 'Profesional'}
-OBJETIVO: ${data.goal || 'Cerrar Ventas'}
-
-REGLAS:
-- Responde claro y corto (máx 50 palabras).
-- Prioriza cerrar la intención del usuario.
-- Usa lenguaje natural y empático.
-- Si no sabes la respuesta, deriva a un humano.
-- No inventes datos técnicos o precios no mencionados.`;
-
                     const payload = {
-                      name: data.businessName || 'Nuevo Bot',
-                      prompt: generatedPrompt,
+                      name: data.botName || 'Nuevo Bot',
+                      prompt: data.systemPrompt || `Eres un asistente experto.`,
                       tone: data.tone || 'professional',
                       industry: data.industry || 'general',
                       objective: data.goal || 'assist customers',
                       voice_enabled: data.voiceEnabled === true,
-                      translation_enabled: false,
+                      voice: data.voice || 'nova',
                       channel: data.provider || 'baileys',
-                      identity: data.businessName,
-                      strategy: data.salesStyle
+                      target_language: data.targetLanguage || 'es',
+                      accessToken: data.accessToken,
+                      d360ApiKey: data.d360ApiKey,
+                      discordToken: data.discordToken,
+                      tiktokAccessToken: data.tiktokAccessToken,
+                      tiktokSellerId: data.tiktokSellerId,
+                      manychatToken: data.manychatToken,
+                      identity: data.botName,
+                      strategy: data.salesStyle || 'consultive'
                     };
 
                     const res = await fetch('/api/saas/bots', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: getAuthHeaders(),
                       body: JSON.stringify(payload)
                     });
 
@@ -315,9 +380,10 @@ REGLAS:
 
                     setShowWizard(false); 
                     fetchBots();
-                    alert(`Bot "${result.bot.name}" creado exitosamente.`);
+                    alert(`Agente "${result.bot?.name || payload.name}" inicializado.`);
                   } catch (e) {
-                    alert('Error al crear bot: ' + e.message);
+                    console.error('Error creating bot:', e);
+                    alert('Error: ' + e.message);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
@@ -326,11 +392,6 @@ REGLAS:
           </div>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-      `}} />
     </div>
   );
 };

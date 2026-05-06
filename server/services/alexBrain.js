@@ -129,23 +129,39 @@ const MODEL_COST_PER_1K = {
 };
 const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
-function detectLanguage(text = '', history = []) {
+function detectLanguage(text = '', history = [], forcedLanguage = '') {
+    const forced = String(forcedLanguage || '').trim().toLowerCase();
+    const supported = ['es', 'en', 'pt', 'fr', 'de', 'it', 'zh', 'hi', 'ar'];
+    if (supported.includes(forced)) return forced;
+
     const recentHistory = (history || [])
-        .slice(-6)
+        .slice(-8)
         .filter(h => h && h.role === 'user')
         .map(h => h.content || h.text || '')
         .join(' ');
     const sample = `${String(text || '')} ${recentHistory}`.trim().toLowerCase();
     if (!sample) return 'es';
 
-    const spanishSignals = [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde'];
-    const englishSignals = [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how'];
-    const score = (signals) => signals.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
-    
-    const es = score(spanishSignals);
-    const en = score(englishSignals);
-    if (en > es) return 'en';
-    return 'es';
+    const signals = {
+        es: [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde', 'precio', 'cuánto'],
+        en: [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how', 'price'],
+        pt: [' não ', ' você ', ' obrigado', ' olá', ' preciso', ' quero', ' para ', ' preço', 'quanto custa'],
+        fr: [' bonjour', ' merci', ' je ', ' vous ', ' avec ', ' prix ', ' combien', ' besoin'],
+        de: [' hallo', ' danke', ' ich ', ' und ', ' mit ', ' preis', ' brauche'],
+        it: [' ciao', ' grazie', ' io ', ' con ', ' precio', ' quanto costa'],
+        zh: ['你好', '谢谢', '多少钱', '需要', '要', '在哪'],
+        hi: ['नमस्ते', 'धन्यवाद', 'कितना', 'चाहिए', 'कहाँ'],
+        ar: ['مرحبا', 'شكرا', 'كم', 'اين', 'اريد']
+    };
+
+    const score = (tokens) => tokens.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
+    const ranked = Object.entries(signals)
+        .map(([lang, tokens]) => [lang, score(tokens)])
+        .sort((a, b) => b[1] - a[1]);
+
+    const [bestLang, bestScore] = ranked[0] || ['es', 0];
+    if (bestScore === 0) return 'es';
+    return bestLang;
 }
 
 function getVoiceForLanguage(lang, configuredVoice) {
@@ -342,7 +358,7 @@ console.log(`🧠 [CASCADE] Inicializando Cerebro:`);
 console.log(`   - Gemini: ${mask(GEMINI_KEY)}`);
 console.log(`   - OpenAI: ${mask(OPENAI_KEY)} (CRÍTICO PARA VOZ Y FALLBACK)`);
 console.log(`   - DeepSeek: ${mask(DEEPSEEK_KEY)}`);
-console.log(`   - Anthropic/Claude: ${mask(ANTHROPIC_KEY)} (AUDITORÍA DE COMPLIANCE)`);
+console.log(`   - Claude/Anthropic: ${mask(ANTHROPIC_KEY)} (CASCADA + AUDITORÍA DE COMPLIANCE)`);
 
 /**
  * ORCHESTRATOR: Response Quality Evaluator (Hardened V1)
@@ -405,6 +421,24 @@ function chooseModel(inputLength) {
   return 'gpt';
 }
 
+function isCascadeProviderReady(providerId) {
+  const readiness = {
+    gemini: Boolean(GEMINI_KEY) && circuitBreaker.isAvailable('GEMINI'),
+    gpt: Boolean(OPENAI_KEY) && circuitBreaker.isAvailable('OPENAI'),
+    claude: Boolean(ANTHROPIC_KEY) && circuitBreaker.isAvailable('ANTHROPIC'),
+    deepseek: Boolean(DEEPSEEK_KEY) && circuitBreaker.isAvailable('DEEPSEEK'),
+    minimax: Boolean(MINIMAX_KEY) && circuitBreaker.isAvailable('MINIMAX')
+  };
+  return Boolean(readiness[providerId]);
+}
+
+function getCascadeModelOrder(preferredModel) {
+  const ordered = [preferredModel, ...(['gemini', 'gpt', 'claude', 'deepseek', 'minimax'].filter(m => m !== preferredModel))];
+  const available = ordered.filter(isCascadeProviderReady);
+  const skipped = ordered.filter(m => !isCascadeProviderReady(m));
+  return { ordered, available, skipped };
+}
+
 /**
  * ARCHITECTURE: Smart Router (V6 Hardened - V1 Base)
  */
@@ -424,7 +458,7 @@ async function chat(message, history = [], botConfig = {}, metadata = {}) {
         try {
             console.log(`🧠 [MODO DIOS] Intentando con ${currentModel} (Intento ${attempts + 1})`);
             // Nota: Aquí llamamos a generateResponse u otra función interna según la arquitectura
-            response = await generateResponse({ message, history, botConfig });
+            response = await generateResponse({ message, history, botConfig, metadata });
             
             const qualityScore = auditResponseQuality(response, botConfig);
             
@@ -451,7 +485,7 @@ function auditResponseQuality(text, config) {
     return score;
 }
 
-async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
+async function generateResponse({ message, history = [], botConfig = {}, metadata = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
     const provider = botConfig.provider || 'baileys';
@@ -562,7 +596,8 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         return null;
     }
 
-    const detectedLanguage = detectLanguage(message, history);
+    const forcedLanguage = metadata?.language || metadata?.userLanguage || botConfig?.language || botConfig?.default_language || '';
+    const detectedLanguage = detectLanguage(message, history, forcedLanguage);
     // Force conciseness
     systemPrompt += `\n\nREGLA ESTRICTA: Tu respuesta DEBE tener como MÁXIMO ${maxWords} palabras. Sé muy conciso y directo.`;
     systemPrompt += `\n\nREGLA DE IDIOMA: Detecta el idioma del usuario y responde en ese idioma. Idioma detectado para este turno: ${detectedLanguage}.`;
@@ -643,9 +678,12 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         }}
     };
 
-    // Reorder cascade based on cost optimizer
-    const modelOrder = [preferredModel, ...(['gemini', 'gpt', 'claude', 'deepseek', 'minimax'].filter(m => m !== preferredModel))];
-    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]);
+    // Reorder cascade based on cost optimizer and skip providers without configured keys/circuit availability.
+    const { available: modelOrder, skipped: skippedModels } = getCascadeModelOrder(preferredModel);
+    if (skippedModels.length > 0) {
+        console.warn(`⚠️ [CASCADE] Proveedores omitidos por falta de key/circuit breaker: ${skippedModels.join(', ')}`);
+    }
+    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]).filter(Boolean);
 
     let responseText = '';
     let usedModel = '';
@@ -1062,8 +1100,14 @@ function getAiDiagnostics() {
         openai: { configured: !!(OPENAI_KEY && OPENAI_KEY.length > 10), masked: mask(OPENAI_KEY), dead: deadKeys.has('OPENAI'), last_error: providerLastError['OPENAI'] || null },
         deepseek: { configured: !!(DEEPSEEK_KEY && DEEPSEEK_KEY.length > 10), masked: mask(DEEPSEEK_KEY), dead: deadKeys.has('DEEPSEEK'), last_error: providerLastError['DEEPSEEK'] || null },
         minimax: { configured: !!(MINIMAX_KEY && MINIMAX_KEY.length > 10), dead: deadKeys.has('MINIMAX') },
-        anthropic: { configured: !!(ANTHROPIC_KEY && ANTHROPIC_KEY.length > 10), masked: mask(ANTHROPIC_KEY), dead: deadKeys.has('ANTHROPIC') },
+        anthropic: { configured: !!(ANTHROPIC_KEY && ANTHROPIC_KEY.length > 10), masked: mask(ANTHROPIC_KEY), dead: deadKeys.has('ANTHROPIC'), last_error: providerLastError['ANTHROPIC'] || null },
         budgets_usd: normalizedBudgets,
+        cascade: {
+            preferred_short: chooseModel(25),
+            preferred_medium: chooseModel(120),
+            order_if_short: getCascadeModelOrder(chooseModel(25)),
+            order_if_medium: getCascadeModelOrder(chooseModel(120))
+        },
         smart_router: { budget_per_request: BUDGET_PER_REQUEST, costs: MODEL_COST_PER_1K },
         cache: global.responseCache ? global.responseCache.getStats() : null
     };

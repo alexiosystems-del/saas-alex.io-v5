@@ -45,14 +45,20 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
     const [copiedToken, setCopiedToken] = useState(false);
     const [showToken, setShowToken] = useState(false);
     const [channelWizard, setChannelWizard] = useState('instagram');
+    const [localPrompt, setLocalPrompt] = useState(configDraft.customPrompt || '');
 
     useEffect(() => {
-        if (configDraft?.customPrompt?.length > 50) {
+        setLocalPrompt(configDraft.customPrompt || '');
+    }, [configDraft.customPrompt]);
+
+    useEffect(() => {
+        const prompt = configDraft?.customPrompt || configDraft?.prompt || configDraft?.custom_prompt || '';
+        if (prompt.length > 10 || selected?.instance_id || selected?.id) {
             setPhase('advanced');
         } else {
             setPhase('select');
         }
-    }, [selected?.id]);
+    }, [selected?.id, selected?.instance_id]);
 
     const renderSelect = () => (
         <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
@@ -112,12 +118,27 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     <h3 className="font-bold text-sm mb-4 flex items-center gap-2" style={{ color: C.text }}>
                         <Bot size={16} style={{ color: C.indigo }} /> Identidad del Bot
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Nombre Público</label>
                             <input className="w-full rounded-xl p-3 text-sm focus:outline-none transition-all"
                                 style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
                                 value={configDraft.name || ''} onChange={e => setConfigDraft(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Idioma Nativo</label>
+                            <select className="w-full rounded-xl p-3 text-sm focus:outline-none appearance-none"
+                                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+                                value={configDraft.target_language || 'es'} onChange={e => setConfigDraft(p => ({ ...p, target_language: e.target.value }))}>
+                                <option value="es">Español</option>
+                                <option value="en">English</option>
+                                <option value="fr">Français</option>
+                                <option value="de">Deutsch</option>
+                                <option value="zh">Mandarin</option>
+                                <option value="hi">Hindi</option>
+                                <option value="ar">Arabic</option>
+                                <option value="pt">Português</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Voz y Síntesis</label>
@@ -159,10 +180,13 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                     </div>
                     <textarea className="w-full rounded-xl p-4 text-sm resize-none h-64 focus:outline-none font-mono leading-relaxed"
                         style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
-                        value={configDraft.customPrompt || ''} onChange={e => setConfigDraft(p => ({ ...p, customPrompt: e.target.value }))} />
+                        value={localPrompt} 
+                        onChange={e => setLocalPrompt(e.target.value)}
+                        onBlur={() => setConfigDraft(p => ({ ...p, customPrompt: localPrompt }))}
+                    />
                     <div className="mt-3 flex justify-between items-center">
                         <p className="text-[10px] text-slate-500 italic">Este prompt define la personalidad, límites y objetivos comerciales de tu bot.</p>
-                        <span className="text-[10px] font-bold text-slate-600">{(configDraft.customPrompt || '').length} caracteres</span>
+                        <span className="text-[10px] font-bold text-slate-600">{localPrompt.length} caracteres</span>
                     </div>
                 </div>
 

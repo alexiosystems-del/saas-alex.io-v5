@@ -81,7 +81,7 @@ const SuperAdminDashboard = () => {
             if (response.ok && data.clients) {
                 const totalMsgs = data.clients.reduce((acc: number, c: any) => acc + (c.usage?.messages_sent || 0), 0);
                 const allBots = data.clients.flatMap((c: any) => c.bots || []);
-                const revMap: Record<string, number> = { 'PRO': 29.99, 'ENTERPRISE': 99.99, 'FREE': 0 };
+                const revMap: Record<string, number> = { 'STARTER': 9.99, 'PRO': 29.99, 'SCALE': 99.99, 'ENTERPRISE': 99.99, 'FREE': 0 };
                 const revenue = data.clients.reduce((acc: number, c: any) => acc + (revMap[c.plan?.toUpperCase()] || 0), 0);
                 let totalCost = 0;
                 allBots.forEach((b: any) => { if (b.ai_usage) { totalCost += (b.ai_usage.openai?.tokens || 0) / 1e6 * 0.60; totalCost += (b.ai_usage.deepseek?.tokens || 0) / 1e6 * 0.28; } });
@@ -225,7 +225,7 @@ const SuperAdminDashboard = () => {
                             { name: 'Gemini', key: 'gemini', color: '#4285F4', icon: '🔷' },
                             { name: 'OpenAI', key: 'openai', color: '#10a37f', icon: '🟢' },
                             { name: 'DeepSeek', key: 'deepseek', color: T.purple, icon: '🟣' },
-                            { name: 'Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
+                            { name: 'Claude / Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
                         ].map(provider => {
                             const info = aiDiag[provider.key];
                             if (!info) return null;
@@ -353,11 +353,22 @@ const SuperAdminDashboard = () => {
                                             </div>
                                         </td>
                                         <td style={{ padding: '14px 24px' }}>
-                                            <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-                                                background: client.plan === 'ENTERPRISE' ? 'rgba(167,139,250,0.15)' : client.plan === 'PRO' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)',
-                                                color: client.plan === 'ENTERPRISE' ? T.purple : client.plan === 'PRO' ? T.warning : T.textDim,
-                                                border: `1px solid ${client.plan === 'ENTERPRISE' ? 'rgba(167,139,250,0.3)' : client.plan === 'PRO' ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                                            }}>{client.plan || 'FREE'}</span>
+                                            {(() => {
+                                                const rawPlan = (client.plan || 'FREE').toUpperCase();
+                                                const planName = rawPlan === 'ENTERPRISE' ? 'SCALE' : rawPlan;
+                                                const planStyles: Record<string, { bg: string; color: string; border: string }> = {
+                                                    SCALE: { bg: 'rgba(167,139,250,0.15)', color: T.purple, border: 'rgba(167,139,250,0.3)' },
+                                                    PRO: { bg: 'rgba(245,158,11,0.15)', color: T.warning, border: 'rgba(245,158,11,0.3)' },
+                                                    STARTER: { bg: 'rgba(34,197,94,0.15)', color: T.success, border: 'rgba(34,197,94,0.3)' },
+                                                    FREE: { bg: 'rgba(255,255,255,0.06)', color: T.textDim, border: 'rgba(255,255,255,0.1)' },
+                                                };
+                                                const s = planStyles[planName] || planStyles.FREE;
+                                                return (
+                                                    <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
+                                                        background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+                                                    }}>{planName}</span>
+                                                );
+                                            })()}
                                         </td>
                                         <td style={{ padding: '14px 24px' }}>
                                             <div style={{ width: 90 }}>
@@ -425,6 +436,7 @@ const SuperAdminDashboard = () => {
                                                                         { name: 'Gemini', color: T.accentLight, data: botDetails.ai_usage?.gemini, cost: botDetails.estimated_costs?.gemini },
                                                                         { name: 'OpenAI', color: T.success, data: botDetails.ai_usage?.openai, cost: botDetails.estimated_costs?.openai },
                                                                         { name: 'DeepSeek', color: T.purple, data: botDetails.ai_usage?.deepseek, cost: botDetails.estimated_costs?.deepseek },
+                                                                        { name: 'Claude', color: T.warning, data: botDetails.ai_usage?.anthropic || botDetails.ai_usage?.claude, cost: botDetails.estimated_costs?.anthropic || botDetails.estimated_costs?.claude },
                                                                     ].map(m => (
                                                                         <div key={m.name} style={glassCard({ padding: 14 })}>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}><Zap size={13} style={{ color: m.color }} /><span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{m.name}</span></div>

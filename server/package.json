@@ -8,7 +8,9 @@
     "dev": "node index.js",
     "lint": "node --check index.js middleware/auth.js services/whatsappSaas.js services/alexBrain.js",
     "test": "node --test tests/*.test.js",
-    "hubspot:check": "node scripts/check-hubspot-connection.js"
+    "hubspot:check": "node scripts/check-hubspot-connection.js",
+    "platform:check": "node scripts/check-platform-readiness.js",
+    "frontend:csp:check": "node scripts/diagnose-frontend-csp.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
