@@ -25,9 +25,10 @@ async function provision() {
             let { data: existing } = await supabaseAdmin.from('bots').select('id').eq('name', botName).maybeSingle();
             
             let botId;
+            let tenantId = '3fe010bd-bfd3-4865-8a49-4a8e28abb4c7'; // Official System Tenant
             if (existing) {
                 botId = existing.id;
-                console.log(`   Found existing: ${botId}`);
+                console.log(`   Found existing: ${botId} (Tenant: ${tenantId})`);
             } else {
                 const { data: botData, error: bErr } = await supabaseAdmin
                     .from('bots')
@@ -36,7 +37,8 @@ async function provision() {
                         status: 'active',
                         industry: 'Enterprise',
                         objective: 'Sales Conversion',
-                        tone: 'professional'
+                        tone: 'professional',
+                        tenant_id: tenantId
                     })
                     .select()
                     .single();
@@ -45,21 +47,25 @@ async function provision() {
                 console.log(`   Created new: ${botId}`);
             }
 
-            // 2. Sync Bot Config
-            const { error: cErr } = await supabaseAdmin
-                .from('bot_configs')
+            // 2. Sync BIC Profile (Fase 2 Architecture)
+            const { error: pErr } = await supabaseAdmin
+                .from('bot_initiator_profile')
                 .upsert({
                     bot_id: botId,
-                    channel: 'whatsapp',
-                    config: {
-                        model_cascade: ['gemini', 'gpt', 'claude'],
-                        voiceMode: 'always'
-                    }
+                    tenant_id: tenantId,
+                    bot_name: botName,
+                    business_type: 'Enterprise SaaS',
+                    main_goal: 'Cierre de ventas y agendamiento',
+                    value_prop: 'Infraestructura Universal de Comunicación IA',
+                    tone: 'professional',
+                    primary_cta: 'Agendar Demo',
+                    base_language: 'es',
+                    updated_at: new Date().toISOString()
                 }, { onConflict: 'bot_id' });
             
-            if (cErr) console.warn(`   ⚠️ Config Warning: ${cErr.message}`);
+            if (pErr) console.warn(`   ⚠️ BIC Warning: ${pErr.message}`);
 
-            console.log(`✅ ${name} sync complete.`);
+            console.log(`✅ ${name} provisioned in BIC.`);
         } catch (err) {
             console.error(`❌ Failed to process ${name}:`, err.message);
         }
