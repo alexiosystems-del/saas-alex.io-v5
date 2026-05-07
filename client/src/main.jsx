@@ -32,6 +32,19 @@ class GlobalErrorBoundary extends Component {
   }
 }
 
+// --- GLOBAL FETCH INTERCEPTOR PARA DESPLIEGUES STATIC SITE ---
+// Si el frontend está en un Static Site, todas las peticiones relativas a /api/ devolverán index.html o 404.
+// Este interceptor asegura que apunten al Web Service real.
+const originalFetch = window.fetch;
+window.fetch = async function() {
+    let [resource, config] = arguments;
+    if (typeof resource === 'string' && resource.startsWith('/api/')) {
+        const backendUrl = 'https://whatsapp-fullstack-ylsx.onrender.com';
+        resource = `${backendUrl}${resource}`;
+    }
+    return originalFetch(resource, config);
+};
+
 if (import.meta.env.DEV) console.log("🚀 [ALEX IO] System Boot: main.jsx initiated");
 
 try {
