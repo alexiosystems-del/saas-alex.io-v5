@@ -756,9 +756,14 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     }
 
     if (!responseText) {
-        console.error('🚨 [CASCADE FATAL] Todos los modelos fallaron. Usando contingencia.');
-        responseText = 'Hola, soy ALEX IO. Mis sistemas están procesando muchas peticiones. ¿Podrías intentar en unos momentos?';
-        usedModel = 'contingency';
+        console.error('🚨 [CASCADE_FATAL] Todos los proveedores de IA fallaron.', { 
+            telemetry, 
+            message,
+            tenantId: botConfig.tenantId,
+            timestamp: new Date().toISOString()
+        });
+        responseText = botConfig.personality?.fallbackResponse || "Lo siento, mis sistemas están experimentando una alta demanda en este momento. Por favor, intenta de nuevo en unos minutos o contacta a soporte si el problema persiste.";
+        usedModel = 'fallback_safety';
     }
 
     // Log full cascade telemetry for analysis
