@@ -607,7 +607,7 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     // --- PHASE 3: MEMORY RETRIEVAL ---
     const start = Date.now();
     const business_id = botConfig.business_id || botConfig.tenantId || 'default';
-    const memory = await getMemory(business_id, customerId);
+    const memory = await memoryService.getMemory(business_id, customerId);
     if (memory.lastMessage) {
         systemPrompt += `\n\n--- MEMORIA RECIENTE ---\nÚltimo mensaje del usuario: ${memory.lastMessage}`;
     }
