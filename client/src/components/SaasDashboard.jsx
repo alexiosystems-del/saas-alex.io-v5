@@ -36,6 +36,7 @@ import LiveChat from './LiveChat';
 import BroadcastCampaign from './BroadcastCampaign';
 import KnowledgeBase from './KnowledgeBase';
 import WhatsAppConnect from './WhatsAppConnect';
+import { t, setLanguage, getCurrentLanguage, supportedLanguages } from '../i18n/translations';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
@@ -53,6 +54,7 @@ const SaasDashboard = () => {
   const [error, setError] = useState(null);
   const [selectedBotId, setSelectedBotId] = useState(null);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'onyx');
+  const [lang, setLang] = useState(getCurrentLanguage());
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -60,16 +62,22 @@ const SaasDashboard = () => {
 
   const toggleTheme = () => setTheme(prev => prev === 'onyx' ? 'silver' : 'onyx');
 
+  const handleLanguageChange = (newLang) => {
+    setLanguage(newLang);
+    setLang(newLang);
+    window.location.reload(); // Reload to refresh all translations in the tree
+  };
+
   const sidebarItems = [
-    { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-    { id: 'livechat', label: 'Live Chat (Gold)', icon: MessageSquare },
-    { id: 'knowledge', label: 'Knowledge (RAG)', icon: Book },
-    { id: 'leads', label: 'CRM PRO Pipeline', icon: Target },
-    { id: 'campaigns', label: 'Growth Campaigns', icon: Send },
-    { id: 'intelligence', label: 'Analytics SRE', icon: BarChart3 },
-    { id: 'config', label: 'Connectors', icon: Cloud },
-    { id: 'whatsapp', label: 'WhatsApp QR', icon: QrCode },
-    { id: 'billing', label: 'Premium Billing', icon: CreditCard },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'livechat', label: t('nav.livechat'), icon: MessageSquare },
+    { id: 'knowledge', label: t('nav.knowledge'), icon: Book },
+    { id: 'leads', label: t('nav.crm'), icon: Target },
+    { id: 'campaigns', label: t('nav.campaigns'), icon: Send },
+    { id: 'intelligence', label: t('nav.analytics'), icon: BarChart3 },
+    { id: 'config', label: t('nav.connectors'), icon: Cloud },
+    { id: 'whatsapp', label: t('nav.whatsapp'), icon: QrCode },
+    { id: 'billing', label: t('nav.billing'), icon: CreditCard },
   ];
 
   useEffect(() => {
@@ -186,13 +194,13 @@ const SaasDashboard = () => {
                     <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-black uppercase tracking-widest">SRE_COMMAND_CENTER_V6.0</span>
                 </div>
                 <h1 className="text-4xl font-black text-[var(--text-primary)] tracking-tighter uppercase italic" style={{ fontFamily: 'var(--font-title)' }}>
-                  Neural Command Center <span className="text-[var(--accent-gold)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
+                  {t('dashboard.title')} <span className="text-[var(--accent-gold)] drop-shadow-[0_0_15px_var(--accent-gold-glow)]">🔱</span>
                 </h1>
-                <p className="text-[var(--text-secondary)] mt-2 text-lg">Orquestando inteligencia autónoma a escala global.</p>
+                <p className="text-[var(--text-secondary)] mt-2 text-lg">{t('dashboard.subtitle')}</p>
               </div>
               <div className="flex gap-4">
                   <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl px-6 py-4 shadow-xl">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Carga Neural Total</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('dashboard.neuralLoad')}</p>
                       <div className="flex items-center gap-3">
                           <span className="text-2xl font-black text-[var(--text-primary)]">{(totalMessages / 1000).toFixed(1)}k</span>
                           <TrendingUp size={16} className="text-emerald-500" />
@@ -203,7 +211,7 @@ const SaasDashboard = () => {
                     className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold-hover)] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-gold-600/30 active:scale-95 group border-none"
                   >
                     <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-                    Inicializar Agente
+                    {t('dashboard.initAgent')}
                   </button>
               </div>
             </div>
@@ -234,8 +242,8 @@ const SaasDashboard = () => {
               </div>
             ) : bots.length === 0 ? (
               <div className="text-center py-20 bg-slate-900/30 rounded-[3rem] border border-white/5">
-                <p className="text-slate-500 mb-6">No hay agentes activos.</p>
-                <button onClick={() => setShowWizard(true)} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold">Crear Mi Primer Bot</button>
+                <p className="text-slate-500 mb-6">{t('dashboard.noBots')}</p>
+                <button onClick={() => setShowWizard(true)} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold">{t('dashboard.initAgent')}</button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -257,7 +265,7 @@ const SaasDashboard = () => {
                       </div>
                     </div>
                     <div className="flex gap-4">
-                      <button onClick={() => setActiveTab('config')} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest">Gestionar</button>
+                      <button onClick={() => setActiveTab('config')} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest">{t('nav.manage')}</button>
                       <button onClick={() => handleDeleteBot(bot.id)} className="p-4 bg-white/5 text-slate-500 hover:text-rose-500 rounded-2xl border border-white/5"><Trash2 size={20} /></button>
                     </div>
                   </div>
@@ -288,6 +296,25 @@ const SaasDashboard = () => {
             </div>
           </div>
 
+          {/* Language Selector */}
+          <div className="px-5 mb-8">
+            <div className="flex flex-wrap gap-2 p-3 bg-white/5 rounded-2xl border border-white/5">
+              {supportedLanguages.map(l => (
+                <button
+                  key={l.code}
+                  onClick={() => handleLanguageChange(l.code)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${
+                    lang === l.code 
+                    ? 'bg-[var(--accent-gold)] text-white shadow-lg shadow-gold-500/20 scale-105' 
+                    : 'text-slate-500 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {l.code.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <nav className="space-y-2">
             {sidebarItems.map((item) => (
               <button
@@ -310,7 +337,7 @@ const SaasDashboard = () => {
           <div className="bg-[var(--bg-card)] p-5 rounded-3xl border border-[var(--border)] mb-8 shadow-xl">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Load</span>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('dashboard.neuralLoad')}</span>
             </div>
             <p className="text-sm font-bold text-[var(--text-primary)]">Enterprise Elite</p>
             <div className="w-full h-1.5 bg-slate-200 rounded-full mt-4 overflow-hidden">
@@ -320,7 +347,7 @@ const SaasDashboard = () => {
 
           <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all font-bold text-sm group">
             <LogOut size={18} />
-            Cerrar Sesión
+            {t('nav.logout')}
           </button>
         </div>
       </div>
