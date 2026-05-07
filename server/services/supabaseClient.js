@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const SUPABASE_URL_PROD = 'https://euknjjnjcgdlksrcbkde.supabase.co';
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || SUPABASE_URL_PROD;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+
 // --- VALIDATE KEY ---
 // Supabase's real modern keys can start with sb_secret_ / sb_publishable_.
 // Only reject clearly placeholder/example values.
@@ -25,8 +25,6 @@ const isDummyKey = (key) => {
     return placeholderSnippets.some((snippet) => normalized.toLowerCase().includes(snippet));
 };
 
-// Hardcoded fallbacks (safe — these are public Supabase credentials matching the frontend)
-const SUPABASE_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1a25qam5qY2dkbGtzcmNia2RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNzUxMzUsImV4cCI6MjA4OTk1MTEzNX0.a9xC0xO-01D8resooEmOOpe8ancv_hQaJN39WFHUqFE';
 
 const isKeyValid = (key) => {
     if (!key) return false;

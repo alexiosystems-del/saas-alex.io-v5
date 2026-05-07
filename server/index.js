@@ -137,29 +137,41 @@ const tenantLimiter = rateLimit({
 app.use(globalLimiter);
 app.use(requestLogger);
 
-// --- SECURE CORS (PHASE 1) ---
-app.use(cors({
-    origin: function (origin, callback) {
+// --- CORS CONFIGURATION (STRICT) ---
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
             callback(null, true);
         } else {
-            console.error(`🔒 [CORS] Bloqueado origen no permitido: ${origin}`);
-            callback(new Error('No permitido por CORS'));
+            console.error(`🛑 [CORS_BLOCKED] Origin ${origin} not in allowlist.`);
+            callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
+};
+app.use(cors(corsOptions));
 
-// --- SECURITY HEADERS ---
+// --- SECURITY HEADERS (Hardened) ---
+const isProd = process.env.NODE_ENV === 'production';
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "img-src": ["'self'", "data:", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com"],
-            "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.onrender.com", "wss://*.onrender.com", "https://*.google.com", "https://*.openai.com", ...(process.env.NODE_ENV !== 'production' ? ["ws://localhost:*"] : [])]
+            "connect-src": [
+                "'self'", 
+                "https://*.supabase.co", 
+                "wss://*.supabase.co", 
+                "https://*.onrender.com", 
+                "wss://*.onrender.com", 
+                "https://*.google.com", 
+                "https://*.openai.com",
+                !isProd ? "ws://localhost:*" : ""
+            ].filter(Boolean)
         }
     }
 }));
