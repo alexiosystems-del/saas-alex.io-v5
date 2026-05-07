@@ -10,12 +10,13 @@ const path = require('path');
 const fs = require('fs');
 
 // --- CONFIGURATION ---
-// --- FEATURE FLAGS (BIC ARCHITECTURE) ---
+// --- GLOBAL FEATURE FLAGS (BIC Architecture) ---
 global.FLAGS = {
-    FEATURE_INITIATOR_V2: true, // Controla el nuevo flujo de onboarding
-    FEATURE_CONTEXT_ASSEMBLER: true, // Cambia cómo se construye el prompt
-    FEATURE_MEMORY_DUAL: true // Activa memoria LTM/STM
+    FEATURE_INITIATOR_V2: process.env.FEATURE_INITIATOR_V2 === 'true' || false,
+    FEATURE_CONTEXT_ASSEMBLER: process.env.FEATURE_CONTEXT_ASSEMBLER === 'true' || false,
+    FEATURE_MEMORY_DUAL: process.env.FEATURE_MEMORY_DUAL === 'true' || false,
 };
+console.log('🚩 Feature Flags:', global.FLAGS);
 
 const app = express();
 const http = require('http');

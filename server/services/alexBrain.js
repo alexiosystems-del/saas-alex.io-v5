@@ -537,11 +537,21 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     // Combine all layers
     let systemPrompt = `${systemCore}${salesEngine}${demoLogic}${botConfigSection}`;
 
-    // --- PHASE 4/5: BIC CONTEXT ASSEMBLER (New Era) ---
-    const bicPrompt = await contextAssembler.assemble(botConfig, message, history, metadata);
-    if (bicPrompt) {
-        console.log(`🧠 [BIC] Usando prompt ensamblado dinámicamente para ${botName}`);
-        systemPrompt = bicPrompt;
+    // --- PHASE 4/5: BIC CONTEXT ASSEMBLER (Shadow Mode Enabled) ---
+    try {
+        const bicPrompt = await contextAssembler.assemble(botConfig, message, history, metadata);
+        if (bicPrompt) {
+            if (global.FLAGS.FEATURE_CONTEXT_ASSEMBLER) {
+                console.log(`🧠 [BIC] Aplicando prompt ensamblado para ${botName}`);
+                systemPrompt = bicPrompt;
+            } else {
+                // Shadow Mode: Generamos pero no aplicamos. Comparamos para QA.
+                await contextAssembler.shadowCompare(systemPrompt, bicPrompt);
+                console.log(`🕵️ [BIC_SHADOW] Prompt generado correctamente para ${botName} (No aplicado)`);
+            }
+        }
+    } catch (err) {
+        console.error(`⚠️ [BIC_SHADOW_ERROR] Falló el ensamblado de contexto:`, err.message);
     }
 
     // --- LAYER 5: RAG (Knowledge Injection) ---

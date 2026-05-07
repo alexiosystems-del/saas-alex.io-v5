@@ -15,8 +15,8 @@ class ContextAssembler {
         // 1. Intentar obtener perfil BIC
         const bic = await initiatorService.getProfile(botId);
         
-        // --- FALLBACK: Si no hay BIC o el flag está apagado, devolvemos null para usar flujo legacy ---
-        if (!bic || !global.FLAGS.FEATURE_CONTEXT_ASSEMBLER) {
+        // --- VALIDACIÓN DE PERFIL ---
+        if (!bic) {
             return null; 
         }
 
