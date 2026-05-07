@@ -23,7 +23,10 @@ import {
   TrendingUp,
   QrCode,
   Sun,
-  Moon
+  Moon,
+  Cpu,
+  Bell,
+  ShieldAlert
 } from 'lucide-react';
 import EnterpriseAnalytics from './EnterpriseAnalytics';
 import BillingTab from './BillingTab';
@@ -300,52 +303,49 @@ const SaasDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#08080D] text-white overflow-hidden font-['Instrument_Sans']">
+      <style>{`
+        .glass-sidebar {
+          background: rgba(13, 13, 20, 0.95);
+          backdrop-filter: blur(30px);
+          border-right: 1px solid rgba(197, 160, 40, 0.1);
+        }
+        .active-nav-item {
+          background: linear-gradient(90deg, rgba(197, 160, 40, 0.15) 0%, transparent 100%);
+          border-left: 3px solid #C5A028;
+          color: #E8C84A;
+        }
+        .gold-glow {
+          box-shadow: 0 0 20px rgba(197, 160, 40, 0.15);
+        }
+      `}</style>
+
       {/* Sidebar */}
-      <div className="w-80 glass-sidebar flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl z-20">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-10 group cursor-pointer" onClick={toggleTheme}>
-            <div className="w-12 h-12 bg-gradient-to-br from-[var(--accent-gold)] to-[var(--accent-gold-hover)] rounded-2xl flex items-center justify-center shadow-lg shadow-gold-500/30 group-hover:scale-110 transition-transform">
-              {theme === 'onyx' ? <Sun size={28} className="text-white" /> : <Moon size={28} className="text-white" />}
+      <div className="w-72 glass-sidebar flex flex-col z-20">
+        <div className="p-8 mb-4">
+          <div className="flex items-center gap-3 mb-10 group cursor-pointer">
+            <div className="w-12 h-12 bg-[#C5A028] rounded-2xl flex items-center justify-center shadow-lg shadow-gold-600/20 group-hover:scale-110 transition-transform">
+              <Cpu size={28} className="text-[#08080D]" />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tighter italic" style={{ fontFamily: 'var(--font-title)' }}>
-                ALEX <span className="text-[var(--accent-gold)]">IO</span>
+              <h2 className="text-2xl font-black tracking-tighter italic">
+                ALEX <span className="text-[#C5A028]">IO</span>
               </h2>
-              <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-[0.3em]">
-                {theme === 'onyx' ? 'Onyx Black' : 'Silver Luxury'}
+              <p className="text-[10px] text-[#C5A028] font-black uppercase tracking-[0.3em]">
+                Neural Command
               </p>
             </div>
           </div>
 
-          {/* Language Selector */}
-          <div className="px-5 mb-8">
-            <div className="flex flex-wrap gap-2 p-3 bg-white/5 rounded-2xl border border-white/5">
-              {supportedLanguages.map(l => (
-                <button
-                  key={l.code}
-                  onClick={() => handleLanguageChange(l.code)}
-                  className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${
-                    lang === l.code 
-                    ? 'bg-[var(--accent-gold)] text-white shadow-lg shadow-gold-500/20 scale-105' 
-                    : 'text-slate-500 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {l.code.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm ${
+                className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl transition-all font-bold text-sm uppercase tracking-wider ${
                   activeTab === item.id 
-                  ? 'bg-[var(--accent-gold)] text-white shadow-lg shadow-gold-500/30 translate-x-2' 
-                  : 'text-slate-500 hover:text-[var(--accent-gold)] hover:bg-[var(--accent-gold)]/10'
+                  ? 'active-nav-item' 
+                  : 'text-slate-500 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <item.icon size={20} />
@@ -356,18 +356,10 @@ const SaasDashboard = () => {
         </div>
 
         <div className="mt-auto p-8">
-          <div className="bg-[var(--bg-card)] p-5 rounded-3xl border border-[var(--border)] mb-8 shadow-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('dashboard.neuralLoad')}</span>
-            </div>
-            <p className="text-sm font-bold text-[var(--text-primary)]">Enterprise Elite</p>
-            <div className="w-full h-1.5 bg-slate-200 rounded-full mt-4 overflow-hidden">
-              <div className="h-full bg-[var(--accent-gold)]" style={{ width: '62%' }} />
-            </div>
-          </div>
-
-          <button className="w-full flex items-center gap-3 px-5 py-4 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all font-bold text-sm group">
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-4 px-5 py-4 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 rounded-2xl transition-all font-bold text-sm uppercase tracking-widest group"
+          >
             <LogOut size={18} />
             {t('nav.logout')}
           </button>
@@ -375,9 +367,58 @@ const SaasDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
-        <div className="max-w-[1400px] mx-auto min-h-full">
-          {renderContent()}
+      <main className="flex-1 overflow-y-auto bg-[#08080D]">
+        <div className="max-w-[1600px] mx-auto min-h-full p-10">
+          <header className="flex justify-between items-center mb-12">
+            <div>
+              <h1 className="text-4xl font-black italic tracking-tighter flex items-center gap-4 text-white uppercase">
+                <Cpu size={36} className="text-[#C5A028]" />
+                Neural Command Center
+              </h1>
+              <p className="text-slate-500 text-xs font-black uppercase tracking-[0.4em] mt-2 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                Despliegue Cognitivo v5.0 — Sistema Operativo Activo
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              {/* Bot Selector */}
+              <div className="flex items-center gap-3 bg-white/5 px-5 py-3 rounded-2xl border border-white/10 hover:border-[#C5A028]/30 transition-all">
+                <Bot size={18} className="text-[#C5A028]" />
+                <select
+                  value={selectedBotId || ''}
+                  onChange={(e) => setSelectedBotId(e.target.value)}
+                  className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 outline-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#08080D]">Seleccionar Agente...</option>
+                  {bots.map((b) => (
+                    <option key={b.id} value={b.instance_id || b.id} className="bg-[#08080D]">{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <button className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors relative group">
+                <Bell size={22} className="text-slate-400 group-hover:text-white" />
+                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-[#C5A028] rounded-full gold-glow animate-pulse"></span>
+              </button>
+              
+              <div className="flex items-center gap-5 bg-white/5 pl-2 pr-5 py-2 rounded-3xl border border-white/10">
+                <div className="w-12 h-12 bg-gradient-to-br from-[#C5A028] to-[#E8C84A] rounded-2xl flex items-center justify-center font-black italic text-[#08080D] text-xl shadow-lg shadow-gold-500/20">
+                  {userEmail?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-black tracking-widest uppercase truncate max-w-[140px] text-white">
+                    {userEmail?.split('@')[0]}
+                  </span>
+                  <span className="text-[9px] font-black text-[#C5A028] uppercase tracking-[0.2em]">Master Operator</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {renderContent()}
+          </div>
         </div>
       </main>
 
