@@ -10,12 +10,12 @@ const LandingPage = () => {
   const [inputValue, setInputValue] = useState('');
 
   const questions = [
-    { id: 'vendes', text: '¡Hola! Soy ALEX. Empecemos el diagnóstico. ¿Qué vendés exactamente?', ph: 'Ej: Software, cursos, ropa...' },
-    { id: 'ticket', text: '¿Cuál es tu ticket promedio de venta (en USD)?', ph: 'Ej: 200' },
-    { id: 'canal', text: '¿Cuál es tu canal principal de atención hoy?', ph: 'Ej: WhatsApp, Instagram...' },
-    { id: 'volumen', text: '¿Cuántos leads recibís al mes aproximadamente?', ph: 'Ej: 300' },
-    { id: 'objecion', text: '¿Cuál es la objeción principal que te dan tus clientes?', ph: 'Ej: Es caro, lo voy a pensar...' },
-    { id: 'llamada', text: 'Perfecto. Estamos listos para escalar. ¿Tenés disponibilidad para una llamada de diagnóstico esta semana?', ph: 'Ej: Sí, martes a las 10am' }
+    { id: 'vendes', text: '¡Hola! Soy ALEX. Estoy aquí para que no pierdas ni un cliente más. Para empezar: ¿Qué negocio o servicio vamos a escalar hoy?', ph: 'Ej: Mi agencia de marketing, mi clínica...' },
+    { id: 'ticket', text: 'Entendido. Con ALEX IO, el retorno de inversión es masivo. ¿Cuál es el valor promedio de cada cliente que cierras?', ph: 'Ej: 500 USD' },
+    { id: 'dolor', text: '¿Sientes que hoy se te escapan ventas por no responder a tiempo o por falta de seguimiento?', ph: 'Ej: Sí, pierdo muchos por WhatsApp...' },
+    { id: 'volumen', text: 'El 80% de las ventas ocurren después del 5to seguimiento. ¿Cuántos interesados recibes al mes que hoy manejas manualmente?', ph: 'Ej: 200 personas' },
+    { id: 'magia', text: 'Imagina a ALEX respondiendo en 2 segundos y haciendo seguimiento por 7 días seguidos. ¿Cuánto cambiaría tu facturación?', ph: 'Ej: Duplicaría mis ventas...' },
+    { id: 'cta', text: 'Perfecto. He diseñado un plan de despliegue para ti. ¿Quieres ver cómo ALEX IO tomará el control de tus ventas hoy mismo?', ph: 'Ej: ¡Sí, quiero empezar!' }
   ];
 
   useEffect(() => {
@@ -260,10 +260,10 @@ const LandingPage = () => {
               </div>
             ) : step === questions.length ? (
               <div className="h-full flex flex-col items-center justify-center p-10 text-center animate-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-full flex items-center justify-center text-3xl mb-6 text-emerald-500">✓</div>
-                <h4 className="text-3xl font-serif font-black text-emerald-500 mb-4">¡Completado!</h4>
-                <p className="text-sm text-[var(--tm)] leading-relaxed">ALEX ha procesado tus datos. Un especialista se contactará en breve con tu plan estratégico personalizado.</p>
-                <button onClick={() => { setStep(-1); setMessages([]); }} className="mt-8 text-[var(--gold)] text-xs font-black uppercase tracking-widest border-b border-[var(--gold-mid)]">Probar de nuevo</button>
+                <div className="w-20 h-20 bg-[var(--gold-dim)] border-2 border-[var(--gold-mid)] rounded-full flex items-center justify-center text-3xl mb-6 text-[var(--gold)]">🔱</div>
+                <h4 className="text-3xl font-serif font-black text-[var(--gold)] mb-4">¡Tu Plan está Listo!</h4>
+                <p className="text-sm text-[var(--tm)] leading-relaxed">ALEX ha calculado que puedes recuperar hasta un 40% de tus ventas perdidas en los primeros 30 días.</p>
+                <button onClick={() => scroll2('inversion')} className="btn-gd w-full py-4 text-sm mt-8">VER PLANES Y ACTIVAR AHORA</button>
               </div>
             ) : (
               <div className="h-full flex flex-col">
