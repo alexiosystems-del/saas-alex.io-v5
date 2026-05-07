@@ -58,6 +58,18 @@ const SaasDashboard = () => {
   const [selectedBotId, setSelectedBotId] = useState(null);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'onyx');
   const [lang, setLang] = useState(getCurrentLanguage());
+  const [userEmail, setUserEmail] = useState('');
+
+  useEffect(() => {
+    const email = localStorage.getItem('alex_io_email') || 'Operador Master';
+    setUserEmail(email);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = '/login';
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -110,12 +122,12 @@ const SaasDashboard = () => {
   const handleDeleteBot = async (botId) => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      const res = await fetch(`/api/saas/bots/${instanceId}`, {
+      const res = await fetch(`/api/saas/bots/${botId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setBots(bots.filter(b => (b.instance_id || b.id) !== instanceId));
+      setBots(bots.filter(b => (b.instance_id || b.id) !== botId));
     } catch (e) {
       alert('Error al eliminar: ' + e.message);
     }

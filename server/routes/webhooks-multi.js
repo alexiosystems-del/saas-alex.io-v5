@@ -124,9 +124,13 @@ const handleWebchatMessage = async (req, res) => {
     console.log(`[DEBUG] handleWebchatMessage INVOKED! req.body:`, typeof req.body, req.body);
     try {
         const { senderId, text, metadata = {} } = req.body;
+        
         if (!senderId || !text) {
-            console.log(`[DEBUG] Faltan campos. returning 400`);
-            return res.status(400).json({ error: 'Faltan campos (senderId, text)' });
+            console.warn(`⚠️ [Webchat] Payload incompleto:`, req.body);
+            return res.status(200).json({ 
+                success: true, 
+                reply: '¡Hola! Recibí tu conexión, pero no el mensaje. ¿En qué puedo ayudarte?' 
+            });
         }
         
         // Inject IP for tracking
@@ -141,7 +145,8 @@ const handleWebchatMessage = async (req, res) => {
         const stdMessage = messageRouterModule.createStandardizedMessage('web', senderId, text, enrichedMetadata);
         const replyText = await messageRouterModule.processMessageLocally(stdMessage);
         
-        res.status(200).json({ success: true, reply: replyText });
+        console.log(`🧠 [Webchat] Respuesta generada:`, replyText);
+        res.status(200).json({ success: true, reply: replyText || 'IA está procesando... reintenta.' });
     } catch (error) {
         logError(`[Webchat] Error en route [IP: ${ip}]`, error);
         res.status(500).json({ 

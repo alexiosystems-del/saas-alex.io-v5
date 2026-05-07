@@ -160,9 +160,9 @@ const LandingPage = () => {
           ))}
         </div>
         
-        {/* Dashboard Image Corrected */}
+        {/* Dashboard Image Corrected with Stable High-Quality Link */}
         <div className="dashboard-preview">
-           <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2000&auto=format&fit=crop" style={{width:'100%', opacity:0.8}} alt="Dashboard Preview" />
+           <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80" style={{width:'100%', opacity:0.8}} alt="Dashboard Preview" />
         </div>
 
         <div className="hero-btns" style={{marginTop:'50px', display:'flex', gap:'14px'}}>
