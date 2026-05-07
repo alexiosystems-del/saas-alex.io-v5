@@ -1,345 +1,158 @@
-import React, { useState, useEffect } from 'react';
+import { Bot, Zap, Shield, Target, ArrowRight, MessageSquare, Globe, Cpu } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const LandingPage = () => {
-  const [theme, setTheme] = useState('onyx');
-  const [scrolled, setScrolled] = useState(false);
-  const [step, setStep] = useState(-1);
-  const [chatData, setChatData] = useState({});
-  const [messages, setMessages] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-
-  const questions = [
-    { id: 'vendes', text: '¡Hola! Soy ALEX. Estoy aquí para que no pierdas ni un cliente más. Para empezar: ¿Qué negocio o servicio vamos a escalar hoy?', ph: 'Ej: Mi agencia de marketing, mi clínica...' },
-    { id: 'ticket', text: 'Entendido. Con ALEX IO, el retorno de inversión es masivo. ¿Cuál es el valor promedio de cada cliente que cierras?', ph: 'Ej: 500 USD' },
-    { id: 'dolor', text: '¿Sientes que hoy se te escapan ventas por no responder a tiempo o por falta de seguimiento?', ph: 'Ej: Sí, pierdo muchos por WhatsApp...' },
-    { id: 'volumen', text: 'El 80% de las ventas ocurren después del 5to seguimiento. ¿Cuántos interesados recibes al mes que hoy manejas manualmente?', ph: 'Ej: 200 personas' },
-    { id: 'magia', text: 'Imagina a ALEX respondiendo en 2 segundos y haciendo seguimiento por 7 días seguidos. ¿Cuánto cambiaría tu facturación?', ph: 'Ej: Duplicaría mis ventas...' },
-    { id: 'cta', text: 'Perfecto. He diseñado un plan de despliegue para ti. ¿Quieres ver cómo ALEX IO tomará el control de tus ventas hoy mismo?', ph: 'Ej: ¡Sí, quiero empezar!' }
-  ];
-
+  const navigate = useNavigate();
+  
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener('scroll', handleScroll);
-    document.documentElement.setAttribute('data-theme', theme);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'onyx');
+  }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'onyx' ? 'silver' : 'onyx';
-    setTheme(newTheme);
-  };
-
-  const scroll2 = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const startDemo = () => {
-    setStep(0);
-    const firstQ = questions[0];
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages([{ type: 'bot', text: firstQ.text }]);
-    }, 1000);
-  };
-
-  const sendMsg = () => {
-    if (!inputValue.trim() || step === -1) return;
-    
-    const userMsg = inputValue.trim();
-    setMessages(prev => [...prev, { type: 'user', text: userMsg }]);
-    setChatData(prev => ({ ...prev, [questions[step].id]: userMsg }));
-    setInputValue('');
-    
-    if (step < questions.length - 1) {
-      const nextStep = step + 1;
-      setStep(nextStep);
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        setMessages(prev => [...prev, { type: 'bot', text: questions[nextStep].text }]);
-      }, 1200);
-    } else {
-      setStep(questions.length); // Final state
-    }
-  };
+  const handleEnter = () => navigate('/login');
 
   return (
-    <div className="landing-root">
+    <div className="landing-root min-h-screen bg-[#08080D] text-white font-['Instrument_Sans'] overflow-x-hidden">
       <style>{`
-        .landing-root {
+        :root {
           --gold: #C5A028;
           --gold2: #D4B03A;
-          --gold3: #E8C84A;
           --gold-glow: rgba(197, 160, 40, 0.35);
-          --gold-dim: rgba(197, 160, 40, 0.08);
-          --gold-mid: rgba(197, 160, 40, 0.25);
-          --ff: 'Playfair Display', Georgia, serif;
-          --fb: 'Instrument Sans', sans-serif;
-          --fm: 'DM Mono', monospace;
-          background: var(--bg);
-          color: var(--tx);
-          font-family: var(--fb);
-          min-height: 100vh;
-          transition: background .7s, color .7s;
+          --ff: 'Playfair Display', serif;
         }
-
-        [data-theme="onyx"] {
-          --bg: #08080D;
-          --bg2: #0D0D14;
-          --bg3: #121219;
-          --b1: rgba(255, 255, 255, 0.06);
-          --b2: rgba(255, 255, 255, 0.10);
-          --b3: rgba(255, 255, 255, 0.15);
-          --tx: #F2F0E8;
-          --tm: #8A8880;
-          --td: #3A3830;
-          --glass: rgba(255, 255, 255, 0.04);
+        .hero-gradient {
+          background: radial-gradient(circle at 50% 50%, rgba(197, 160, 40, 0.1) 0%, transparent 70%);
         }
-
-        [data-theme="silver"] {
-          --bg: #F5F3EE;
-          --bg2: #ECEAE4;
-          --bg3: #E2E0DA;
-          --b1: rgba(0, 0, 0, 0.06);
-          --b2: rgba(0, 0, 0, 0.10);
-          --b3: rgba(0, 0, 0, 0.18);
-          --tx: #0A0A08;
-          --tm: #5A5850;
-          --td: #9A9890;
-          --glass: rgba(0, 0, 0, 0.03);
+        .glass-card {
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(12px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
-
-        .hero-orb { position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; }
-        .orb1 { width: 700px; height: 500px; top: 5%; left: 50%; transform: translateX(-50%); background: radial-gradient(ellipse, rgba(197, 160, 40, 0.06), transparent 70%); }
-        .orb2 { width: 400px; height: 400px; bottom: -100px; left: 20%; background: radial-gradient(ellipse, rgba(197, 160, 40, 0.04), transparent 70%); }
-
-        nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 0 5vw; height: 68px; display: flex; align-items: center; justify-content: space-between; transition: all .4s; }
-        nav.stuck { background: var(--bg2); border-bottom: 1px solid var(--b1); backdrop-filter: blur(20px); }
-
-        .hero-h1 { font-family: var(--ff); font-size: clamp(48px, 8vw, 100px); line-height: 0.95; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 24px; position: relative; z-index: 1; }
-        .hero-h1 em { font-style: italic; color: var(--gold); }
-
-        .chat-window { background: var(--bg2); border: 1px solid var(--b2); border-radius: 24px; overflow: hidden; height: 500px; display: flex; flex-direction: column; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
-        .msg { padding: 12px 18px; border-radius: 18px; font-size: 14px; max-width: 85%; margin-bottom: 8px; animation: fadeIn 0.3s ease; }
-        .msg.bot { background: var(--bg3); color: var(--tx); border-bottom-left-radius: 4px; align-self: flex-start; }
-        .msg.user { background: var(--gold); color: white; border-bottom-right-radius: 4px; align-self: flex-end; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .btn-gd { padding: 12px 28px; background: var(--gold); color: white; border-radius: 100px; font-weight: 700; font-size: 12px; letter-spacing: 0.1em; transition: all 0.3s; border: none; cursor: pointer; }
-        .btn-gd:hover { transform: translateY(-2px); box-shadow: 0 10px 30px var(--gold-glow); background: var(--gold2); }
-
-        .kicker { font-family: var(--fm); font-size: 10px; color: var(--gold); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-        .kicker::before { content: '//'; opacity: 0.5; }
-
-        .prod-card { padding: 40px; border: 1px solid var(--b1); background: var(--bg2); border-radius: 32px; transition: all 0.4s; position: relative; overflow: hidden; }
-        .prod-card:hover { border-color: var(--gold-mid); transform: translateY(-8px); }
-        .prod-ghost { position: absolute; bottom: -20px; right: 0; font-size: 120px; font-weight: 900; color: var(--gold); opacity: 0.03; font-family: var(--ff); }
-
-        .canal-card { padding: 32px; background: var(--bg2); border: 1px solid var(--b1); border-radius: 24px; transition: all 0.3s; }
-        .canal-card:hover { border-color: var(--gold-mid); transform: translateY(-4px); }
+        .gold-text {
+          background: linear-gradient(135deg, #C5A028 0%, #E8C84A 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+          100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
       `}</style>
 
-      {/* NAV */}
-      <nav className={scrolled ? 'stuck' : ''}>
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full z-50 px-8 py-6 flex justify-between items-center glass-card border-t-0 border-x-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[var(--gold)] rounded-xl flex items-center justify-center font-black text-white transform rotate-6">A</div>
-          <span className="font-serif text-2xl font-black italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
+          <div className="w-10 h-10 bg-[var(--gold)] rounded-xl flex items-center justify-center shadow-lg shadow-gold-500/20">
+            <Bot size={24} className="text-[#08080D]" />
+          </div>
+          <span className="text-2xl font-black tracking-tighter italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
         </div>
-        <div className="hidden md:flex gap-8 text-[10px] font-bold uppercase tracking-widest text-[var(--tm)]">
-          <a onClick={() => scroll2('productos')} className="hover:text-[var(--gold)] cursor-pointer">Productos</a>
-          <a onClick={() => scroll2('canales')} className="hover:text-[var(--gold)] cursor-pointer">Canales</a>
-          <a onClick={() => scroll2('arquitectura')} className="hover:text-[var(--gold)] cursor-pointer">Arquitectura</a>
-          <a onClick={() => scroll2('inversion')} className="hover:text-[var(--gold)] cursor-pointer">Inversión</a>
+        <div className="hidden md:flex items-center gap-10 text-sm font-bold uppercase tracking-widest text-slate-400">
+          <a href="#infra" className="hover:text-white transition-colors">Infraestructura</a>
+          <a href="#soluciones" className="hover:text-white transition-colors">Soluciones</a>
+          <a href="#casos" className="hover:text-white transition-colors">Casos de Éxito</a>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={toggleTheme} className="w-10 h-10 rounded-full border border-[var(--b2)] flex items-center justify-center text-[var(--gold)] hover:bg-[var(--gold-dim)] transition-all">
-            {theme === 'onyx' ? '☀️' : '🌙'}
-          </button>
-          <button className="btn-gd hidden sm:block">ACTIVAR ALEX IO</button>
-        </div>
+        <button 
+          onClick={handleEnter}
+          className="px-8 py-3 bg-[var(--gold)] hover:bg-[#D4B03A] text-[#08080D] rounded-xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-500/20 active:scale-95"
+        >
+          Acceso Master
+        </button>
       </nav>
 
-      {/* HERO */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center overflow-hidden">
-        <div className="hero-orb orb1"></div>
-        <div className="hero-orb orb2"></div>
-        
-        <div className="inline-block px-4 py-1.5 border border-[var(--b2)] rounded-full text-[10px] font-mono text-[var(--tm)] uppercase tracking-widest mb-10 relative z-10 bg-[var(--glass)]">
-          ⚡ La nueva frontera del cierre automático
+      {/* Hero Section */}
+      <section className="relative pt-40 pb-20 px-8 flex flex-col items-center text-center hero-gradient">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-10 animate-fade-in">
+          <div className="w-2 h-2 rounded-full bg-[var(--gold)] animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sistema Operativo V5.0 — Online</span>
         </div>
-
-        <h1 className="hero-h1">
-          Cada mensaje que no<br />
-          respondes es<br />
-          <em>dinero perdido.</em>
+        
+        <h1 className="text-6xl md:text-8xl font-black mb-8 tracking-tighter italic max-w-5xl leading-[0.9]" style={{ fontFamily: 'var(--ff)' }}>
+          Infraestructura Universal de <span className="gold-text">Comunicación IA</span>
         </h1>
-
-        <p className="text-lg md:text-xl text-[var(--tm)] max-width-[600px] leading-relaxed mb-12 relative z-10">
-          ALEX IO responde, califica y convierte clientes automáticamente<br className="hidden md:block" />
-          en <span className="text-[var(--tx)] font-semibold">WhatsApp y redes sociales</span>, las 24 horas.
+        
+        <p className="text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
+          ALEX IO no es un bot. Es el primer sistema nervioso digital para empresas que integra <span className="text-white font-bold">Cascada Neural</span> y <span className="text-white font-bold">Memoria Dual</span> para automatizar ventas complejas.
         </p>
 
-        <div className="flex gap-4 relative z-10">
-          <button className="hbtn-p px-10 py-5 bg-[var(--gold)] text-white rounded-full font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-[var(--gold-glow)]">ACTIVAR ALEX IO AHORA</button>
-          <button onClick={() => scroll2('demo')} className="px-10 py-5 border border-[var(--b2)] text-[var(--tm)] rounded-full font-bold text-sm hover:border-[var(--gold)] hover:text-[var(--gold)] transition-all">Ver demo en vivo</button>
+        <div className="flex flex-col sm:flex-row gap-6">
+          <button 
+            onClick={handleEnter}
+            className="px-12 py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 hover:bg-[var(--gold)] hover:text-white transition-all group"
+          >
+            Iniciar Despliegue
+            <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
+          </button>
+          <button className="px-12 py-5 glass-card rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+            Ver Documentación
+          </button>
         </div>
-      </section>
 
-      {/* PRODUCTOS */}
-      <section id="productos" className="py-32 px-6 max-w-7xl mx-auto">
-        <div className="kicker">Visión de producto · 2025–2026</div>
-        <h2 className="text-5xl md:text-7xl font-serif font-black mb-20 leading-none">Tres productos.<br /><em className="text-[var(--gold)] italic">Un solo cerebro.</em></h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="prod-card border-[var(--gold-mid)] bg-[var(--gold-dim)]">
-            <div className="prod-ghost">IO</div>
-            <div className="text-[9px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full w-fit mb-6 uppercase tracking-widest">● Disponible hoy</div>
-            <h3 className="text-4xl font-serif font-black mb-2">ALEX IO</h3>
-            <p className="text-sm text-[var(--tm)] mb-8">El primer asistente de IA que responde, califica y cierra clientes en WhatsApp e Instagram.</p>
-            <div className="space-y-3">
-              {['Cascada de modelos AI', 'Multi-canal completo', 'CRM Integrado', 'Shadow Audit'].map(f => (
-                <div key={f} className="flex items-center gap-3 text-xs text-[var(--tm)]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold)]"></div>
-                  {f}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="prod-card">
-            <div className="prod-ghost">IN</div>
-            <div className="text-[9px] font-mono text-[var(--gold)] bg-[var(--gold-dim)] border border-[var(--gold-mid)] px-3 py-1 rounded-full w-fit mb-6 uppercase tracking-widest">⬡ Próximamente</div>
-            <h3 className="text-4xl font-serif font-black mb-2">ALEX IN</h3>
-            <p className="text-sm text-[var(--tm)] mb-8">Accesibilidad universal. Detecta y se adapta a las necesidades de cada persona automáticamente.</p>
-            <div className="space-y-3">
-              {['Visual First (Sordos)', 'Audio First (ElevenLabs)', 'Hand Talk SDK', 'Perfil Adaptativo'].map(f => (
-                <div key={f} className="flex items-center gap-3 text-xs text-[var(--tm)]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] opacity-40"></div>
-                  {f}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="prod-card">
-            <div className="prod-ghost">TB</div>
-            <div className="text-[9px] font-mono text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-3 py-1 rounded-full w-fit mb-6 uppercase tracking-widest">◈ Diciembre 2025</div>
-            <h3 className="text-4xl font-serif font-black mb-2">ALEX TR</h3>
-            <p className="text-sm text-[var(--tm)] mb-8">Comunicación sin barreras. Traducción espontánea e inmersión lingüística en tiempo real.</p>
-            <div className="space-y-3">
-              {['Tutor de idiomas', 'Traducción Bidireccional', 'Guía turística IA', 'Contexto Global'].map(f => (
-                <div key={f} className="flex items-center gap-3 text-xs text-[var(--tm)]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 opacity-40"></div>
-                  {f}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* DEMO */}
-      <section id="demo" className="py-32 px-6 bg-[var(--bg2)] border-y border-[var(--b1)]">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
-          <div>
-            <div className="kicker">Demo en vivo</div>
-            <h2 className="text-5xl md:text-7xl font-serif font-black leading-none mb-6">Hablá con<br /><em className="text-[var(--gold)] italic">ALEX ahora.</em></h2>
-            <p className="text-[var(--tm)] text-lg leading-relaxed">Probá cómo ALEX califica leads en tiempo real. Respondé las preguntas y mirá cómo funciona el sistema de diagnóstico inteligente.</p>
-          </div>
-
-          <div className="chat-window">
-            {step === -1 ? (
-              <div className="h-full flex flex-col items-center justify-center p-10 text-center">
-                <div className="w-16 h-16 bg-[var(--gold-dim)] border border-[var(--gold-mid)] rounded-full flex items-center justify-center text-3xl mb-6">🔱</div>
-                <h4 className="text-2xl font-serif font-black mb-4">Diagnóstico IA</h4>
-                <p className="text-sm text-[var(--tm)] mb-8">ALEX analizará tu negocio para determinar el nivel de automatización necesario.</p>
-                <button onClick={startDemo} className="btn-gd w-full py-4 text-sm">INICIAR DIAGNÓSTICO IA →</button>
-              </div>
-            ) : step === questions.length ? (
-              <div className="h-full flex flex-col items-center justify-center p-10 text-center animate-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-[var(--gold-dim)] border-2 border-[var(--gold-mid)] rounded-full flex items-center justify-center text-3xl mb-6 text-[var(--gold)]">🔱</div>
-                <h4 className="text-3xl font-serif font-black text-[var(--gold)] mb-4">¡Tu Plan está Listo!</h4>
-                <p className="text-sm text-[var(--tm)] leading-relaxed">ALEX ha calculado que puedes recuperar hasta un 40% de tus ventas perdidas en los primeros 30 días.</p>
-                <button onClick={() => scroll2('inversion')} className="btn-gd w-full py-4 text-sm mt-8">VER PLANES Y ACTIVAR AHORA</button>
-              </div>
-            ) : (
-              <div className="h-full flex flex-col">
-                <div className="p-5 border-b border-[var(--b1)] flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-[var(--gold)] animate-pulse"></div>
-                  <span className="font-mono text-[10px] text-[var(--gold)] font-bold uppercase tracking-widest">ALEX IO · Neural Engine</span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-                  {messages.map((m, i) => (
-                    <div key={i} className={`msg ${m.type}`}>
-                      {m.text}
+        {/* Dashboard Preview */}
+        <div className="mt-20 w-full max-w-6xl relative animate-float">
+          <div className="absolute -inset-4 bg-[var(--gold)]/20 blur-3xl rounded-full opacity-30" />
+          <div className="relative glass-card rounded-[3rem] p-4 overflow-hidden shadow-2xl border-white/10">
+             <div className="w-full aspect-video bg-slate-900/80 rounded-[2.5rem] flex items-center justify-center border border-white/5 overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2000&auto=format&fit=crop" alt="Dashboard Preview" className="w-full h-full object-cover opacity-50 mix-blend-overlay" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="p-10 text-center">
+                        <Cpu size={64} className="text-[var(--gold)] mb-6 mx-auto animate-pulse" />
+                        <h3 className="text-4xl font-black italic uppercase tracking-tighter">Neural Command Center</h3>
                     </div>
-                  ))}
-                  {isTyping && (
-                    <div className="msg bot flex gap-1 items-center py-4 px-6">
-                      <div className="w-1 h-1 bg-[var(--gold)] rounded-full animate-bounce"></div>
-                      <div className="w-1 h-1 bg-[var(--gold)] rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                      <div className="w-1 h-1 bg-[var(--gold)] rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                    </div>
-                  )}
                 </div>
-                <div className="p-4 border-t border-[var(--b1)] flex gap-3">
-                  <input 
-                    className="flex-1 bg-[var(--bg3)] border border-[var(--b1)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--gold-mid)] transition-all"
-                    placeholder={questions[step]?.ph || "Escribe aquí..."}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendMsg()}
-                  />
-                  <button onClick={sendMsg} className="px-6 bg-[var(--gold)] text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[var(--gold2)] transition-all">Enviar</button>
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="py-20 px-8 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+        {[
+          { label: 'Precisión AI', value: '98.4%', sub: 'Cascada 3.0' },
+          { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
+          { label: 'Latencia', value: '1.2s', sub: 'Edge Compute' },
+          { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
+        ].map((stat, i) => (
+          <div key={i} className="text-center group hover:scale-105 transition-transform">
+            <div className="text-5xl font-black mb-2 italic gold-text">{stat.value}</div>
+            <div className="text-xs font-black uppercase tracking-widest text-white mb-1">{stat.label}</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase">{stat.sub}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* Features */}
+      <section id="infra" className="py-32 px-8 bg-white/2">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-4xl md:text-6xl font-black mb-20 tracking-tighter italic text-center">TECNOLOGÍA <span className="gold-text">SIN LÍMITES</span></h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: Zap, title: 'Cascada Neural', desc: 'Orquestación inteligente entre 5 modelos (Gemini, GPT, Claude, DeepSeek, MiniMax) para máxima precisión y costo optimizado.' },
+              { icon: Shield, title: 'Compliance Shield', desc: 'Auditoría en tiempo real de cada mensaje para asegurar que tu marca nunca rompa protocolos de comunicación.' },
+              { icon: Globe, title: 'Memoria Dual', desc: 'Contexto persistente que recuerda a cada usuario a través de canales, creando experiencias hiper-personalizadas.' }
+            ].map((f, i) => (
+              <div key={i} className="p-12 glass-card rounded-[3rem] hover:border-[var(--gold)]/50 transition-all group">
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-[var(--gold)] mb-8 group-hover:scale-110 transition-transform">
+                  <f.icon size={32} />
                 </div>
+                <h3 className="text-2xl font-black mb-4 uppercase tracking-tighter italic">{f.title}</h3>
+                <p className="text-slate-400 leading-relaxed font-medium">{f.desc}</p>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CANALES */}
-      <section id="canales" className="py-32 px-6 max-w-7xl mx-auto">
-        <div className="kicker">Multi-canal</div>
-        <h2 className="text-5xl md:text-7xl font-serif font-black leading-none mb-20">Donde están<br /><em className="text-[var(--gold)] italic">tus clientes.</em></h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-1">
-          {[
-            { icon: '💬', name: 'WhatsApp', sub: 'Baileys · Meta · 360', body: 'ALEX maneja conversaciones, envía audios PTT, procesa imágenes y gestiona el historial completo.' },
-            { icon: '📸', name: 'Instagram', sub: 'Direct · ManyChat', body: 'Responde DMs automáticamente. Captura leads desde stories y posts usando webhooks integrados.' },
-            { icon: '👥', name: 'Facebook', sub: 'Messenger · Webhook', body: 'Gestión de Messenger con el mismo flujo de calificación. Compatible con campañas de tráfico.' },
-            { icon: '🎵', name: 'TikTok', sub: 'Business API', body: 'Responde DMs de TikTok Business automáticamente. Integración con nativa para social commerce.' },
-            { icon: '🤝', name: 'Inclusive', sub: 'AIO Engine', body: 'Voz, texto, señas o botones. El motor detecta el perfil del usuario y adapta el formato.' },
-            { icon: '🌐', name: 'Translate', sub: 'Neural Babel', body: 'Traducción espontánea e inmersión lingüística en cualquier idioma y canal sin configuración.' }
-          ].map((c, i) => (
-            <div key={i} className="canal-card">
-              <div className="text-3xl mb-4">{c.icon}</div>
-              <h4 className="text-2xl font-serif font-black mb-1">{c.name}</h4>
-              <p className="text-[9px] font-mono text-[var(--td)] uppercase tracking-widest mb-4">{c.sub}</p>
-              <p className="text-sm text-[var(--tm)] leading-relaxed">{c.body}</p>
-            </div>
-          ))}
+      {/* Footer */}
+      <footer className="py-20 px-8 border-t border-white/5 text-center">
+        <div className="flex items-center justify-center gap-3 mb-10">
+          <div className="w-8 h-8 bg-[var(--gold)] rounded-lg flex items-center justify-center">
+            <Bot size={20} className="text-[#08080D]" />
+          </div>
+          <span className="text-xl font-black tracking-tighter italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
         </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="py-20 px-6 border-t border-[var(--b1)] bg-[var(--bg2)]">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
-          <div className="text-center md:text-left">
-            <div className="text-2xl font-serif font-black italic mb-2">ALEX <span className="text-[var(--gold)]">IO</span></div>
-            <p className="text-[9px] font-mono text-[var(--td)] uppercase tracking-widest">Arquitectos de negocios impulsados por IA cognitiva</p>
-          </div>
-          <div className="flex gap-8 text-[10px] font-mono text-[var(--td)] uppercase tracking-widest">
-            <a href="#" className="hover:text-[var(--gold)] transition-all">Privacidad</a>
-            <a href="#" className="hover:text-[var(--gold)] transition-all">Términos</a>
-            <a href="#" className="hover:text-[var(--gold)] transition-all">Soporte</a>
-          </div>
-          <div className="text-[9px] font-mono text-[var(--td)] uppercase tracking-widest opacity-50">
-            © 2025 ALEX IO SYSTEMS · DISEÑADO PARA EL ÉXITO
-          </div>
-        </div>
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.4em]">© 2026 ALEX IO SYSTEMS — ALL RIGHTS RESERVED</p>
       </footer>
     </div>
   );

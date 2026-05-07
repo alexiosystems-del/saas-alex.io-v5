@@ -8,7 +8,7 @@ const GB = '#6366F138';
 const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { id: 1, text: '¡Hola! Soy ALEX. ¿En qué te puedo ayudar hoy? Estoy aquí para mostrarte cómo ALEX IO puede transformar tu negocio.', sender: 'bot' }
+        { id: 1, text: '¡Bienvenido a la nueva era! Soy el demo bot de ALEX IO. Estoy aquí para demostrarte cómo puedo automatizar tus ventas, calificar leads 24/7 y reducir tus costos operativos. ¿Qué desafío de comunicación quieres resolver hoy?', sender: 'bot' }
     ]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
