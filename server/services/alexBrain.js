@@ -11,7 +11,8 @@ const { sendPagerAlert } = require('../utils/pager');
 const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
-const { saveMemory, getMemory } = require('./memoryService');
+const memoryService = require('./memoryService');
+const contextAssembler = require('./contextAssembler');
 const { upsertLeadPro } = require('./crmProService');
 const { logAnalytics } = require('./analyticsService');
 const { scoreLead } = require('./scoringService');
@@ -536,6 +537,13 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     // Combine all layers
     let systemPrompt = `${systemCore}${salesEngine}${demoLogic}${botConfigSection}`;
 
+    // --- PHASE 4/5: BIC CONTEXT ASSEMBLER (New Era) ---
+    const bicPrompt = await contextAssembler.assemble(botConfig, message, history, metadata);
+    if (bicPrompt) {
+        console.log(`🧠 [BIC] Usando prompt ensamblado dinámicamente para ${botName}`);
+        systemPrompt = bicPrompt;
+    }
+
     // --- LAYER 5: RAG (Knowledge Injection) ---
     if (botConfig.tenantId && botConfig.instanceId) {
         const knowledgeChunk = await ragService.queryKnowledgeBase(botConfig.tenantId, botConfig.instanceId, message);
@@ -545,34 +553,18 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
         }
     }
 
-    // --- LAYER 6: LONG-TERM MEMORY (Customer Facts) ---
+    // --- LAYER 6: DUAL MEMORY (STM + LTM) ---
     const customerId = botConfig.customerId || botConfig.remoteJid || 'unknown';
     if (botConfig.tenantId && customerId !== 'unknown') {
-        try {
-            const queryVector = await withTrace('brain.embedding', { customerId }, () => getEmbedding(normalizedUserMsg));
-            if (queryVector) {
-                const { data: memories } = await supabase.rpc('match_customer_memories', {
-                    p_tenant_id: botConfig.tenantId,
-                    p_customer_id: customerId,
-                    p_embedding: queryVector,
-                    p_limit: 5,
-                    p_min_sim: 0.72
-                });
-
-                if (memories && memories.length > 0) {
-                    console.log(`🧠 [${botName}] Recuperadas ${memories.length} memorias del cliente.`);
-                    let memorySection = `\n\n--- MEMORIA LARGA DEL CLIENTE (Hechos conocidos) ---\n`;
-                    memories.forEach(m => {
-                        memorySection += `- ${m.content} (${m.category}, relevancia: ${m.importance})\n`;
-                    });
-                    systemPrompt += memorySection;
-                    
-                    // Touch memories (async)
-                    supabase.rpc('touch_memories', { p_ids: memories.map(m => m.id) }).catch(() => {});
-                }
-            }
-        } catch (e) {
-            console.warn('⚠️ [LongTermMemory] Search failed:', e.message);
+        const memory = await memoryService.getMemory(botConfig.tenantId, customerId);
+        
+        if (memory.persistedFacts?.length > 0) {
+            console.log(`🧠 [${botName}] Inyectando ${memory.persistedFacts.length} hechos de LTM.`);
+            let memorySection = `\n\n--- HECHOS CONOCIDOS DEL CLIENTE (LTM) ---\n`;
+            memory.persistedFacts.forEach(f => {
+                memorySection += `- ${f.fact} (${f.category})\n`;
+            });
+            systemPrompt += memorySection;
         }
     }
 
@@ -1184,19 +1176,15 @@ Bot: ${botRes}`;
 
         const facts = JSON.parse(res.data.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
 
-        for (const fact of facts) {
-            console.log(`🧠 [Memory] Extrayendo hecho: "${fact.content}"`);
-            const embedding = await getEmbedding(fact.content);
-            if (embedding) {
-                await supabase.rpc('upsert_customer_memory', {
-                    p_tenant_id: tenantId,
-                    p_customer_id: customerId,
-                    p_content: fact.content,
-                    p_embedding: embedding,
-                    p_category: fact.category || 'fact',
-                    p_importance: fact.importance || 3
-                });
-            }
+        if (facts.length > 0) {
+            const formattedFacts = facts.map(f => ({
+                fact: f.content,
+                category: f.category || 'fact',
+                timestamp: new Date().toISOString()
+            }));
+
+            console.log(`🧠 [Memory] Persistiendo ${facts.length} hechos nuevos en LTM para ${customerId}`);
+            await memoryService.saveMemory(tenantId, customerId, { facts: formattedFacts });
         }
     } catch (e) {
         console.warn('⚠️ [MemoryExtraction] Error:', e.message);

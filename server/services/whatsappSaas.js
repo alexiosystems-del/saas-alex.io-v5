@@ -1744,13 +1744,16 @@ router.get('/superadmin/clients', async (req, res) => {
     }
 });
 
-// --- SUPERADMIN: Bot Details (logs, AI usage, health) ---
-router.get('/superadmin/bot-details/:instanceId', (req, res) => {
+// --- SUPERADMIN: Bot Details (logs, AI usage, health, BIC) ---
+router.get('/superadmin/bot-details/:instanceId', async (req, res) => {
     if (req.tenant?.role !== 'SUPERADMIN') return res.status(403).json({ error: 'Acceso Denegado' });
     const { instanceId } = req.params;
 
     const logs = botEventLogs.get(instanceId) || [];
     const aiUsage = botAiUsage.get(instanceId) || { gemini: { count: 0, tokens: 0 }, openai: { count: 0, tokens: 0 }, deepseek: { count: 0, tokens: 0 }, total_messages: 0 };
+    
+    // Inyectar datos BIC
+    const bic = await initiatorService.getProfile(instanceId);
     const status = sessionStatus.get(instanceId);
     const config = clientConfigs.get(instanceId);
 
@@ -1775,7 +1778,8 @@ router.get('/superadmin/bot-details/:instanceId', (req, res) => {
         estimated_costs: costs,
         logs: logs.slice(-50), // Last 50 events
         error_count: logs.filter(l => l.level === 'error').length,
-        warn_count: logs.filter(l => l.level === 'warn').length
+        warn_count: logs.filter(l => l.level === 'warn').length,
+        bic: bic || { bot_name: 'Legacy Bot', business_type: 'General', qa_score: 0 }
     });
 });
 

@@ -10,6 +10,13 @@ const path = require('path');
 const fs = require('fs');
 
 // --- CONFIGURATION ---
+// --- FEATURE FLAGS (BIC ARCHITECTURE) ---
+global.FLAGS = {
+    FEATURE_INITIATOR_V2: true, // Controla el nuevo flujo de onboarding
+    FEATURE_CONTEXT_ASSEMBLER: true, // Cambia cómo se construye el prompt
+    FEATURE_MEMORY_DUAL: true // Activa memoria LTM/STM
+};
+
 const app = express();
 const http = require('http');
 const { Server } = require('socket.io');
@@ -328,6 +335,31 @@ if (fs.existsSync(clientPath)) {
         app.use(express.static(altPath));
     }
 }
+
+// --- BOT INITIATOR CORE (BIC) ROUTES ---
+const initiatorService = require('./services/initiatorProfileService');
+
+app.post('/api/saas/bot-initiator', authenticateToken, async (req, res) => {
+    try {
+        const { botId, profileData } = req.body;
+        const tenantId = req.tenant?.id;
+        if (!botId || !tenantId) return res.status(400).json({ error: 'Missing data' });
+        
+        const profile = await initiatorService.saveProfile(botId, tenantId, profileData);
+        res.json({ success: true, profile });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/saas/bot-initiator/:botId', authenticateToken, async (req, res) => {
+    try {
+        const profile = await initiatorService.getProfile(req.params.botId);
+        res.json({ success: true, profile });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // --- API ROUTES ---
 app.get('/api/status', (req, res) => {

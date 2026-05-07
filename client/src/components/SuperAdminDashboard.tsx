@@ -15,6 +15,8 @@ if (typeof document !== 'undefined' && !document.getElementById('inter-font-sa')
     document.head.appendChild(link);
 }
 
+import { translations, getTranslation } from '../i18n/translations';
+
 // --- DESIGN TOKENS: Soft Mode + Deep Ocean Blue ---
 const T = {
     bg: '#1a2744',
@@ -186,6 +188,8 @@ const SuperAdminDashboard = () => {
         </div>
     );
 
+    const filteredClients = clients.filter(c => c.email?.toLowerCase().includes(searchTerm.toLowerCase()));
+
     return (
         <div style={{ minHeight: '100vh', background: T.bgGradient, color: T.text, padding: '32px 40px', fontFamily: T.font }}>
             {/* Ambient Glow */}
@@ -199,16 +203,28 @@ const SuperAdminDashboard = () => {
                         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3 }}>SaaS SuperAdmin</span>
                     </div>
                     <h1 style={{ fontSize: 36, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
-                        Consola Global <span style={{ color: T.accentLight }}>ALEX IO</span>
+                        {t('dashboard.title')} <span style={{ color: T.accentLight }}>ALEX IO</span>
                     </h1>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    {/* Language Selector */}
+                    <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 12 }}>
+                        {['es', 'en', 'fr', 'de', 'zh'].map(l => (
+                            <button key={l} onClick={() => setLang(l)} style={{ 
+                                background: lang === l ? T.accent : 'transparent',
+                                color: lang === l ? 'white' : T.textMuted,
+                                border: 'none', borderRadius: 8, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase'
+                            }}>
+                                {l}
+                            </button>
+                        ))}
+                    </div>
                     <button onClick={fetchGlobalData} style={{ ...glassCard({ borderRadius: 12, padding: '8px 16px', cursor: 'pointer', color: T.textMuted, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' })}}>
-                        <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> Actualizar
+                        <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> {t('common.refresh')}
                     </button>
                     <div style={{ position: 'relative' }}>
                         <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.textDim }} size={16} />
-                        <input type="text" placeholder="Buscar por email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                        <input type="text" placeholder={t('common.search')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ ...glassCard({ borderRadius: 12, padding: '8px 12px 8px 38px', fontSize: 13, color: T.text, outline: 'none', width: 240 })} as any} />
                     </div>
                 </div>
@@ -467,6 +483,41 @@ const SuperAdminDashboard = () => {
                                                                     ))}
                                                                 </div>
                                                             </div>
+                                                            {/* BIC Strategy Editor */}
+                                                            <div style={{ marginTop: 24, padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 16, border: `1px solid ${T.glassBorder}` }}>
+                                                                <h5 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: T.accentLight, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <ShieldAlert size={14} /> {t('bot_config.initiator')}
+                                                                </h5>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                                                                    <div>
+                                                                        <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>{t('bot_config.business_type')}</label>
+                                                                        <input type="text" placeholder="Ej: Real Estate, E-commerce..." 
+                                                                            defaultValue={botDetails.bic?.business_type}
+                                                                            style={{ ...glassCard({ padding: '10px 12px', width: '100%', fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}` })} as any} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>{t('bot_config.objective')}</label>
+                                                                        <select style={{ ...glassCard({ padding: '10px 12px', width: '100%', fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}` })} as any}>
+                                                                            <option value="sales">Ventas / Cierre</option>
+                                                                            <option value="leads">Captación de Leads</option>
+                                                                            <option value="support">Soporte / FAQ</option>
+                                                                            <option value="booking">Agendamiento</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ marginBottom: 16 }}>
+                                                                    <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>Oferta Estrella / Propuesta de Valor</label>
+                                                                    <textarea placeholder="Describe qué hace única a esta oferta..." 
+                                                                        defaultValue={botDetails.bic?.value_prop}
+                                                                        style={{ ...glassCard({ padding: '10px 12px', width: '100%', height: 80, fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}`, resize: 'none' })} as any} />
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                    <button style={{ background: T.accent, color: 'white', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                                                                        {t('bot_config.save')}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
                                                             {/* AI Usage */}
                                                             <div>
                                                                 <h5 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: T.textDim, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Cpu size={13} /> Consumo por Modelo</h5>
