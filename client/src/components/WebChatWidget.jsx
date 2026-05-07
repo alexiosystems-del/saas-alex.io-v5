@@ -41,11 +41,9 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         setIsLoading(true);
 
         try {
-            // Usamos FETCH para mayor compatibilidad y consistencia con LandingPage
-            // Ignoramos apiUrl completamente porque el backend ahora reside fullstack 
-            // en el mismo domain que el frontend. Esto evita errores CORS si
-            // el usuario configura VITE_API_URL hacia Supabase accidentalmente.
-            const targetUrl = '/api/webhooks/webchat';
+            // El frontend está alojado en un Static Site (yjao), pero el backend real está en el Web Service (ylsx).
+            // Forzamos la conexión al endpoint correcto para evitar la respuesta index.html por defecto del Static Site.
+            const targetUrl = 'https://whatsapp-fullstack-ylsx.onrender.com/api/webhooks/webchat';
             
             const response = await fetch(targetUrl, {
                 method: 'POST',
