@@ -1,14 +1,62 @@
-import { Bot, Zap, Shield, Target, ArrowRight, MessageSquare, Globe, Cpu } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Bot, Zap, Shield, Target, ArrowRight, MessageSquare, Globe, Cpu, Languages } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const [lang, setLang] = useState('es');
   
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'onyx');
   }, []);
 
   const handleEnter = () => navigate('/login');
+  
+  const content = {
+    es: {
+      nav: ['Infraestructura', 'Soluciones', 'Casos'],
+      access: 'Acceso Master',
+      badge: 'Sistema Operativo V5.0 — Online',
+      h1: ['Infraestructura Universal de', 'Comunicación IA'],
+      p: 'ALEX IO no es un bot. Es el primer sistema nervioso digital para empresas que integra Cascada Neural y Memoria Dual para automatizar ventas complejas.',
+      cta: 'Iniciar Despliegue',
+      doc: 'Ver Documentación',
+      stats: [
+        { label: 'Precisión AI', value: '98.4%', sub: 'Cascada 3.0' },
+        { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
+        { label: 'Latencia', value: '1.2s', sub: 'Edge Compute' },
+        { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
+      ],
+      features: [
+        { title: 'Cascada Neural', desc: 'Orquestación inteligente entre 5 modelos (Gemini, GPT, Claude, DeepSeek, MiniMax) para máxima precisión y costo optimizado.' },
+        { title: 'Compliance Shield', desc: 'Auditoría en tiempo real de cada mensaje para asegurar que tu marca nunca rompa protocolos de comunicación.' },
+        { title: 'Memoria Dual', desc: 'Contexto persistente que recuerda a cada usuario a través de canales, creando experiencias hiper-personalizadas.' }
+      ]
+    },
+    en: {
+      nav: ['Infrastructure', 'Solutions', 'Cases'],
+      access: 'Master Access',
+      badge: 'Operating System V5.0 — Online',
+      h1: ['Universal Infrastructure for', 'AI Communication'],
+      p: 'ALEX IO is not a bot. It is the first digital nervous system for businesses that integrates Neural Cascade and Dual Memory to automate complex sales.',
+      cta: 'Start Deployment',
+      doc: 'View Docs',
+      stats: [
+        { label: 'AI Accuracy', value: '98.4%', sub: 'Cascade 3.0' },
+        { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
+        { label: 'Latency', value: '1.2s', sub: 'Edge Compute' },
+        { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
+      ],
+      features: [
+        { title: 'Neural Cascade', desc: 'Intelligent orchestration between 5 models (Gemini, GPT, Claude, DeepSeek, MiniMax) for maximum accuracy and cost optimization.' },
+        { title: 'Compliance Shield', desc: 'Real-time message auditing to ensure your brand never breaks communication protocols.' },
+        { title: 'Dual Memory', desc: 'Persistent context that remembers every user across channels, creating hyper-personalized experiences.' }
+      ]
+    }
+  };
+
+  const t = content[lang];
+  const calendlyLink = "https://calendly.com/alex-io-systems/30min";
 
   return (
     <div className="landing-root min-h-screen bg-[#08080D] text-white font-['Instrument_Sans'] overflow-x-hidden">
@@ -49,31 +97,38 @@ const LandingPage = () => {
           <span className="text-2xl font-black tracking-tighter italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
         </div>
         <div className="hidden md:flex items-center gap-10 text-sm font-bold uppercase tracking-widest text-slate-400">
-          <a href="#infra" className="hover:text-white transition-colors">Infraestructura</a>
-          <a href="#soluciones" className="hover:text-white transition-colors">Soluciones</a>
-          <a href="#casos" className="hover:text-white transition-colors">Casos de Éxito</a>
+          {t.nav.map((item, i) => (
+            <a key={i} href="#" className="hover:text-white transition-colors">{item}</a>
+          ))}
+          <button 
+            onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
+            className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all"
+          >
+            <Languages size={14} />
+            <span className="text-[10px]">{lang.toUpperCase()}</span>
+          </button>
         </div>
         <button 
           onClick={handleEnter}
           className="px-8 py-3 bg-[var(--gold)] hover:bg-[#D4B03A] text-[#08080D] rounded-xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-500/20 active:scale-95"
         >
-          Acceso Master
+          {t.access}
         </button>
       </nav>
 
       {/* Hero Section */}
       <section className="relative pt-40 pb-20 px-8 flex flex-col items-center text-center hero-gradient">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-10 animate-fade-in">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-10">
           <div className="w-2 h-2 rounded-full bg-[var(--gold)] animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sistema Operativo V5.0 — Online</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{t.badge}</span>
         </div>
         
         <h1 className="text-6xl md:text-8xl font-black mb-8 tracking-tighter italic max-w-5xl leading-[0.9]" style={{ fontFamily: 'var(--ff)' }}>
-          Infraestructura Universal de <span className="gold-text">Comunicación IA</span>
+          {t.h1[0]} <span className="gold-text">{t.h1[1]}</span>
         </h1>
         
         <p className="text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
-          ALEX IO no es un bot. Es el primer sistema nervioso digital para empresas que integra <span className="text-white font-bold">Cascada Neural</span> y <span className="text-white font-bold">Memoria Dual</span> para automatizar ventas complejas.
+          {t.p}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-6">
@@ -81,12 +136,15 @@ const LandingPage = () => {
             onClick={handleEnter}
             className="px-12 py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 hover:bg-[var(--gold)] hover:text-white transition-all group"
           >
-            Iniciar Despliegue
+            {t.cta}
             <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
           </button>
-          <button className="px-12 py-5 glass-card rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all">
-            Ver Documentación
-          </button>
+          <a 
+            href={calendlyLink} target="_blank" rel="noopener noreferrer"
+            className="px-12 py-5 glass-card rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center"
+          >
+            {t.doc}
+          </a>
         </div>
 
         {/* Dashboard Preview */}
@@ -108,12 +166,7 @@ const LandingPage = () => {
 
       {/* Stats */}
       <section className="py-20 px-8 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-        {[
-          { label: 'Precisión AI', value: '98.4%', sub: 'Cascada 3.0' },
-          { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
-          { label: 'Latencia', value: '1.2s', sub: 'Edge Compute' },
-          { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
-        ].map((stat, i) => (
+        {t.stats.map((stat, i) => (
           <div key={i} className="text-center group hover:scale-105 transition-transform">
             <div className="text-5xl font-black mb-2 italic gold-text">{stat.value}</div>
             <div className="text-xs font-black uppercase tracking-widest text-white mb-1">{stat.label}</div>
@@ -123,18 +176,14 @@ const LandingPage = () => {
       </section>
 
       {/* Features */}
-      <section id="infra" className="py-32 px-8 bg-white/2">
+      <section className="py-32 px-8 bg-white/2">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl md:text-6xl font-black mb-20 tracking-tighter italic text-center">TECNOLOGÍA <span className="gold-text">SIN LÍMITES</span></h2>
+          <h2 className="text-4xl md:text-6xl font-black mb-20 tracking-tighter italic text-center uppercase">Tech <span className="gold-text">Infrastructure</span></h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { icon: Zap, title: 'Cascada Neural', desc: 'Orquestación inteligente entre 5 modelos (Gemini, GPT, Claude, DeepSeek, MiniMax) para máxima precisión y costo optimizado.' },
-              { icon: Shield, title: 'Compliance Shield', desc: 'Auditoría en tiempo real de cada mensaje para asegurar que tu marca nunca rompa protocolos de comunicación.' },
-              { icon: Globe, title: 'Memoria Dual', desc: 'Contexto persistente que recuerda a cada usuario a través de canales, creando experiencias hiper-personalizadas.' }
-            ].map((f, i) => (
+            {t.features.map((f, i) => (
               <div key={i} className="p-12 glass-card rounded-[3rem] hover:border-[var(--gold)]/50 transition-all group">
                 <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-[var(--gold)] mb-8 group-hover:scale-110 transition-transform">
-                  <f.icon size={32} />
+                  {i === 0 ? <Zap size={32} /> : i === 1 ? <Shield size={32} /> : <Globe size={32} />}
                 </div>
                 <h3 className="text-2xl font-black mb-4 uppercase tracking-tighter italic">{f.title}</h3>
                 <p className="text-slate-400 leading-relaxed font-medium">{f.desc}</p>
