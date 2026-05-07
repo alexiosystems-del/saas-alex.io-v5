@@ -712,7 +712,7 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
                 const evalResult = await evaluateAI(message, text);
                 finalScore = evalResult.score;
 
-                if (evalResult.decision === 'accept' || model.id === 'minimax') {
+                if (evalResult.decision === 'accept' || evalResult.score >= 0.7 || model.id === 'minimax') {
                     responseText = text;
                     usedModel = model.id;
                     modelSuccess = true;
@@ -773,7 +773,7 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     const latency = Date.now() - start;
     
     // Fire-and-forget background tasks
-    saveMemory(business_id, customerId, { lastMessage: message, score: leadScore }).catch(() => {});
+    memoryService.saveMemory(business_id, customerId, { lastMessage: message, score: leadScore }).catch(() => {});
     upsertLeadPro({
         business_id,
         phone: customerId,
