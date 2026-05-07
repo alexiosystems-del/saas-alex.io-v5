@@ -32,7 +32,7 @@ const LandingPage = () => {
         { icon: '👥', txt: 'Más ventas sin equipo' },
         { icon: '🌐', txt: 'IA multilingüe con contexto' }
       ],
-      btns: ['ACTIVAR ALEX IO AHORA', 'Ver demo en vivo'],
+      btns: ['HABLAR CON ALEX AHORA', 'Ver demo en vivo'],
       kicker1: 'Visión de producto · 2025–2026',
       secH1: ['Tres productos.', 'Un solo cerebro.'],
       products: [
@@ -47,7 +47,7 @@ const LandingPage = () => {
         { ghost: '03', tag: 'Fase 03', week: 'Semanas 5–6 · AIO Engine', title: 'AIO Engine', items: ['Selector de formato', 'Respuesta por contexto', 'TTS premium'] },
         { ghost: '04', tag: 'Fase 04', week: 'Semanas 7–8 · Sign', title: 'Lengua de Señas', items: ['Hand Talk SDK', 'ASL / LIBRAS / LSA', 'Partner ANDIS · CILSA'] }
       ]},
-      cta: { h: '¿Cuántos clientes estás perdiendo hoy?', p: 'Cada día sin ALEX IO es dinero que no vuelve. Automatizá conversación, seguimiento y cierre con arquitectura lista para escalar.', btn: 'ACTIVAR ALEX IO' },
+      cta: { h: '¿Cuántos clientes estás perdiendo hoy?', p: 'Cada día sin ALEX IO es dinero que no vuelve. Automatizá conversación, seguimiento y cierre con arquitectura lista para escalar.', btn: 'HABLAR CON ALEX AHORA' },
       access: 'ACCESO MASTER'
     },
     en: {
@@ -61,7 +61,7 @@ const LandingPage = () => {
         { icon: '👥', txt: 'More sales without a team' },
         { icon: '🌐', txt: 'Multilingual AI with context' }
       ],
-      btns: ['ACTIVATE ALEX IO NOW', 'Watch live demo'],
+      btns: ['TALK TO ALEX NOW', 'Watch live demo'],
       kicker1: 'Product Vision · 2025–2026',
       secH1: ['Three products.', 'One single brain.'],
       products: [
@@ -76,7 +76,7 @@ const LandingPage = () => {
         { ghost: '03', tag: 'Phase 03', week: 'Weeks 5–6 · AIO Engine', title: 'AIO Engine', items: ['Format selector', 'Contextual response', 'Premium TTS'] },
         { ghost: '04', tag: 'Phase 04', week: 'Weeks 7–8 · Sign', title: 'Sign Language', items: ['Hand Talk SDK', 'ASL / LIBRAS / LSA', 'Partner ANDIS · CILSA'] }
       ]},
-      cta: { h: 'How many customers are you losing today?', p: 'Every day without ALEX IO is money that doesnt return. Automate conversation, follow-up and closing with architecture ready to scale.', btn: 'ACTIVATE ALEX IO' },
+      cta: { h: 'How many customers are you losing today?', p: 'Every day without ALEX IO is money that doesnt return. Automate conversation, follow-up and closing with architecture ready to scale.', btn: 'TALK TO ALEX NOW' },
       access: 'MASTER ACCESS'
     }
   };
@@ -162,11 +162,17 @@ const LandingPage = () => {
         
         {/* Dashboard Image Corrected */}
         <div className="dashboard-preview">
-           <img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2000&auto=format&fit=crop" style={{width:'100%', opacity:0.8}} alt="Dashboard Preview" />
+           <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2000&auto=format&fit=crop" style={{width:'100%', opacity:0.8}} alt="Dashboard Preview" />
         </div>
 
         <div className="hero-btns" style={{marginTop:'50px', display:'flex', gap:'14px'}}>
-          <button className="btn-gd" style={{padding:'18px 44px', fontSize:'14px'}}>{t.btns[0]}</button>
+          <button 
+            className="btn-gd" 
+            style={{padding:'18px 44px', fontSize:'14px'}}
+            onClick={() => window.dispatchEvent(new CustomEvent('open-alex-chat'))}
+          >
+            {t.btns[0]}
+          </button>
           <button className="hbtn-s" onClick={() => scroll2('demo')} style={{padding:'18px 36px', background:'none', border:'1px solid var(--b2)', borderRadius:'100px', color:'var(--tm)', cursor:'pointer'}}>{t.btns[1]}</button>
         </div>
       </section>

@@ -25,6 +25,12 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         if (isOpen) scrollToBottom();
     }, [messages, isOpen]);
 
+    useEffect(() => {
+        const handleOpenChat = () => setIsOpen(true);
+        window.addEventListener('open-alex-chat', handleOpenChat);
+        return () => window.removeEventListener('open-alex-chat', handleOpenChat);
+    }, []);
+
     const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!inputText.trim()) return;
