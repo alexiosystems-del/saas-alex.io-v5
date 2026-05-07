@@ -52,11 +52,16 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     senderId: senderId.current,
-
                     text: userMsg.text,
                     metadata: { tenantId, platform: 'web', source: 'widget_flotante' }
                 })
             });
+
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const textDump = await response.text();
+                throw new Error(`Error del Servidor: Esperaba JSON pero recibí: ${textDump.substring(0, 100)}...`);
+            }
 
             const data = await response.json();
 
