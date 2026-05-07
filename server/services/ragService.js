@@ -105,7 +105,7 @@ async function queryKnowledgeBase(tenantId, instanceId, queryText, limit = 3) {
         // 1. Convert user's message into an embedding vector
         const queryEmbedding = await generateEmbedding(queryText);
 
-        // 2. Call the Supabase RPC function 'match_document_chunks'
+        // 2. Intentar usar la función RPC nativa (más rápida)
         const { data, error } = await db.rpc('match_document_chunks', {
             query_embedding: queryEmbedding,
             match_tenant_id: tenantId,
@@ -113,10 +113,42 @@ async function queryKnowledgeBase(tenantId, instanceId, queryText, limit = 3) {
             match_count: limit
         });
 
-        if (error) throw error;
+        if (!error && data && data.length > 0) {
+            return data.filter(doc => doc.similarity > 0.72).map(doc => doc.chunk_content).join('\n\n---\n\n');
+        }
 
-        // Return only the text chunks with a similarity score > threshold (e.g. 0.72)
-        return data.filter(doc => doc.similarity > 0.72).map(doc => doc.chunk_content).join('\n\n---\n\n');
+        // 3. SRE FALLBACK: Si hay error (como funciones ambiguas) o no hay resultados, calcular en memoria
+        if (error) console.warn('⚠️ [RAG] RPC Falló, usando In-Memory Vector Search Fallback:', error.message);
+        
+        const { data: allChunks, error: fetchErr } = await db
+            .from('document_chunks')
+            .select('chunk_content, embedding')
+            .eq('instance_id', instanceId);
+            
+        if (fetchErr || !allChunks || allChunks.length === 0) return null;
+
+        // Calcular similitud del coseno
+        const dotProduct = (a, b) => a.reduce((sum, val, i) => sum + val * b[i], 0);
+        const magnitude = (v) => Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
+        const cosineSimilarity = (a, b) => {
+            let aVec = typeof a === 'string' ? JSON.parse(a) : a;
+            let bVec = typeof b === 'string' ? JSON.parse(b) : b;
+            return dotProduct(aVec, bVec) / (magnitude(aVec) * magnitude(bVec));
+        };
+
+        const scored = allChunks.map(chunk => ({
+            content: chunk.chunk_content,
+            similarity: cosineSimilarity(queryEmbedding, chunk.embedding)
+        }));
+
+        scored.sort((a, b) => b.similarity - a.similarity);
+        
+        const topResults = scored.slice(0, limit).filter(doc => doc.similarity > 0.72);
+        if (topResults.length === 0) return null;
+        
+        console.log(`✅ [RAG Fallback] Match exitoso en memoria: ${topResults.length} chunks.`);
+        return topResults.map(doc => doc.content).join('\n\n---\n\n');
+
     } catch (err) {
         console.error(`❌ Error consultando base de conocimiento RAG:`, err.message);
         return null; // Silent fail gracefully so the bot keeps chatting

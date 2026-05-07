@@ -71,7 +71,6 @@ Reglas: RESPONDE ÚNICAMENTE CON EL JSON VÁLIDO.
             remote_jid: remoteJid,
             is_lead: extraction.is_lead || false,
             name: extraction.name || 'desconocido',
-            email: extraction.email || null,
             temperature: temp,
             score: score, 
             summary: extraction.summary || 'Sin interés claro detectado.',
