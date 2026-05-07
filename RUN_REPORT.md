@@ -1,16 +1,20 @@
-# RUN_REPORT.md - ALEX IO DevOps Execution
+# ALEX IO — RUN_REPORT.md
+## 📦 Release: `prod-hardening-v1`
+**Fecha:** 2026-05-07
 
-| Timestamp | Phase | Task | Command | Result | Status |
-|-----------|-------|------|---------|--------|--------|
-| 2026-05-06T11:45:00 | 0 | Baseline | `npm ci` / `readiness.js` | PASS (Env Checked) | DONE |
-| 2026-05-06T11:55:00 | 1 | Hardening | Security Edits (CORS/CSP/Env) | Hardened & Strict | DONE |
-| 2026-05-06T12:00:00 | 2 | AI Router | alexBrain.js (Failover/Circuit) | Production Grade | DONE |
-| 2026-05-06T12:15:00 | 3 | Scaling | provision_10_bots.js | 10 Bots Seeded | DONE |
-| 2026-05-06T12:20:00 | 4 | Deployment | Dockerfile & cloudbuild.yaml | Multi-stage Ready | DONE |
-| 2026-05-06T12:25:00 | 5 | Final | Push to origin/deploy-fix | SYNCED | DONE |
+### 🟢 FASE 0: Baseline y Snapshot
+- **Rama:** `release/prod-hardening-v1`
+- **Tests Unitarios:** 14/14 ✅
+- **Build Frontend:** Exitoso ✅
+- **Readiness Check:** 
+  - ✅ RAG, Gemini, CRM PRO, Live Chat.
+  - ❌ Faltan: ANTHROPIC_API_KEY (Crítico para Cascada), Meta Cloud API, 360dialog, TikTok, Discord.
+- **Riesgos Iniciales:** 
+  - Cascada de IA incompleta por falta de Claude.
+  - Multi-canal limitado a Baileys (si se activa) y WebChat.
 
-## Technical Evidence
-- **Security:** CSP now blocks unauthorized WebSocket and script execution. CORS restricted to allowed domains.
-- **Failover:** AI Cascade now supports exponential backoff and circuit breaker per provider.
-- **Infrastructure:** Dockerfile optimized for Cloud Run (multi-stage, bundled assets).
-- **Readiness:** Script updated for CI/CD with JSON support and exit codes.
+---
+### 🛠️ FASE 1: Hardening (En Progreso)
+- [ ] CORS Estricto
+- [ ] CSP por Entorno
+- [ ] Supabase Env Validation
