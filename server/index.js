@@ -339,25 +339,26 @@ if (fs.existsSync(clientPath)) {
 // --- BOT INITIATOR CORE (BIC) ROUTES ---
 const initiatorService = require('./services/initiatorProfileService');
 
-app.post('/api/saas/bot-initiator', authenticateToken, async (req, res) => {
+app.post('/api/saas/bot-initiator', authenticateTenant, async (req, res) => {
     try {
-        const { botId, profileData } = req.body;
-        const tenantId = req.tenant?.id;
-        if (!botId || !tenantId) return res.status(400).json({ error: 'Missing data' });
-        
-        const profile = await initiatorService.saveProfile(botId, tenantId, profileData);
-        res.json({ success: true, profile });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+        const tenantId = req.tenant.id;
+        const profile = req.body;
+        const saved = await initiatorService.saveProfile(profile.instance_id || profile.botId, {
+            ...profile,
+            tenant_id: tenantId
+        });
+        res.json({ success: true, profile: saved });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
-app.get('/api/saas/bot-initiator/:botId', authenticateToken, async (req, res) => {
+app.get('/api/saas/bot-initiator/:botId', authenticateTenant, async (req, res) => {
     try {
         const profile = await initiatorService.getProfile(req.params.botId);
         res.json({ success: true, profile });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
