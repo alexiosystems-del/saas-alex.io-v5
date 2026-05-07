@@ -1,207 +1,167 @@
-import React, { useEffect, useState } from 'react';
-import { Bot, Zap, Shield, Target, ArrowRight, MessageSquare, Globe, Cpu, Languages } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState('onyx');
   const [lang, setLang] = useState('es');
-  
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'onyx');
-  }, []);
+  const [step, setStep] = useState(-1);
+  const [chatOpen, setChatOpen] = useState(false);
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(theme === 'onyx' ? 'silver' : 'onyx');
+  const scroll2 = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   const handleEnter = () => navigate('/login');
-  
+
   const content = {
     es: {
-      nav: ['Infraestructura', 'Soluciones', 'Casos'],
-      access: 'Acceso Master',
-      badge: 'Sistema Operativo V5.0 — Online',
-      h1: ['Infraestructura Universal de', 'Comunicación IA'],
-      p: 'ALEX IO no es un bot. Es el primer sistema nervioso digital para empresas que integra Cascada Neural y Memoria Dual para automatizar ventas complejas.',
-      cta: 'Iniciar Despliegue',
-      doc: 'Ver Documentación',
-      stats: [
-        { label: 'Precisión AI', value: '98.4%', sub: 'Cascada 3.0' },
-        { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
-        { label: 'Latencia', value: '1.2s', sub: 'Edge Compute' },
-        { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
+      nav: ['Canales', 'Arquitectura', 'Inversión', 'Roadmap v2'],
+      badge: 'La nueva frontera del cierre automático',
+      h1: ['Cada mensaje que no', 'respondes es', 'dinero perdido.'],
+      p: 'ALEX IO responde, califica y convierte clientes automáticamente en WhatsApp y redes sociales, las 24 horas, los 7 días.',
+      mini: [
+        'Respuestas en segundos',
+        'Seguimiento automático',
+        'Más ventas sin equipo',
+        'IA multilingüe con contexto'
       ],
-      features: [
-        { title: 'Cascada Neural', desc: 'Orquestación inteligente entre 5 modelos (Gemini, GPT, Claude, DeepSeek, MiniMax) para máxima precisión y costo optimizado.' },
-        { title: 'Compliance Shield', desc: 'Auditoría en tiempo real de cada mensaje para asegurar que tu marca nunca rompa protocolos de comunicación.' },
-        { title: 'Memoria Dual', desc: 'Contexto persistente que recuerda a cada usuario a través de canales, creando experiencias hiper-personalizadas.' }
-      ]
+      btns: ['ACTIVAR ALEX IO AHORA', 'Ver demo en vivo'],
+      kicker1: 'Visión de producto · 2025–2026',
+      secH1: ['Tres productos.', 'Un solo cerebro.'],
+      access: 'ACCESO MASTER'
     },
     en: {
-      nav: ['Infrastructure', 'Solutions', 'Cases'],
-      access: 'Master Access',
-      badge: 'Operating System V5.0 — Online',
-      h1: ['Universal Infrastructure for', 'AI Communication'],
-      p: 'ALEX IO is not a bot. It is the first digital nervous system for businesses that integrates Neural Cascade and Dual Memory to automate complex sales.',
-      cta: 'Start Deployment',
-      doc: 'View Docs',
-      stats: [
-        { label: 'AI Accuracy', value: '98.4%', sub: 'Cascade 3.0' },
-        { label: 'Uptime', value: '99.99%', sub: 'SRE Shield' },
-        { label: 'Latency', value: '1.2s', sub: 'Edge Compute' },
-        { label: 'Leads Gen', value: '1M+', sub: 'Global scale' }
+      nav: ['Channels', 'Architecture', 'Pricing', 'Roadmap v2'],
+      badge: 'The new frontier of automated closing',
+      h1: ['Every message you', 'dont answer is', 'lost money.'],
+      p: 'ALEX IO answers, qualifies, and converts customers automatically on WhatsApp and social media, 24/7.',
+      mini: [
+        'Responses in seconds',
+        'Automated follow-up',
+        'More sales without a team',
+        'Multilingual AI with context'
       ],
-      features: [
-        { title: 'Neural Cascade', desc: 'Intelligent orchestration between 5 models (Gemini, GPT, Claude, DeepSeek, MiniMax) for maximum accuracy and cost optimization.' },
-        { title: 'Compliance Shield', desc: 'Real-time message auditing to ensure your brand never breaks communication protocols.' },
-        { title: 'Dual Memory', desc: 'Persistent context that remembers every user across channels, creating hyper-personalized experiences.' }
-      ]
+      btns: ['ACTIVATE ALEX IO NOW', 'Watch live demo'],
+      kicker1: 'Product Vision · 2025–2026',
+      secH1: ['Three products.', 'One single brain.'],
+      access: 'MASTER ACCESS'
     }
   };
 
   const t = content[lang];
-  const calendlyLink = "https://calendly.com/alex-io-systems/30min";
 
   return (
-    <div className="landing-root min-h-screen bg-[#08080D] text-white font-['Instrument_Sans'] overflow-x-hidden">
+    <div className="landing-wrapper">
       <style>{`
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root {
-          --gold: #C5A028;
-          --gold2: #D4B03A;
-          --gold-glow: rgba(197, 160, 40, 0.35);
-          --ff: 'Playfair Display', serif;
+          --gold:#C5A028; --gold2:#D4B03A; --gold3:#E8C84A;
+          --gold-glow:rgba(197,160,40,0.35); --gold-dim:rgba(197,160,40,0.08);
+          --gold-mid:rgba(197,160,40,0.25); --ff:'Playfair Display',Georgia,serif;
+          --fb:'Instrument Sans',sans-serif; --fm:'DM Mono',monospace;
         }
-        .hero-gradient {
-          background: radial-gradient(circle at 50% 50%, rgba(197, 160, 40, 0.1) 0%, transparent 70%);
+        [data-theme="onyx"] {
+          --bg:#08080D; --bg2:#0D0D14; --bg3:#121219;
+          --b1:rgba(255,255,255,0.06); --b2:rgba(255,255,255,0.10);
+          --b3:rgba(255,255,255,0.15); --tx:#F2F0E8; --tm:#8A8880;
+          --td:#3A3830; --glass:rgba(255,255,255,0.04); --glass-h:rgba(255,255,255,0.07);
         }
-        .glass-card {
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+        [data-theme="silver"] {
+          --bg:#F5F3EE; --bg2:#ECEAE4; --bg3:#E2E0DA;
+          --b1:rgba(0,0,0,0.06); --b2:rgba(0,0,0,0.10);
+          --b3:rgba(0,0,0,0.18); --tx:#0A0A08; --tm:#5A5850;
+          --td:#9A9890; --glass:rgba(0,0,0,0.03); --glass-h:rgba(0,0,0,0.06);
         }
-        .gold-text {
-          background: linear-gradient(135deg, #C5A028 0%, #E8C84A 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-        @keyframes float {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-          100% { transform: translateY(0px); }
-        }
-        .animate-float { animation: float 6s ease-in-out infinite; }
+        .landing-wrapper { background:var(--bg); color:var(--tx); font-family:var(--fb); min-height: 100vh; }
+        nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;height:68px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b1);background:rgba(8,8,13,.92);backdrop-filter:blur(20px);}
+        .nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--ff);font-size:24px;font-weight:900;color:var(--tx);text-decoration:none}
+        .nav-icon{width:34px;height:34px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;transform:rotate(6deg);}
+        .nav-logo em{color:var(--gold);font-style:italic}
+        .nav-links{display:flex;gap:32px;font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+        .nav-links a{color:var(--tm);text-decoration:none;cursor:pointer}
+        .btn-gd{padding:10px 22px;background:var(--gold);border:none;border-radius:100px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;}
+        .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 5vw 80px;}
+        .hero-h1{font-family:var(--ff);font-size:clamp(52px,8.5vw,118px);line-height:.94;font-weight:900;margin-bottom:28px;}
+        .hero-h1 em{font-style:italic;color:var(--gold);}
+        .hero-p{font-size:clamp(15px,1.7vw,20px);color:var(--tm);max-width:600px;line-height:1.75;margin-bottom:44px;}
+        .hero-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:800px;margin-bottom:44px;}
+        .mini-card{padding:20px 16px;border:1px solid var(--b1);background:var(--glass);border-radius:16px;}
+        .mini-icon{color:var(--gold);font-size:20px;margin-bottom:10px;}
+        .mini-txt{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tm)}
+        .section{padding:100px 5vw;border-top:1px solid var(--b1);}
+        .sec-h{font-family:var(--ff);font-size:clamp(44px,6vw,80px);font-weight:900;line-height:.93;}
+        .sec-h em{font-style:italic;color:var(--gold)}
+        .timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:64px;}
+        .prod-card{padding:52px 44px;border:1px solid var(--b1);background:var(--bg2);position:relative;}
+        .featured{background:var(--gold-dim);border-color:var(--gold-mid);}
+        .dashboard-preview-img { width: 100%; border-radius: 20px; border: 1px solid var(--b2); margin-top: 40px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
       `}</style>
 
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 px-8 py-6 flex justify-between items-center glass-card border-t-0 border-x-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[var(--gold)] rounded-xl flex items-center justify-center shadow-lg shadow-gold-500/20">
-            <Bot size={24} className="text-[#08080D]" />
-          </div>
-          <span className="text-2xl font-black tracking-tighter italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
-        </div>
-        <div className="hidden md:flex items-center gap-10 text-sm font-bold uppercase tracking-widest text-slate-400">
-          {t.nav.map((item, i) => (
-            <a key={i} href="#" className="hover:text-white transition-colors">{item}</a>
-          ))}
-          <button 
-            onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
-            className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all"
-          >
-            <Languages size={14} />
-            <span className="text-[10px]">{lang.toUpperCase()}</span>
+      {/* NAV */}
+      <nav>
+        <a className="nav-logo" href="#">
+          <div className="nav-icon">A</div>
+          ALEX <em>IO</em>
+        </a>
+        <div className="nav-links">
+          {t.nav.map((n, i) => <a key={i} onClick={() => scroll2('canales')}>{n}</a>)}
+          <button onClick={() => setLang(lang === 'es' ? 'en' : 'es')} style={{background:'none', border:'none', color:'var(--gold)', fontWeight:'bold', cursor:'pointer'}}>
+            {lang.toUpperCase()}
           </button>
         </div>
-        <button 
-          onClick={handleEnter}
-          className="px-8 py-3 bg-[var(--gold)] hover:bg-[#D4B03A] text-[#08080D] rounded-xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-500/20 active:scale-95"
-        >
-          {t.access}
-        </button>
+        <div className="nav-r">
+          <button className="btn-gd" onClick={handleEnter}>{t.access}</button>
+        </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-40 pb-20 px-8 flex flex-col items-center text-center hero-gradient">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-10">
-          <div className="w-2 h-2 rounded-full bg-[var(--gold)] animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{t.badge}</span>
-        </div>
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-badge" style={{padding:'8px 18px', border:'1px solid var(--b2)', borderRadius:'100px', fontSize:'11px', color:'var(--tm)', marginBottom:'40px'}}>{t.badge}</div>
+        <h1 className="hero-h1">{t.h1[0]}<br/>{t.h1[1]}<br/><em>{t.h1[2]}</em></h1>
+        <p className="hero-p">{t.p}</p>
         
-        <h1 className="text-6xl md:text-8xl font-black mb-8 tracking-tighter italic max-w-5xl leading-[0.9]" style={{ fontFamily: 'var(--ff)' }}>
-          {t.h1[0]} <span className="gold-text">{t.h1[1]}</span>
-        </h1>
-        
-        <p className="text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
-          {t.p}
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-6">
-          <button 
-            onClick={handleEnter}
-            className="px-12 py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 hover:bg-[var(--gold)] hover:text-white transition-all group"
-          >
-            {t.cta}
-            <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
-          </button>
-          <a 
-            href={calendlyLink} target="_blank" rel="noopener noreferrer"
-            className="px-12 py-5 glass-card rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center"
-          >
-            {t.doc}
-          </a>
+        <div className="hero-mini">
+          {t.mini.map((m, i) => (
+            <div key={i} className="mini-card">
+              <div className="mini-icon">⚡</div>
+              <div className="mini-txt">{m}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Dashboard Preview */}
-        <div className="mt-20 w-full max-w-6xl relative animate-float">
-          <div className="absolute -inset-4 bg-[var(--gold)]/20 blur-3xl rounded-full opacity-30" />
-          <div className="relative glass-card rounded-[3rem] p-4 overflow-hidden shadow-2xl border-white/10">
-             <div className="w-full aspect-video bg-slate-900/80 rounded-[2.5rem] flex items-center justify-center border border-white/5 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2000&auto=format&fit=crop" alt="Dashboard Preview" className="w-full h-full object-cover opacity-50 mix-blend-overlay" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="p-10 text-center">
-                        <Cpu size={64} className="text-[var(--gold)] mb-6 mx-auto animate-pulse" />
-                        <h3 className="text-4xl font-black italic uppercase tracking-tighter">Neural Command Center</h3>
-                    </div>
-                </div>
-             </div>
+        {/* Dashboard Image Requested */}
+        <div style={{maxWidth:'1000px', width:'100%'}}>
+           <img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2000&auto=format&fit=crop" className="dashboard-preview-img" alt="Neural Command Center" />
+        </div>
+      </section>
+
+      {/* TIMELINE */}
+      <section className="section" id="productos">
+        <div className="kicker" style={{color:'var(--gold)', fontSize:'10px', marginBottom:'20px'}}>{t.kicker1}</div>
+        <h2 className="sec-h">{t.secH1[0]}<br/><em>{t.secH1[1]}</em></h2>
+        <div className="timeline">
+          <div className="prod-card featured">
+            <h3 style={{fontSize:'32px', marginBottom:'20px'}}>ALEX IO</h3>
+            <p style={{color:'var(--tm)', fontSize:'14px'}}>Automatización comercial · Ventas · CRM</p>
+          </div>
+          <div className="prod-card">
+            <h3 style={{fontSize:'32px', marginBottom:'20px'}}>INCLUSIVE</h3>
+            <p style={{color:'var(--tm)', fontSize:'14px'}}>Accesibilidad universal</p>
+          </div>
+          <div className="prod-card">
+            <h3 style={{fontSize:'32px', marginBottom:'20px'}}>TRANSLATE</h3>
+            <p style={{color:'var(--tm)', fontSize:'14px'}}>Comunicación sin fronteras</p>
           </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-20 px-8 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-        {t.stats.map((stat, i) => (
-          <div key={i} className="text-center group hover:scale-105 transition-transform">
-            <div className="text-5xl font-black mb-2 italic gold-text">{stat.value}</div>
-            <div className="text-xs font-black uppercase tracking-widest text-white mb-1">{stat.label}</div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase">{stat.sub}</div>
-          </div>
-        ))}
-      </section>
-
-      {/* Features */}
-      <section className="py-32 px-8 bg-white/2">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl md:text-6xl font-black mb-20 tracking-tighter italic text-center uppercase">Tech <span className="gold-text">Infrastructure</span></h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {t.features.map((f, i) => (
-              <div key={i} className="p-12 glass-card rounded-[3rem] hover:border-[var(--gold)]/50 transition-all group">
-                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-[var(--gold)] mb-8 group-hover:scale-110 transition-transform">
-                  {i === 0 ? <Zap size={32} /> : i === 1 ? <Shield size={32} /> : <Globe size={32} />}
-                </div>
-                <h3 className="text-2xl font-black mb-4 uppercase tracking-tighter italic">{f.title}</h3>
-                <p className="text-slate-400 leading-relaxed font-medium">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-20 px-8 border-t border-white/5 text-center">
-        <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-[var(--gold)] rounded-lg flex items-center justify-center">
-            <Bot size={20} className="text-[#08080D]" />
-          </div>
-          <span className="text-xl font-black tracking-tighter italic">ALEX <span className="text-[var(--gold)]">IO</span></span>
-        </div>
-        <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.4em]">© 2026 ALEX IO SYSTEMS — ALL RIGHTS RESERVED</p>
+      {/* FOOTER */}
+      <footer style={{padding:'50px 5vw', borderTop:'1px solid var(--b1)', textAlign:'center'}}>
+        <div className="foot-logo" style={{fontSize:'24px', fontWeight:'900'}}>ALEX <em>IO</em></div>
+        <p style={{fontSize:'10px', color:'var(--tm)', marginTop:'10px'}}>© 2026 ALEX IO SYSTEMS</p>
       </footer>
     </div>
   );
