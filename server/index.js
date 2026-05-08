@@ -85,16 +85,40 @@ const botPool = require('./services/botPoolRouter');
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
 
-// Socket.io Auth Middleware
-io.use((socket, next) => {
+// Socket.io Auth Middleware (Supports ALEX IO JWT and Supabase Tokens)
+io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Authentication error: Token missing'));
     try {
-        const decoded = jwt.verify(token, getJwtSecret());
-        socket.tenant = decoded;
-        next();
-    } catch (err) {
+        // 1. Try ALEX IO Local JWT
+        try {
+            const decoded = jwt.verify(token, getJwtSecret());
+            socket.tenant = {
+                id: decoded.tenantId,
+                role: decoded.role || 'OWNER'
+            };
+            return next();
+        } catch (e) {
+            // Not a local JWT or invalid secret, try Supabase
+        }
+
+        // 2. Try Supabase Token
+        if (isSupabaseEnabled) {
+            const { data: { user }, error } = await supabase.auth.getUser(token);
+            if (!error && user) {
+                const isAdmin = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'].includes(user.email.toLowerCase());
+                socket.tenant = {
+                    id: isAdmin ? 'tenant_superadmin' : user.id,
+                    role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER'),
+                    plan: user.user_metadata?.plan || (isAdmin ? 'ENTERPRISE' : 'PRO')
+                };
+                return next();
+            }
+        }
+
         next(new Error('Authentication error: Invalid token'));
+    } catch (err) {
+        next(new Error('Authentication error: ' + err.message));
     }
 });
 

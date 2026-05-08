@@ -256,8 +256,9 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     return;
                                                 }
 
+                                                const apiBase = import.meta.env.PROD ? 'https://whatsapp-fullstack-ylsx.onrender.com' : (import.meta.env.VITE_API_URL || window.location.origin);
                                                 addLog('Solicitando QR al servidor...');
-                                                const res = await fetch(`${window.location.origin}/api/saas/connect`, {
+                                                const res = await fetch(`${apiBase}/api/saas/connect`, {
                                                     method: 'POST',
                                                     headers: {
                                                         'Content-Type': 'application/json',
@@ -295,7 +296,8 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
                                                 const poll = setInterval(async () => {
                                                     try {
-                                                        const s = await fetch(`${window.location.origin}/api/saas/status/${instanceId}`, {
+                                                        const pollApiBase = import.meta.env.PROD ? 'https://whatsapp-fullstack-ylsx.onrender.com' : (import.meta.env.VITE_API_URL || window.location.origin);
+                                                        const s = await fetch(`${pollApiBase}/api/saas/status/${instanceId}`, {
                                                             headers: { 'Authorization': `Bearer ${authToken}` }
                                                         });
                                                         const contentType = s.headers.get('content-type') || '';
