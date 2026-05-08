@@ -8,6 +8,8 @@ const pino = require('pino');
 const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('./middleware/auth');
 
 // --- CONFIGURATION ---
 // --- GLOBAL FEATURE FLAGS (BIC Architecture) ---
@@ -200,9 +202,7 @@ const NodeCache = require('node-cache');
 global.responseCache = global.responseCache || new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hour TTL
 
 // --- AUTH ROUTES (Public) ---
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'];

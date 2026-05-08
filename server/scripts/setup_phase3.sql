@@ -94,13 +94,20 @@ CREATE TABLE bot_pool_events (
 -- ═══ 8. Legacy leads table (backward compat) ═══
 CREATE TABLE leads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    business_id TEXT NOT NULL,
-    phone TEXT NOT NULL,
+    tenant_id TEXT,
+    instance_id TEXT NOT NULL,
+    remote_jid TEXT NOT NULL,
+    business_id TEXT,
+    phone TEXT,
     name TEXT,
+    is_lead BOOLEAN DEFAULT false,
+    temperature TEXT DEFAULT 'COLD',
+    score FLOAT DEFAULT 0,
+    summary TEXT,
     status TEXT DEFAULT 'active',
     last_message TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(business_id, phone)
+    UNIQUE(instance_id, remote_jid)
 );
 
 -- ═══ Performance Indices ═══
