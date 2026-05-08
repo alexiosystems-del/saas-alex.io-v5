@@ -41,9 +41,8 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         setIsLoading(true);
 
         try {
-            // El frontend está alojado en un Static Site (yjao), pero el backend real está en el Web Service (ylsx).
-            // Forzamos la conexión al endpoint correcto para evitar la respuesta index.html por defecto del Static Site.
-            const targetUrl = 'https://whatsapp-fullstack-ylsx.onrender.com/api/webhooks/webchat';
+            // Use window.location.origin to hit the same server we are hosted on
+            const targetUrl = `${window.location.origin}/api/webhooks/webchat`;
             
             const response = await fetch(targetUrl, {
                 method: 'POST',
