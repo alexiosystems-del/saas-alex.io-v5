@@ -99,6 +99,23 @@ const SaasDashboard = () => {
     fetchBots();
   }, []);
 
+  const [connectionStatus, setConnectionStatus] = useState('offline');
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) setConnectionStatus('online');
+        else setConnectionStatus('offline');
+      } catch {
+        setConnectionStatus('offline');
+      }
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchBots = async () => {
     try {
       setLoading(true);
@@ -174,14 +191,15 @@ const SaasDashboard = () => {
       case 'campaigns':
         return <BroadcastCampaign instanceId={selectedBotId} />;
       case 'config':
-        const currentBot = bots.find(b => b.id === selectedBotId);
+        const currentBot = bots.find(b => (b.instance_id || b.id) === selectedBotId);
         return (
           <ConfigTab 
             selected={currentBot} 
             configDraft={currentBot || {}} 
+            connectionStatus={connectionStatus}
             setConfigDraft={(newData) => {
               setBots(prev => prev.map(b => 
-                b.id === selectedBotId ? { ...b, ...newData } : b
+                (b.instance_id || b.id) === selectedBotId ? { ...b, ...newData } : b
               ));
             }}
             onSave={async () => {

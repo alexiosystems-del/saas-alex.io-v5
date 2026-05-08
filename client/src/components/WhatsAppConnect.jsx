@@ -25,7 +25,8 @@ function normalizeQrPayload(rawQr) {
 
 const getSocketUrl = () => {
     if (import.meta.env.PROD) {
-        return import.meta.env.VITE_API_URL || 'https://whatsapp-fullstack-ylsx.onrender.com';
+        // First try the configured env var, then fallback to current window origin
+        return import.meta.env.VITE_API_URL || window.location.origin;
     }
     return 'http://localhost:3000';
 };
@@ -256,7 +257,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     return;
                                                 }
 
-                                                const apiBase = import.meta.env.PROD ? 'https://whatsapp-fullstack-ylsx.onrender.com' : (import.meta.env.VITE_API_URL || window.location.origin);
+                                                const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000');
                                                 addLog('Solicitando QR al servidor...');
                                                 const res = await fetch(`${apiBase}/api/saas/connect`, {
                                                     method: 'POST',
@@ -296,7 +297,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
                                                 const poll = setInterval(async () => {
                                                     try {
-                                                        const pollApiBase = import.meta.env.PROD ? 'https://whatsapp-fullstack-ylsx.onrender.com' : (import.meta.env.VITE_API_URL || window.location.origin);
+                                                        const pollApiBase = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000');
                                                         const s = await fetch(`${pollApiBase}/api/saas/status/${instanceId}`, {
                                                             headers: { 'Authorization': `Bearer ${authToken}` }
                                                         });
