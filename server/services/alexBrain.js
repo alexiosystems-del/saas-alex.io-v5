@@ -695,7 +695,7 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
 
     for (const model of cascadeModels) {
         let retries = 0;
-        const maxRetries = 1; // 1 retry + initial attempt = 2 max
+        const maxRetries = 2; // 2 retries + initial attempt = 3 max
         let modelSuccess = false;
 
         while (retries <= maxRetries) {
@@ -726,13 +726,25 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
                         score: finalScore
                     });
                     break;
+                } else if (model.id === 'gpt') {
+                    console.warn(`⚠️ [ConfidenceAI] Low score (${evalResult.score}) but accepting as it's the final fallback model.`);
+                    responseText = text;
+                    usedModel = model.id;
+                    modelSuccess = true;
+                    break;
                 } else {
                     console.warn(`🔄 [ConfidenceAI] Decisión: RETRY. Score: ${evalResult.score}`);
                     throw new Error(`Low confidence score: ${finalScore}`);
                 }
             } catch (err) {
+                const isRateLimit = err.response?.status === 429 || err.message?.includes('429');
                 const latency = Date.now() - startAttempt;
                 console.warn(`⚠️ [CASCADE] Falló ${model.id} (Intento ${retries + 1}):`, err.message);
+                
+                if (isRateLimit && retries < maxRetries) {
+                    console.log(`⏳ [429 Backoff] Esperando 1.5s antes de reintentar ${model.id}...`);
+                    await new Promise(r => setTimeout(r, 1500));
+                }
                 
                 telemetry.push({
                     provider: model.id,
