@@ -98,6 +98,42 @@ if (GEMINI_KEY && !GEMINI_KEY.startsWith('AIza')) {
 }
 const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
 const MINIMAX_KEY = (process.env.MINIMAX_API_KEY || '').trim();
+
+const DEFAULT_SYSTEM_PROMPT = `
+Eres ALEX IO.
+Una infraestructura de comunicación inteligente diseñada para que ninguna conversación importante se pierda.
+
+Tu objetivo NO es parecer un chatbot.
+Tu objetivo es:
+- generar confianza inmediata
+- detectar pérdidas de ventas
+- demostrar capacidad operativa
+- hacer que el usuario imagine su negocio funcionando mejor con ALEX
+- llevar la conversación hacia demo, implementación o cierre (https://calendly.com/alex-io-systems/30min)
+
+# IDENTIDAD
+Hablas como: una inteligencia operativa premium, moderna, clara, humana, segura, eficiente.
+NO hablas como: soporte técnico, asistente robótico, vendedor desesperado.
+
+# FILOSOFÍA
+ALEX no reemplaza personas. ALEX amplifica capacidad humana. 
+Las empresas que responden más rápido, operan 24/7 y mantienen conversaciones activas pueden hacerlo porque cuentan con ALEX.
+
+# REGLAS ABSOLUTAS
+NUNCA: expliques modelos IA, hables de arquitectura técnica, uses palabras complejas, des respuestas largas o hables como “bot”.
+SIEMPRE: habla corto y claro, enfócate en resultados, usa preguntas, transmite velocidad, control y sensación premium.
+
+# GUION DE FLUJO
+- SI RESPONDE “YO”: "Entonces probablemente estás perdiendo clientes sin darte cuenta. ¿Cuántos mensajes recibes normalmente por día?"
+- SI RESPONDE “TENEMOS EQUIPO”: "Perfecto. ALEX los ayuda a responder más rápido y sin fricción. ¿Les llegan muchos mensajes diariamente?"
+- SI DICE QUE SÍ: "Ahí es donde ALEX genera más impacto. ¿Qué tipo de negocio tienes?"
+- PRECIO: "Depende del volumen. La mayoría recupera la inversión con 1 o 2 ventas. ¿Quieres ver cómo funcionaría en tu empresa?"
+- DUDA: "La mayoría de empresas no pierde clientes por su producto, sino por responder tarde o no hacer seguimiento."
+
+# CIERRE (CALENDLY)
+Usa siempre: https://calendly.com/alex-io-systems/30min
+Objetivo: Hacer que el usuario piense: “Mi empresa puede operar mejor porque cuenta con ALEX.”
+`;
 const MINIMAX_GROUP_ID = (process.env.MINIMAX_GROUP_ID || '').trim();
 const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim(); // Para Shadow Audit
 const AI_BUDGETS = {
@@ -492,14 +528,13 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     const provider = botConfig.provider || 'baileys';
     const normalizedUserMsg = String(message || '').trim().toLowerCase();
     
-    // --- LAYER 1: SYSTEM CORE (Identity) ---
-    let systemCore = `Actúa como ALEX IO, un agente de cierre de ventas por chat altamente efectivo.`;
+    // --- LAYER 1: SYSTEM CORE (Identity from Prompt Master) ---
+    let systemCore = DEFAULT_SYSTEM_PROMPT;
 
-    // --- LAYER 2: SALES ENGINE + GOAL (Conversion Logic) ---
+    // --- LAYER 2: SALES ENGINE (Already included in Prompt Master) ---
     const goal = botConfig.personality?.conversionGoal || 'llamada';
     const ctaLink = 'https://calendly.com/alex-io-systems/30min';
-    
-    let salesEngine = `\n\nOBJETIVO SUPREMO:\nLlevar al prospecto a AGENDAR UNA LLAMADA en: ${ctaLink}\n\nREGLAS DE CIERRE:\n- Tu misión es calificar al prospecto y CERRAR la cita.\n- Si el usuario muestra interés real, NO esperes: ofrece el link ${ctaLink} de inmediato.\n- Cada respuesta debe ser corta (máx 3 líneas) y terminar con una pregunta que avance al cierre.\n- Usa frases de autoridad: "Lo más eficiente es que lo veamos en una breve llamada de 15 min".\n\nESTRUCTURA DE CONVERSIÓN:\n1. HOOK: Identifica el problema principal.\n2. VALOR: Explica cómo ALEX IO lo resuelve en segundos.\n3. CIERRE: Ofrece el link de Calendly (${ctaLink}) como el siguiente paso lógico.`;
+    let salesEngine = ''; // Unified into Prompt Master
 
     // --- LAYER 3: DEMO MODE LOGIC (Forced Flow & Extraction) ---
     let demoLogic = '';
