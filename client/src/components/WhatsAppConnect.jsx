@@ -49,58 +49,91 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     useEffect(() => {
         console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
 
-        try {
-            const socketUrl = getSocketUrl();
-            console.log("🌐 Socket Target:", socketUrl);
-            socketRef.current = io(socketUrl, {
-                reconnection: true,
-                reconnectionAttempts: 5,
-                transports: ['websocket'],
-                auth: { 
-                    token: localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token') 
-                }
-            });
+        const connectSocket = () => {
+            const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+            if (!token) {
+                console.warn("⏳ [Socket] No token yet, deferring connection...");
+                return false;
+            }
 
-            socketRef.current.on('connect', () => {
-                console.log("✅ Socket Connected");
-                addLog('Servidor de eventos conectado.', 'success');
-            });
-            socketRef.current.on('connect_error', (err) => {
-                console.error("❌ Socket Connect Error:", err);
-                addLog('Error de conexión con el servidor de eventos.', 'error');
-            });
+            // Disconnect previous socket if reconnecting with new token
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
 
-            socketRef.current.on('wa_qr', (data) => {
-                if (data.instanceId === instanceId) {
-                    setQrCode(data.qr);
-                    setStatus('QR_READY');
-                    addLog('Código QR recibido del servidor.', 'success');
-                }
-            });
+            try {
+                const socketUrl = getSocketUrl();
+                console.log("🌐 Socket Target:", socketUrl);
+                socketRef.current = io(socketUrl, {
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    transports: ['websocket'],
+                    auth: { token }
+                });
 
-            socketRef.current.on('wa_status', (data) => {
-                if (data.instanceId === instanceId) {
-                    if (data.status === 'READY') {
-                        setStatus('READY');
-                        setQrCode(null);
-                        addLog('WhatsApp conectado exitosamente.', 'success');
-                    } else {
-                        addLog(`Estado de conexión: ${data.status}`, 'info');
+                socketRef.current.on('connect', () => {
+                    console.log("✅ Socket Connected");
+                    addLog('Servidor de eventos conectado.', 'success');
+                });
+                socketRef.current.on('connect_error', (err) => {
+                    console.error("❌ Socket Connect Error:", err);
+                    addLog('Error de conexión con el servidor de eventos.', 'error');
+                });
+
+                socketRef.current.on('wa_qr', (data) => {
+                    if (data.instanceId === instanceId) {
+                        setQrCode(data.qr);
+                        setStatus('QR_READY');
+                        addLog('Código QR recibido del servidor.', 'success');
                     }
+                });
+
+                socketRef.current.on('wa_status', (data) => {
+                    if (data.instanceId === instanceId) {
+                        if (data.status === 'READY') {
+                            setStatus('READY');
+                            setQrCode(null);
+                            addLog('WhatsApp conectado exitosamente.', 'success');
+                        } else {
+                            addLog(`Estado de conexión: ${data.status}`, 'info');
+                        }
+                    }
+                });
+                return true;
+            } catch (err) {
+                console.error("❌ Error setting up Socket.io:", err);
+                return false;
+            }
+        };
+
+        // Try immediately; if no token, poll until one appears (max ~30s)
+        if (!connectSocket()) {
+            const retryInterval = setInterval(() => {
+                if (connectSocket()) {
+                    clearInterval(retryInterval);
                 }
-            });
+            }, 1500);
+            // Safety: stop retrying after 30 seconds
+            const retryTimeout = setTimeout(() => {
+                clearInterval(retryInterval);
+                console.warn("⚠️ [Socket] Gave up waiting for auth token after 30s");
+            }, 30000);
 
             return () => {
+                clearInterval(retryInterval);
+                clearTimeout(retryTimeout);
                 if (socketRef.current) socketRef.current.disconnect();
             };
-        } catch (err) {
-            console.error("❌ Error setting up Socket.io:", err);
         }
+
+        return () => {
+            if (socketRef.current) socketRef.current.disconnect();
+        };
     }, []);
 
     const fetchDiagnostics = async () => {
         try {
-            const res = await api.get('/diagnostics/ai');
+            const res = await api.get('/api/diagnostics/ai');
             setDiagnostics(res.data);
         } catch (err) {
             console.error("❌ Error fetching diagnostics:", err);
@@ -109,10 +142,13 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
     const fetchCloudStatus = async () => {
         try {
-            const res = await api.get('/saas/status');
+            const statusUrl = instanceId ? `/api/saas/status/${instanceId}` : '/api/status';
+            const res = await api.get(statusUrl);
             setCloudStatus(res.data);
         } catch (err) {
             console.error("❌ Error fetching cloud status:", err);
+            // Graceful fallback — don't crash the UI
+            setCloudStatus({ configured: false });
         } finally {
             setLoading(false);
         }
@@ -262,6 +298,11 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                         const s = await fetch(`${window.location.origin}/api/saas/status/${instanceId}`, {
                                                             headers: { 'Authorization': `Bearer ${authToken}` }
                                                         });
+                                                        const contentType = s.headers.get('content-type') || '';
+                                                        if (!contentType.includes('application/json')) {
+                                                            console.warn('[Polling] Non-JSON response, skipping cycle');
+                                                            return;
+                                                        }
                                                         const sData = await s.json();
                                                         if (sData.status === 'online' || sData.status === 'READY') {
                                                             setStatus('READY');
