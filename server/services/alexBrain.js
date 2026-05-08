@@ -528,66 +528,15 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     const provider = botConfig.provider || 'baileys';
     const normalizedUserMsg = String(message || '').trim().toLowerCase();
     
-    // --- LAYER 1: SYSTEM CORE (Identity from Prompt Master) ---
-    let systemCore = DEFAULT_SYSTEM_PROMPT;
-
-    // --- LAYER 2: SALES ENGINE (Already included in Prompt Master) ---
-    const goal = botConfig.personality?.conversionGoal || 'llamada';
-    const ctaLink = 'https://calendly.com/alex-io-systems/30min';
-    let salesEngine = ''; // Unified into Prompt Master
-
-    // --- LAYER 3: DEMO MODE LOGIC (Forced Flow & Extraction) ---
-    let demoLogic = '';
-    if (botConfig.personality?.demoMode) {
-        const userMessages = history.filter(h => h.role === 'user');
-        const msgIndex = userMessages.length + 1;
-        const lastUserMsg = userMessages[userMessages.length - 1]?.content?.toLowerCase() || '';
-        
-        demoLogic = `\n\n--- MODO DEMO ACTIVO (FLUJO FORZADO) ---\n`;
-        
-        // Anti-Loop Guard: If user says "SI" or shows clear intent to book, move to closure immediately
-        if (lastUserMsg === 'si' || lastUserMsg.includes('agendar') || lastUserMsg.includes('calendly')) {
-            demoLogic += `CIERRE: El usuario ha aceptado. Celebra y refuerza que agende en el link: ${ctaLink}. NO vuelvas a preguntar el desafío.\n`;
-        } else if (msgIndex === 1) {
-            demoLogic += `HOOK: Identifica el "dolor" del cliente con una pregunta abierta sobre su negocio.\n`;
-        } else if (msgIndex === 2) {
-            demoLogic += `DIAGNÓSTICO: Pregunta por su volumen actual Y solicita un contacto (WhatsApp/Email) para enviarle información. Indica que es necesario.\n`;
-        } else {
-            demoLogic += `VALOR Y CIERRE: Explica brevemente el valor de ALEX IO y envía el link ${ctaLink} para cerrar la llamada.\n`;
-        }
-        demoLogic += `REGLA DE ORO: Si ya hiciste una pregunta, NO la repitas. Avanza siempre hacia el link de Calendly.`;
-    }
-
-    // --- LAYER 4: BOT CONFIG (Constitution) ---
-    let botConfigSection = `\n\n--- CONFIGURACIÓN DEL BOT ---\n`;
-    botConfigSection += `Nombre: ${botName}\n`;
-    if (botConfig.personality?.constitution) {
-        botConfigSection += `Constitución/Leyes: ${botConfig.personality.constitution}\n`;
-    }
-    if (botConfig.personality?.systemPrompt) {
-        botConfigSection += `Instrucciones adicionales: ${botConfig.personality.systemPrompt}\n`;
-    }
-    
-    // Tracking context (Visible for AI context only)
-    if (botConfig.metadata?.ip) {
-        botConfigSection += `Contexto del Visitante: El usuario consulta desde la IP ${botConfig.metadata.ip}. Úsalo sólo si es necesario para generar confianza.\n`;
-    }
-
-    // Combine all layers
-    let systemPrompt = `${systemCore}${salesEngine}${demoLogic}${botConfigSection}`;
+    // --- LAYER 1: SYSTEM CORE (Identity from PROMPT MASTER) ---
+    let systemPrompt = DEFAULT_SYSTEM_PROMPT;
 
     // --- PHASE 4/5: BIC CONTEXT ASSEMBLER (Shadow Mode Enabled) ---
     try {
         const bicPrompt = await contextAssembler.assemble(botConfig, message, history, metadata);
-        if (bicPrompt) {
-            if (global.FLAGS.FEATURE_CONTEXT_ASSEMBLER) {
-                console.log(`🧠 [BIC] Aplicando prompt ensamblado para ${botName}`);
-                systemPrompt = bicPrompt;
-            } else {
-                // Shadow Mode: Generamos pero no aplicamos. Comparamos para QA.
-                await contextAssembler.shadowCompare(systemPrompt, bicPrompt);
-                console.log(`🕵️ [BIC_SHADOW] Prompt generado correctamente para ${botName} (No aplicado)`);
-            }
+        if (bicPrompt && global.FLAGS.FEATURE_CONTEXT_ASSEMBLER) {
+            console.log(`🧠 [BIC] Aplicando prompt ensamblado para ${botName}`);
+            systemPrompt = bicPrompt;
         }
     } catch (err) {
         console.error(`⚠️ [BIC_SHADOW_ERROR] Falló el ensamblado de contexto:`, err.message);
