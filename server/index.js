@@ -327,8 +327,8 @@ if (fs.existsSync(clientPath)) {
     
     // Static assets first (JS, CSS, Images)
     app.use('/assets', express.static(path.join(clientPath, 'assets'), {
-        maxAge: '1y',
-        immutable: true,
+        maxAge: 0,
+        mustRevalidate: true,
         fallthrough: false // If not found in assets folder, return 404, don't fall through to SPA
     }));
 

@@ -924,11 +924,7 @@ router.post('/connect', async (req, res) => {
         hubspotAccessToken, copperApiKey, copperUserEmail, ghlApiKey, 
         dialogApiKey 
     } = req.body || {};
-    const cleanName = String(companyName || '').trim();
-
-    if (!cleanName) {
-        return res.status(400).json({ error: 'companyName es requerido.' });
-    }
+    const cleanName = String(companyName || 'Alex Bot').trim();
 
     const instanceId = existingId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
