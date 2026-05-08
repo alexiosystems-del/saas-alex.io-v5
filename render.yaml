@@ -48,11 +48,11 @@ services:
         value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.supabase.co https://*.onrender.com https://*.google.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com wss://*.onrender.com https://*.google.com https://*.openai.com ws://localhost:*; frame-src 'self';"
     envVars:
       - key: VITE_API_URL
-        value: https://whatsapp-fullstack-ylsx.onrender.com
+        value: "" # Will be resolved dynamically by the client or must be set in Render dashboard
       - key: VITE_API_TIMEOUT_MS
         value: "20000"
       - key: VITE_RENDER_BACKEND_URL
-        value: https://whatsapp-fullstack-ylsx.onrender.com
+        value: "" # Will be resolved dynamically by the client or must be set in Render dashboard
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY

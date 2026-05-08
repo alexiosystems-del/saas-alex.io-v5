@@ -24,11 +24,8 @@ function normalizeQrPayload(rawQr) {
 }
 
 const getSocketUrl = () => {
-    if (import.meta.env.PROD) {
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-        if (typeof window !== 'undefined') {
-            return window.location.origin;
-        }
+    if (typeof window !== 'undefined' && window.location.origin.includes('onrender.com')) {
+        return window.location.origin;
     }
     return import.meta.env.VITE_API_URL || 'http://localhost:3000';
 };
