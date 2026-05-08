@@ -6,10 +6,10 @@ const getBaseUrl = () => {
         if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
 
         // 2. Intelligent Detection for Render
-        if (typeof window !== 'undefined') {
-            return window.location.origin;
+        if (typeof window !== 'undefined' && window.location.origin.includes('onrender.com')) {
+            return 'https://whatsapp-fullstack-ylsx.onrender.com';
         }
-        return 'https://saas-whatsapp-zhsu.onrender.com';
+        return 'https://whatsapp-fullstack-ylsx.onrender.com';
     }
 
     return 'http://localhost:3000';

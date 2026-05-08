@@ -24,10 +24,10 @@ function normalizeQrPayload(rawQr) {
 }
 
 const getSocketUrl = () => {
-    if (typeof window !== 'undefined' && window.location.origin.includes('onrender.com')) {
-        return window.location.origin;
+    if (import.meta.env.PROD) {
+        return import.meta.env.VITE_API_URL || 'https://whatsapp-fullstack-ylsx.onrender.com';
     }
-    return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    return 'http://localhost:3000';
 };
 
 const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
