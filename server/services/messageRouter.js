@@ -106,9 +106,9 @@ const processMessageWithAI = async (msg) => {
         }
     };
 
-    const history = [
-        { role: 'user', content: msg.text }
-    ];
+    const history = (msg.history && msg.history.length > 0) 
+        ? msg.history 
+        : [{ role: 'user', content: msg.text }];
 
     try {
         logToDB('INBOUND', msg.text);

@@ -47,12 +47,19 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
             
             console.log(`[WebChat] Sending message to: ${targetUrl}`);
             
+            // Prepare history for AI context (Standardized format: { role, content })
+            const chatHistory = messages.map(m => ({
+                role: m.sender === 'user' ? 'user' : 'assistant',
+                content: m.text
+            }));
+
             const response = await fetch(targetUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     senderId: senderId.current,
                     text: userMsg.text,
+                    history: chatHistory,
                     metadata: { tenantId, platform: 'web', source: 'widget_flotante' }
                 })
             });

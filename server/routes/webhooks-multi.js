@@ -142,7 +142,10 @@ const handleWebchatMessage = async (req, res) => {
             ...(metadata || {}),
             instanceId: metadata?.instanceId || metadata?.instance_id || req.query.instanceId || req.body.instanceId || 'multi_web_default'
         };
-        const stdMessage = messageRouterModule.createStandardizedMessage('web', senderId, text, enrichedMetadata);
+        const stdMessage = {
+            ...messageRouterModule.createStandardizedMessage('web', senderId, text, enrichedMetadata),
+            history: req.body.history || []
+        };
         const replyText = await messageRouterModule.processMessageLocally(stdMessage);
         
         console.log(`🧠 [Webchat] Respuesta generada:`, replyText);
