@@ -48,7 +48,7 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
             console.log(`[WebChat] Sending message to: ${targetUrl}`);
             
             // Prepare history for AI context (Standardized format: { role, content })
-            const chatHistory = messages.map(m => ({
+            const chatHistory = [...messages, userMsg].map(m => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',
                 content: m.text
             }));
