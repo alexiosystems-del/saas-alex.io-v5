@@ -41,8 +41,8 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         setIsLoading(true);
 
         try {
-            // Use window.location.origin to hit the same server we are hosted on
-            const targetUrl = `${window.location.origin}/api/webhooks/webchat`;
+            const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+            const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/webhooks/webchat`;
             
             const response = await fetch(targetUrl, {
                 method: 'POST',
