@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getPreferredApiBase } from '../api';
 
 const G = '#6366F1';
 const GH = '#818CF8';
@@ -41,8 +42,10 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         setIsLoading(true);
 
         try {
-            const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+            const baseUrl = apiUrl || getPreferredApiBase() || window.location.origin;
             const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/webhooks/webchat`;
+            
+            console.log(`[WebChat] Sending message to: ${targetUrl}`);
             
             const response = await fetch(targetUrl, {
                 method: 'POST',

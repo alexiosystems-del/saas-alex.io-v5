@@ -14,9 +14,8 @@ const getApiBases = () => {
     envBase = null;
   }
   
-  // Como el dashboard ahora es fullstack continuo, el backend siempre es el mismo origin que el frontend.
   const originBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const primaryBase = envBase || originBase || 'https://whatsapp-fullstack-1-yjao.onrender.com';
+  const primaryBase = envBase || originBase || 'https://whatsapp-fullstack-ylsx.onrender.com';
 
   return [primaryBase];
 };

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import WebChatWidget from './WebChatWidget';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -229,8 +228,6 @@ const LandingPage = () => {
         <div className="foot-logo">ALEX <em>IO</em></div>
         <div style={{fontFamily:'var(--fm)', fontSize:'9px', color:'var(--td)'}}>© 2026 ALEX IO SYSTEMS</div>
       </footer>
-
-      <WebChatWidget />
     </div>
   );
 };
