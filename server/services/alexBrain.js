@@ -504,19 +504,23 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
     // --- LAYER 3: DEMO MODE LOGIC (Forced Flow & Extraction) ---
     let demoLogic = '';
     if (botConfig.personality?.demoMode) {
-        const msgIndex = history.filter(h => h.role === 'user').length + 1;
+        const userMessages = history.filter(h => h.role === 'user');
+        const msgIndex = userMessages.length + 1;
+        const lastUserMsg = userMessages[userMessages.length - 1]?.content?.toLowerCase() || '';
+        
         demoLogic = `\n\n--- MODO DEMO ACTIVO (FLUJO FORZADO) ---\n`;
-        demoLogic += `Estás en el mensaje #${msgIndex} de la demo. Sigue este guion estricto:\n`;
-        if (msgIndex === 1) {
-            demoLogic += `HOOK: Haz una pregunta rompehielo que identifique el "dolor" del cliente.\n`;
+        
+        // Anti-Loop Guard: If user says "SI" or shows clear intent to book, move to closure immediately
+        if (lastUserMsg === 'si' || lastUserMsg.includes('agendar') || lastUserMsg.includes('calendly')) {
+            demoLogic += `CIERRE: El usuario ha aceptado. Celebra y refuerza que agende en el link: ${ctaLink}. NO vuelvas a preguntar el desafío.\n`;
+        } else if (msgIndex === 1) {
+            demoLogic += `HOOK: Identifica el "dolor" del cliente con una pregunta abierta sobre su negocio.\n`;
         } else if (msgIndex === 2) {
-            demoLogic += `DIAGNÓSTICO: Pregunta por su volumen actual Y solicita un contacto (WhatsApp o Email) de forma persuasiva para "enviarle el reporte de viabilidad Pro". No dejes que la charla avance sin pedir esto.\n`;
-        } else if (msgIndex === 3) {
-            demoLogic += `VALOR: Explica cómo ALEX IO resuelve su problema. Si no dio su contacto, insiste sutilmente indicando que es necesario para la activación.\n`;
+            demoLogic += `DIAGNÓSTICO: Pregunta por su volumen actual Y solicita un contacto (WhatsApp/Email) para enviarle información. Indica que es necesario.\n`;
         } else {
-            demoLogic += `CIERRE: Envía el link ${ctaLink} y forzá el cierre comercial.\n`;
+            demoLogic += `VALOR Y CIERRE: Explica brevemente el valor de ALEX IO y envía el link ${ctaLink} para cerrar la llamada.\n`;
         }
-        demoLogic += `REGLA DE ORO: Prioriza la captación de datos (Lead Generation).`;
+        demoLogic += `REGLA DE ORO: Si ya hiciste una pregunta, NO la repitas. Avanza siempre hacia el link de Calendly.`;
     }
 
     // --- LAYER 4: BOT CONFIG (Constitution) ---
