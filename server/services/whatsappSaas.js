@@ -1011,25 +1011,18 @@ router.post('/connect', async (req, res) => {
             });
         }
 
-        await startBotInstance(instanceId, config, res);
+        // Start connection in background (Asynchronous)
+        startBotInstance(instanceId, config).catch(e => {
+            console.error(`❌ [${instanceId}] Background start failed:`, e.message);
+        });
 
-        const timeoutHandle = setTimeout(async () => {
-            if (!res.headersSent) {
-                await updateSessionStatus(instanceId, 'timeout_waiting_qr', {
-                    companyName: cleanName,
-                    provider,
-                    qr_code: null
-                });
-
-                res.status(408).json({
-                    error: 'Timeout waiting for QR. WhatsApp tardó mucho en responder, intenta nuevamente en unos segundos.',
-                    instance_id: instanceId
-                });
-            }
-        }, 60000);
-
-        res.on('close', () => clearTimeout(timeoutHandle));
-        res.on('finish', () => clearTimeout(timeoutHandle));
+        // Return immediately to prevent Render/Proxy timeouts
+        return res.json({
+            success: true,
+            instance_id: instanceId,
+            status: 'initializing',
+            message: 'Iniciando motor de WhatsApp en segundo plano. Esperando QR...'
+        });
     } catch (err) {
         console.error(`❌ [${instanceId}] Connect failed:`, err.message);
         await updateSessionStatus(instanceId, 'error_connecting', {

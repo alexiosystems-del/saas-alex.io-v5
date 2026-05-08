@@ -557,7 +557,10 @@ app.get('/api/saas/subscription/usage', async (req, res) => {
 app.put('/api/saas/bots/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, prompt, voice_enabled, industry, objective } = req.body;
+    const { 
+        name, prompt, voice_enabled, industry, objective, voice, provider, target_language,
+        access_token, phone_number_id, d360_api_key, discord_token, tiktok_access_token, tiktok_seller_id, manychat_token
+    } = req.body;
 
     const { data: bot, error } = await supabase
       .from('bots')
@@ -566,7 +569,17 @@ app.put('/api/saas/bots/:id', async (req, res) => {
         prompt,
         voice_enabled: voice_enabled === true || voice_enabled === 'true',
         industry,
-        objective
+        objective,
+        voice,
+        provider,
+        target_language,
+        access_token,
+        phone_number_id,
+        d360_api_key,
+        discord_token,
+        tiktok_access_token,
+        tiktok_seller_id,
+        manychat_token
       })
       .eq('id', id)
       .select()

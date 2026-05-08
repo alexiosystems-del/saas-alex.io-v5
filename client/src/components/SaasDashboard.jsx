@@ -168,7 +168,7 @@ const SaasDashboard = () => {
             </div>
           );
         }
-        return <WhatsAppConnect instanceId={selectedBotId} />;
+        return <WhatsAppConnect instanceId={selectedBotId} initialCompanyName={botToConnect?.name || botToConnect?.company_name} />;
       case 'livechat':
         return <LiveChat instanceId={selectedBotId} />;
       case 'campaigns':
@@ -200,7 +200,14 @@ const SaasDashboard = () => {
                     provider: draft.provider,
                     industry: draft.industry,
                     objective: draft.objective,
-                    target_language: draft.target_language
+                    target_language: draft.target_language,
+                    access_token: draft.accessToken,
+                    phone_number_id: draft.phoneNumberId,
+                    d360_api_key: draft.d360ApiKey,
+                    discord_token: draft.discordToken,
+                    tiktok_access_token: draft.tiktokAccessToken,
+                    tiktok_seller_id: draft.tiktokSellerId,
+                    manychat_token: draft.manychatToken
                   })
                 });
 
@@ -462,6 +469,7 @@ const SaasDashboard = () => {
                       channel: data.provider || 'baileys',
                       target_language: data.targetLanguage || 'es',
                       accessToken: data.accessToken,
+                      metaPhoneNumberId: data.metaPhoneNumberId,
                       d360ApiKey: data.d360ApiKey,
                       discordToken: data.discordToken,
                       tiktokAccessToken: data.tiktokAccessToken,
@@ -478,14 +486,17 @@ const SaasDashboard = () => {
                     });
 
                     const result = await res.json();
-                    if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+                    if (!res.ok) {
+                      console.error('Bot Create Error Response:', result);
+                      throw new Error(result.error || `HTTP ${res.status}: ${JSON.stringify(result)}`);
+                    }
 
                     setShowWizard(false); 
                     fetchBots();
-                    alert(`Agente "${result.bot?.name || payload.name}" inicializado.`);
+                    alert(`Agente "${result.bot?.name || payload.name}" inicializado correctamente.`);
                   } catch (e) {
                     console.error('Error creating bot:', e);
-                    alert('Error: ' + e.message);
+                    alert('Error al crear bot: ' + e.message);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}

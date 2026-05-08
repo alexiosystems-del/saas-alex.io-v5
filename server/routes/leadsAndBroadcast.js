@@ -141,8 +141,18 @@ router.post('/bots', async (req, res) => {
             } 
         });
     } catch (err) {
-        console.error('[BOTS] Create error:', err.message);
-        res.status(500).json({ error: err.message });
+        console.error('❌ [BOTS_CREATE_FATAL] Error detailed:', {
+            message: err.message,
+            code: err.code,
+            details: err.details,
+            hint: err.hint,
+            stack: err.stack
+        });
+        res.status(500).json({ 
+            error: err.message,
+            code: err.code,
+            details: err.details 
+        });
     }
 });
 
@@ -160,7 +170,15 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.voice_enabled !== undefined) sessionUpdate.voice_enabled = updates.voice_enabled;
             if (updates.accessToken) sessionUpdate.meta_access_token = updates.accessToken;
             if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
-            if (updates.d360ApiKey) sessionUpdate.dialog_api_key = updates.d360ApiKey;
+            // Handle both camelCase and snake_case for keys
+        const d360Key = updates.d360ApiKey || updates.d360_api_key;
+        if (d360Key) sessionUpdate.dialog_api_key = d360Key;
+        
+        const metaToken = updates.meta_access_token || updates.access_token || updates.accessToken;
+        if (metaToken) sessionUpdate.meta_access_token = metaToken;
+
+        const metaPhoneId = updates.meta_phone_number_id || updates.phone_number_id || updates.metaPhoneNumberId;
+        if (metaPhoneId) sessionUpdate.meta_phone_number_id = metaPhoneId;
             if (updates.target_language) sessionUpdate.target_language = updates.target_language;
             if (updates.prompt !== undefined) sessionUpdate.custom_prompt = updates.prompt;
 

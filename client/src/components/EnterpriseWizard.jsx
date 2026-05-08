@@ -96,8 +96,8 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                 <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Nombre del Negocio</label>
                 <input
                   type="text"
-                  value={data.businessName || ''}
-                  onChange={(e) => handleChange('businessName', e.target.value)}
+                  value={data.botName || ''}
+                  onChange={(e) => handleChange('botName', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
                   placeholder="Ej: Fitness Pro Max"
                 />

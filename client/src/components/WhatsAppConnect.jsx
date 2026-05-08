@@ -33,17 +33,21 @@ const getSocketUrl = () => {
     return import.meta.env.VITE_API_URL || 'http://localhost:3000';
 };
 
-const WhatsAppConnect = () => {
-    console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started");
+const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
+    console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started for:", instanceId);
     const [mode, setMode] = useState('QR');
     const [qrCode, setQrCode] = useState(null);
     const normalizedQr = normalizeQrPayload(qrCode);
     const [status, setStatus] = useState('DISCONNECTED');
     const [cloudStatus, setCloudStatus] = useState({ configured: false });
+    const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState([]);
     const [diagnostics, setDiagnostics] = useState(null);
-    const [loading, setLoading] = useState(true);
     const socketRef = useRef(null);
+
+    const addLog = (message, level = 'info') => {
+        setLogs(prev => [{ timestamp: new Date().toISOString(), message, level }, ...prev].slice(0, 50));
+    };
 
     useEffect(() => {
         console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
@@ -56,18 +60,32 @@ const WhatsAppConnect = () => {
                 reconnectionAttempts: 5
             });
 
-            socketRef.current.on('connect', () => console.log("✅ Socket Connected"));
-            socketRef.current.on('connect_error', (err) => console.error("❌ Socket Connect Error:", err));
+            socketRef.current.on('connect', () => {
+                console.log("✅ Socket Connected");
+                addLog('Servidor de eventos conectado.', 'success');
+            });
+            socketRef.current.on('connect_error', (err) => {
+                console.error("❌ Socket Connect Error:", err);
+                addLog('Error de conexión con el servidor de eventos.', 'error');
+            });
 
             socketRef.current.on('wa_qr', (data) => {
-                setQrCode(data.qr);
-                setStatus('QR_READY');
+                if (data.instanceId === instanceId) {
+                    setQrCode(data.qr);
+                    setStatus('QR_READY');
+                    addLog('Código QR recibido del servidor.', 'success');
+                }
             });
 
             socketRef.current.on('wa_status', (data) => {
-                if (data.status === 'READY') {
-                    setStatus('READY');
-                    setQrCode(null);
+                if (data.instanceId === instanceId) {
+                    if (data.status === 'READY') {
+                        setStatus('READY');
+                        setQrCode(null);
+                        addLog('WhatsApp conectado exitosamente.', 'success');
+                    } else {
+                        addLog(`Estado de conexión: ${data.status}`, 'info');
+                    }
                 }
             });
 
@@ -176,49 +194,66 @@ const WhatsAppConnect = () => {
                                     <button
                                         onClick={async () => {
                                             setStatus('CONNECTING');
+                                            addLog('Iniciando proceso de conexión...');
                                             try {
                                                 // Get auth token (backend JWT or Supabase session)
                                                 let authToken = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
                                                 if (!authToken) {
-                                                    // Fallback: try Supabase session
+                                                    addLog('Buscando sesión de Supabase...', 'info');
                                                     try {
                                                         const { supabase } = await import('../supabaseClient');
                                                         if (supabase) {
                                                             const { data: { session } } = await supabase.auth.getSession();
                                                             if (session?.access_token) {
                                                                 authToken = session.access_token;
+                                                                addLog('Sesión de Supabase recuperada.', 'success');
                                                             }
                                                         }
-                                                    } catch (e) { console.warn('Supabase session fallback failed:', e.message); }
+                                                    } catch (e) { addLog('Error al recuperar sesión: ' + e.message, 'error'); }
                                                 }
 
                                                 if (!authToken) {
                                                     setStatus('DISCONNECTED');
+                                                    addLog('No se encontró una sesión activa.', 'error');
                                                     alert('Sesión expirada. Por favor, vuelve a iniciar sesión.');
                                                     return;
                                                 }
 
+                                                addLog('Solicitando QR al servidor...');
                                                 const res = await fetch(`${window.location.origin}/api/saas/connect`, {
                                                     method: 'POST',
                                                     headers: {
                                                         'Content-Type': 'application/json',
                                                         'Authorization': `Bearer ${authToken}`
                                                     },
-                                                    body: JSON.stringify({ companyName: 'Alex Bot' })
+                                                    body: JSON.stringify({ 
+                                                        instanceId: instanceId, 
+                                                        companyName: initialCompanyName || 'Alex Bot' 
+                                                    })
                                                 });
 
-                                                const data = await res.json();
+                                                let data;
+                                                const contentType = res.headers.get("content-type");
+                                                if (contentType && contentType.indexOf("application/json") !== -1) {
+                                                    data = await res.json();
+                                                } else {
+                                                    const text = await res.text();
+                                                    console.error('Non-JSON response:', text);
+                                                    throw new Error(`Servidor respondió con formato inválido (${res.status})`);
+                                                }
+
                                                 if (!res.ok) {
-                                                    console.error('Connect failed:', data);
+                                                    addLog(`Error del servidor: ${data.error || 'Desconocido'}`, 'error');
                                                     setStatus('DISCONNECTED');
                                                     alert(`Error: ${data.error || 'No se pudo conectar'}`);
                                                     return;
                                                 }
 
-                                                const instanceId = data.instance_id;
+                                                addLog('Petición aceptada. Motor inicializado en background.', 'success');
                                                 if (data.qr_code) {
                                                     setQrCode(data.qr_code);
                                                     setStatus('QR_READY');
+                                                    addLog('QR recibido vía HTTP.', 'success');
                                                 }
 
                                                 const poll = setInterval(async () => {
@@ -230,17 +265,19 @@ const WhatsAppConnect = () => {
                                                         if (sData.status === 'online' || sData.status === 'READY') {
                                                             setStatus('READY');
                                                             setQrCode(null);
+                                                            addLog('Conexión confirmada vía polling.', 'success');
                                                             clearInterval(poll);
-                                                        } else if (sData.qr_code) {
+                                                        } else if (sData.qr_code && !qrCode) {
                                                             setQrCode(sData.qr_code);
                                                             setStatus('QR_READY');
+                                                            addLog('QR recuperado vía polling.', 'info');
                                                         }
                                                     } catch (err) {
                                                         console.error("Polling error:", err.message);
                                                     }
-                                                }, 4000);
+                                                }, 5000);
                                             } catch (e) {
-                                                console.error("Connect error:", e.message);
+                                                addLog('Error fatal en el proceso: ' + e.message, 'error');
                                                 setStatus('DISCONNECTED');
                                             }
                                         }}

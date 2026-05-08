@@ -284,11 +284,11 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Access Token</label>
-                                    <input type="password" value={configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono" placeholder="EAAXXXX..." />
+                                    <input type="password" value={configDraft.access_token || configDraft.accessToken || ''} onChange={e => setConfigDraft(p => ({ ...p, accessToken: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono" placeholder="EAAXXXX..." />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Phone Number ID</label>
-                                    <input type="text" value={configDraft.phoneNumberId || ''} onChange={e => setConfigDraft(p => ({ ...p, phoneNumberId: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all" placeholder="105xxxxxxx" />
+                                    <input type="text" value={configDraft.phone_number_id || configDraft.phoneNumberId || ''} onChange={e => setConfigDraft(p => ({ ...p, phoneNumberId: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-all" placeholder="105xxxxxxx" />
                                 </div>
                             </div>
                         </div>
@@ -300,7 +300,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">D360 API Key</label>
-                                    <input type="password" value={configDraft.d360ApiKey || ''} onChange={e => setConfigDraft(p => ({ ...p, d360ApiKey: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono" placeholder="Your 360Dialog API Key..." />
+                                    <input type="password" value={configDraft.d360_api_key || configDraft.d360ApiKey || ''} onChange={e => setConfigDraft(p => ({ ...p, d360ApiKey: e.target.value }))} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono" placeholder="Your 360Dialog API Key..." />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Base URL (WABA)</label>
@@ -312,6 +312,67 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                             </div>
                         </div>
                     )}
+
+                    <div className="pt-8 border-t border-white/5 mt-4">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Canales Secundarios (Omnicanalidad)</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Discord */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                                    Discord
+                                </label>
+                                <input
+                                    type="password"
+                                    value={configDraft.discord_token || configDraft.discordToken || ''}
+                                    onChange={e => setConfigDraft(p => ({ ...p, discordToken: e.target.value }))}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs font-mono"
+                                    placeholder="Bot Token"
+                                />
+                            </div>
+
+                            {/* ManyChat */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                                    ManyChat Integration
+                                </label>
+                                <input
+                                    type="password"
+                                    value={configDraft.manychat_token || configDraft.manychatToken || ''}
+                                    onChange={e => setConfigDraft(p => ({ ...p, manychatToken: e.target.value }))}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-xs font-mono"
+                                    placeholder="ALEX_XXXXX"
+                                />
+                            </div>
+
+                            {/* TikTok */}
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                                        TikTok Seller ID
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={configDraft.tiktok_seller_id || configDraft.tiktokSellerId || ''}
+                                        onChange={e => setConfigDraft(p => ({ ...p, tiktokSellerId: e.target.value }))}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs"
+                                        placeholder="Seller ID"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                                        TikTok Access Token
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={configDraft.tiktok_access_token || configDraft.tiktokAccessToken || ''}
+                                        onChange={e => setConfigDraft(p => ({ ...p, tiktokAccessToken: e.target.value }))}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all text-xs font-mono"
+                                        placeholder="Access Token"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* MODO DIOS: SRE Hardening Status */}
