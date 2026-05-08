@@ -24,9 +24,9 @@ const { Server } = require('socket.io');
 
 // --- SECURE CORS CONFIG ---
 const productionOrigins = [
-    'https://whatsapp-fullstack-ylsx.onrender.com',
-    'https://whatsapp-fullstack-1-yjao.onrender.com'
-];
+    'https://whatsapp-fullstack-1-yjao.onrender.com',
+    process.env.RENDER_EXTERNAL_URL // Dynamic from Render
+].filter(Boolean);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
