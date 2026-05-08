@@ -718,7 +718,6 @@ console.log('✅ SAAS API Routes registered inline (V5)');
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 // WhatsApp Core Logic
 const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
-app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); 
 app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
 
 // Payment Routes (Protected & Rate Limited by Tenant)
