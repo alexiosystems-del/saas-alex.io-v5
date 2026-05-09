@@ -158,6 +158,36 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         fetchCloudStatus();
     }, []);
 
+    // POLLING FALLBACK: Retrieve QR via HTTP if WebSockets fail (Render reliability fix)
+    useEffect(() => {
+        let pollInterval;
+        // Only poll if we are actively trying to connect or waiting
+        if (status === 'CONNECTING' || status === 'DISCONNECTED' || status === 'QR_READY') {
+            pollInterval = setInterval(async () => {
+                if (!instanceId) return;
+                try {
+                    const res = await api.get(`/api/saas/status/${instanceId}`);
+                    if (res.data) {
+                        if (res.data.status === 'qr_ready' && res.data.qr_code && !qrCode) {
+                            setQrCode(res.data.qr_code);
+                            setStatus('QR_READY');
+                            addLog('QR sincronizado vía red de respaldo HTTP.', 'success');
+                        } else if (res.data.status === 'ready' || res.data.status === 'online') {
+                            setStatus('READY');
+                            setQrCode(null);
+                        }
+                    }
+                } catch (err) {
+                    // Fail silently to not spam logs
+                }
+            }, 3000);
+        }
+
+        return () => {
+            if (pollInterval) clearInterval(pollInterval);
+        };
+    }, [status, instanceId, qrCode]);
+
     const StatusBadge = ({ label, value, ok }) => (
         <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
             <span className="text-xs text-slate-400 font-medium">{label}</span>
