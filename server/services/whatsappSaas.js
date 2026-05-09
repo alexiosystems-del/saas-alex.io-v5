@@ -831,7 +831,7 @@ async function connectToWhatsApp(instanceId, config, res = null) {
                         
                         // BROADCAST TO FRONTEND (Saas Integration Fix)
                         if (ioInstance) {
-                            ioInstance.emit('wa_qr', { qr, instanceId, status: 'QR_READY' });
+                            ioInstance.emit('wa_qr', { qr: url, instanceId, status: 'QR_READY' });
                             ioInstance.emit('wa_status', { status: 'QR_READY', instanceId });
                         }
 

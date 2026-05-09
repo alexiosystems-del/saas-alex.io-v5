@@ -165,26 +165,6 @@ const SaasDashboard = () => {
       case 'whatsapp':
         const botToConnect = bots.find(b => (b.instance_id || b.id) === selectedBotId);
         const hasPrompt = botToConnect?.customPrompt || botToConnect?.prompt;
-        
-        if (!selectedBotId || !hasPrompt) {
-          return (
-            <div className="flex flex-col items-center justify-center py-20 px-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="w-24 h-24 rounded-[2rem] bg-amber-500/10 flex items-center justify-center text-amber-500 mb-8 border border-amber-500/20 shadow-2xl shadow-amber-500/10">
-                <ShieldAlert size={48} />
-              </div>
-              <h2 className="text-3xl font-black text-white mb-4 tracking-tighter italic">ACCESO RESTRINGIDO</h2>
-              <p className="text-slate-400 max-w-md mb-10 leading-relaxed font-bold">
-                Para conectar un canal, primero debes configurar el cerebro del bot en el paso <span className="text-indigo-400">1. Inicializar Bot</span>.
-              </p>
-              <button 
-                onClick={() => setActiveTab('config')}
-                className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/30"
-              >
-                Ir a Inicializar Bot
-              </button>
-            </div>
-          );
-        }
         return <WhatsAppConnect instanceId={selectedBotId} initialCompanyName={botToConnect?.name || botToConnect?.company_name} />;
       case 'livechat':
         return <LiveChat instanceId={selectedBotId} />;
