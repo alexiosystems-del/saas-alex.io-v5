@@ -801,8 +801,8 @@ app.get('/api/metrics/:instance_id/:channel', authenticateTenant, (req, res) => 
 
 // --- SPA CATCH-ALL (must be AFTER all API routes) ---
 app.get('*', (req, res, next) => {
-    // Si la ruta empieza por /api/, no es para el frontend
-    if (req.path.startsWith('/api/')) return next();
+    // Si la ruta empieza por /api/ o /socket.io/, no es para el frontend
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) return next();
     
     // Si es un asset que no se encontró arriba, retornamos 404 real para evitar SyntaxErrors
     const isAsset = req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|json)$/);
@@ -834,7 +834,8 @@ app.use((err, req, res, next) => {
 
 // --- SERVING FRONTEND (PRODUCTION) ---
 app.use(express.static(path.join(__dirname, '../client/dist')));
-app.get('*', (req, res) => {
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/socket.io/')) return next();
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API route not found' });
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
