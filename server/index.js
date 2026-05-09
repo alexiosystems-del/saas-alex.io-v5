@@ -475,8 +475,17 @@ app.use('/api/webhooks', webhooksMulti);
 // ============================================
 // ENTERPRISE SAAS API - CONSOLIDATED (V5)
 // ============================================
+
+// 1. WHATSAPP CORE (HIGH PRIORITY FOR QR)
+const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
+app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
+
+// 2. ENTERPRISE LOGIC
 const enterpriseRouter = require('./routes/leadsAndBroadcast');
 app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
+
+// 3. SYSTEM STATUS (NEURAL HEALTH)
+app.get('/api/status', (req, res) => res.json({ status: 'online', timestamp: new Date().toISOString() }));
 
 // GET MESSAGES (For Compliance/Audit)
 app.get('/api/saas/messages', async (req, res) => {
@@ -715,10 +724,7 @@ app.get('/api/debug/system', async (req, res) => {
 
 console.log('✅ SAAS API Routes registered inline (V5)');
 
-// WhatsApp Routes (Protected & Rate Limited by Tenant)
-// WhatsApp Core Logic
-const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
-app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
+// Payment Routes (Protected & Rate Limited by Tenant)
 
 // Payment Routes (Protected & Rate Limited by Tenant)
 const paymentsRouter = require('./routes/payments');
