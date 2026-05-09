@@ -929,6 +929,11 @@ router.post('/connect', async (req, res) => {
     const instanceId = existingId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
 
+    // Reset state to allow fresh connection attempt
+    connectionStates.delete(instanceId);
+    reconnectAttempts.delete(instanceId);
+    console.log(`🧹 [${instanceId}] State reset for new connection request.`);
+
     // 1. Prepare credentials object for encryption
     const credentials = {
         metaPhoneNumberId,

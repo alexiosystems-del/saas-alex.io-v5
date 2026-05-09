@@ -66,8 +66,8 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 console.log("🌐 Socket Target:", socketUrl);
                 socketRef.current = io(socketUrl, {
                     reconnection: true,
-                    reconnectionAttempts: 5,
-                    transports: ['websocket'],
+                    reconnectionAttempts: 10,
+                    transports: ['polling', 'websocket'],
                     auth: { token }
                 });
 
