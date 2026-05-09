@@ -57,7 +57,8 @@ const io = new Server(server, {
             }
         },
         credentials: true
-    }
+    },
+    transports: ['websocket']
 });
 
 app.set('trust proxy', 1);
