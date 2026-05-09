@@ -1,27 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 import api from '../services/api';
 import { motion } from 'framer-motion';
 import { QrCode, Cloud, Activity, Loader2 } from 'lucide-react';
 
-
 const MAX_QR_TEXT_LENGTH = 2500;
 
-function normalizeQrPayload(rawQr) {
-    if (!rawQr || typeof rawQr !== 'string') return { kind: 'empty', value: null };
-    const qr = rawQr.trim();
-
-    if (qr.startsWith('data:image/')) {
-        return { kind: 'image', value: qr };
-    }
-
-    if (qr.length > MAX_QR_TEXT_LENGTH) {
-        return { kind: 'overflow', value: qr };
-    }
-
-    return { kind: 'text', value: qr };
-}
 
 const getSocketUrl = () => {
     if (import.meta.env.PROD) {
@@ -34,13 +18,14 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started for:", instanceId);
     const [mode, setMode] = useState('QR');
     const [qrCode, setQrCode] = useState(null);
-    const normalizedQr = normalizeQrPayload(qrCode);
+
     const [status, setStatus] = useState('DISCONNECTED');
     const [cloudStatus, setCloudStatus] = useState({ configured: false });
     const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState([]);
     const [diagnostics, setDiagnostics] = useState(null);
     const socketRef = useRef(null);
+    const pollIntervalRef = useRef(null);
 
     const addLog = (message, level = 'info') => {
         setLogs(prev => [{ timestamp: new Date().toISOString(), message, level }, ...prev].slice(0, 50));
@@ -67,7 +52,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 socketRef.current = io(socketUrl, {
                     reconnection: true,
                     reconnectionAttempts: 10,
-                    transports: ['polling', 'websocket'],
+                    transports: ['websocket', 'polling'],
                     auth: { token }
                 });
 
@@ -84,7 +69,11 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                     if (data.instanceId === instanceId) {
                         setQrCode(data.qr);
                         setStatus('QR_READY');
-                        addLog('Código QR recibido del servidor.', 'success');
+                        addLog('Código QR recibido vía WebSocket.', 'success');
+                        if (pollIntervalRef.current) {
+                            clearInterval(pollIntervalRef.current);
+                            pollIntervalRef.current = null;
+                        }
                     }
                 });
 
@@ -160,10 +149,9 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
     // POLLING FALLBACK: Retrieve QR via HTTP if WebSockets fail (Render reliability fix)
     useEffect(() => {
-        let pollInterval;
-        // Only poll if we are actively trying to connect or waiting
-        if (status === 'CONNECTING' || status === 'DISCONNECTED' || status === 'QR_READY') {
-            pollInterval = setInterval(async () => {
+        const shouldPoll = (status === 'CONNECTING' || status === 'DISCONNECTED') && !qrCode;
+        if (shouldPoll) {
+            pollIntervalRef.current = setInterval(async () => {
                 if (!instanceId) return;
                 try {
                     const res = await api.get(`/api/saas/status/${instanceId}`);
@@ -172,6 +160,10 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                             setQrCode(res.data.qr_code);
                             setStatus('QR_READY');
                             addLog('QR sincronizado vía red de respaldo HTTP.', 'success');
+                            if (pollIntervalRef.current) {
+                                clearInterval(pollIntervalRef.current);
+                                pollIntervalRef.current = null;
+                            }
                         } else if (res.data.status === 'ready' || res.data.status === 'online') {
                             setStatus('READY');
                             setQrCode(null);
@@ -184,7 +176,10 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         }
 
         return () => {
-            if (pollInterval) clearInterval(pollInterval);
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
         };
     }, [status, instanceId, qrCode]);
 
@@ -237,21 +232,10 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                     <div className="w-48 h-48 bg-green-500/20 rounded-full flex items-center justify-center border-4 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.3)] animate-pulse">
                                         <span className="text-5xl">✅</span>
                                     </div>
-                                ) : qrCode ? (
-                                    normalizedQr.kind === 'image' ? (
-                                        <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
-                                            <img src={normalizedQr.value} alt="QR WhatsApp" className="w-[200px] h-[200px] object-contain" />
-                                        </div>
-                                    ) : normalizedQr.kind === 'overflow' ? (
-                                        <div className="w-64 bg-red-500/10 text-red-300 border border-red-500/30 rounded-2xl p-4 text-xs text-left">
-                                            <p className="font-bold mb-2">QR inválido para renderizar</p>
-                                            <p>El backend devolvió un payload demasiado largo ({normalizedQr.value.length} chars). Reinicia la sesión y vuelve a generar el QR.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
-                                            <QRCodeSVG value={normalizedQr.value} size={200} />
-                                        </div>
-                                    )
+                                ) : (status === 'QR_READY' && qrCode) ? (
+                                    <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
+                                        <img src={qrCode} alt="WhatsApp QR Code" className="w-[200px] h-[200px] object-contain" />
+                                    </div>
                                 ) : status === 'CONNECTING' ? (
                                     <div className="w-48 h-48 bg-slate-700/30 rounded-full flex flex-col items-center justify-center border-2 border-slate-600 border-dashed">
                                         <Loader2 className="animate-spin text-blue-500 mb-2" size={32} />

@@ -20,7 +20,6 @@
     "i18next-http-backend": "^3.0.2",
     "lucide-react": "^0.294.0",
     "postcss": "^8.4.32",
-    "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^16.5.4",
