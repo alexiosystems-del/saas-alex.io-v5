@@ -49,16 +49,18 @@ console.log(`🔒 [SECURITY] Allowed Origins: ${allowedOrigins.join(', ')}`);
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: (origin, callback) => {
-            if (!origin || allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
-                callback(null, true);
-            } else {
-                callback(new Error('Not allowed by CORS'));
-            }
-        },
-        credentials: true
+        origin: [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'https://whatsapp-fullstack-1-yjao.onrender.com'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST']
     },
-    transports: ['websocket']
+    transports: ['websocket', 'polling'],
+    path: '/socket.io/',
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 app.set('trust proxy', 1);
@@ -121,6 +123,32 @@ io.use(async (socket, next) => {
     } catch (err) {
         next(new Error('Authentication error: ' + err.message));
     }
+});
+
+io.on('connection', (socket) => {
+    console.log('✅ Socket connected:', {
+        socketId: socket.id,
+        tenantId: socket.tenant?.id,
+        transport: socket.conn.transport.name
+    });
+    
+    socket.conn.on('upgrade', () => {
+        console.log('🚀 Socket upgraded to WebSocket:', socket.id);
+    });
+    
+    socket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', {
+            socketId: socket.id,
+            reason
+        });
+    });
+    
+    socket.on('error', (error) => {
+        console.error('❌ Socket error:', {
+            socketId: socket.id,
+            error: error.message
+        });
+    });
 });
 
 let limiterStore = undefined;
@@ -843,6 +871,12 @@ app.get('*', (req, res, next) => {
 
 // --- START SERVER ---
 server.listen(PORT, async () => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`✅ Socket.IO mounted at /socket.io/`);
+    console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
     logger.info(`🧠 AI Brain Listo... backend está esperando, 50 sin drama`);
