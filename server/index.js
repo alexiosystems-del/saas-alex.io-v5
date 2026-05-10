@@ -60,7 +60,7 @@ const io = new Server(server, {
     },
     allowEIO3: true,
     transports: ['websocket', 'polling'],
-    path: '/socket.io/',
+    path: '/socket.io',
     pingTimeout: 60000,
     pingInterval: 25000,
     cookie: false
@@ -449,8 +449,18 @@ app.get('/api/diagnostics/ai', (req, res) => {
             deepseek: aiDiag.deepseek?.configured || false
         },
         whatsapp: {
-            status: "READY" // Asumimos READY si el server de WhatsApp está levantado
+            status: "READY"
         }
+    });
+});
+
+// ENDPOINT DE DIAGNÓSTICO DE SOCKETS
+app.get('/socket-test', (req, res) => {
+    res.json({ 
+        status: 'Express is alive', 
+        io_mounted: !!io,
+        engine_clients: io?.engine?.clientsCount || 0,
+        path_expected: '/socket.io'
     });
 });
 
