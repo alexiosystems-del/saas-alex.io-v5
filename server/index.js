@@ -441,7 +441,17 @@ app.get('/api/status', (req, res) => {
 // AI Diagnostics Endpoint (shows which keys are configured/dead)
 app.get('/api/diagnostics/ai', (req, res) => {
     const { getAiDiagnostics } = require('./services/alexBrain');
-    res.json(getAiDiagnostics());
+    const aiDiag = getAiDiagnostics();
+    res.json({
+        providers: {
+            gemini: aiDiag.gemini?.configured || false,
+            openai: aiDiag.openai?.configured || false,
+            deepseek: aiDiag.deepseek?.configured || false
+        },
+        whatsapp: {
+            status: "READY" // Asumimos READY si el server de WhatsApp está levantado
+        }
+    });
 });
 
 
