@@ -89,8 +89,8 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         }
 
         const data = await response.json();
-        if (data && data.reply) {
-            return data.reply;
+        if (data) {
+            return data;
         }
         throw new Error('Respuesta inválida del servidor');
     };
@@ -106,12 +106,17 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         setIsLoading(true);
 
         try {
-            const reply = await sendMessageToBackend(inputText, messages);
+            const data = await sendMessageToBackend(inputText, messages);
             setMessages(prev => [...prev, {
                 id: Date.now() + 1,
-                text: reply,
+                text: data.reply,
                 sender: 'bot'
             }]);
+            
+            // Play TTS audio if available
+            if (data.audioUrl) {
+                playAudioResponse(data.audioUrl);
+            }
         } catch (error) {
             console.error('Error enviando mensaje al bot:', error);
             setMessages(prev => [...prev, {
@@ -236,6 +241,67 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
         }
     };
 
+    const renderTextWithLinks = (text) => {
+        if (!text) return null;
+        
+        // Match Markdown links: [text](url)
+        const markdownRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+        // Match raw URLs: https://...
+        const urlRegex = /(?<!\()https?:\/\/[^\s)]+/g;
+
+        let parts = [];
+        let lastIndex = 0;
+        let match;
+
+        // Process Markdown Links first
+        const mdMatches = [...text.matchAll(markdownRegex)];
+        const urlMatches = [...text.matchAll(urlRegex)];
+        
+        // Combine all matches and sort by index
+        const allMatches = [
+            ...mdMatches.map(m => ({ type: 'md', index: m.index, length: m[0].length, text: m[1], url: m[2] })),
+            ...urlMatches.map(m => ({ type: 'raw', index: m.index, length: m[0].length, text: m[0], url: m[0] }))
+        ].sort((a, b) => a.index - b.index);
+
+        // Filter out overlaps (e.g. raw URL inside MD link)
+        const nonOverlapping = [];
+        let currentPos = 0;
+        for (const m of allMatches) {
+            if (m.index >= currentPos) {
+                nonOverlapping.push(m);
+                currentPos = m.index + m.length;
+            }
+        }
+
+        nonOverlapping.forEach((m, i) => {
+            // Add text before the link
+            if (m.index > lastIndex) {
+                parts.push(text.substring(lastIndex, m.index));
+            }
+            // Add the link
+            parts.push(
+                <a 
+                    key={i} 
+                    href={m.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    style={{ color: '#818CF8', textDecoration: 'underline', fontWeight: '600' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {m.text}
+                </a>
+            );
+            lastIndex = m.index + m.length;
+        });
+
+        // Add remaining text
+        if (lastIndex < text.length) {
+            parts.push(text.substring(lastIndex));
+        }
+
+        return parts;
+    };
+
     return (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, fontFamily: "'DM Sans', sans-serif" }}>
             <style>{`
@@ -248,8 +314,8 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
                     0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
                     50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
                 }
-                .alex-bubble-bot { background: #1A1F28; border-radius: 4px 16px 16px 16px; padding: 10px 14px; font-size: 14px; color: #E5E7EB; line-height: 1.6; box-shadow: 0 2px 5px rgba(0,0,0,0.1); white-space: pre-line; max-width: 85%; }
-                .alex-bubble-user { background: ${G}; border-radius: 16px 4px 16px 16px; padding: 10px 14px; font-size: 14px; color: #FFFFFF; line-height: 1.5; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 85%; }
+                .alex-bubble-bot { background: #1A1F28; border-radius: 4px 16px 16px 16px; padding: 10px 14px; font-size: 14px; color: #E5E7EB; line-height: 1.6; box-shadow: 0 2px 5px rgba(0,0,0,0.1); white-space: pre-line; max-width: 85%; word-break: break-word; }
+                .alex-bubble-user { background: ${G}; border-radius: 16px 4px 16px 16px; padding: 10px 14px; font-size: 14px; color: #FFFFFF; line-height: 1.5; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 85%; word-break: break-word; }
                 .alex-bubble-voice { opacity: 0.85; font-style: italic; }
             `}</style>
 
@@ -333,7 +399,7 @@ const WebChatWidget = ({ tenantId = 'demo-tenant', apiUrl = '' }) => {
                                     className={`${msg.sender === 'user' ? 'alex-bubble-user' : 'alex-bubble-bot'} ${msg.isVoice ? 'alex-bubble-voice' : ''}`}
                                     style={msg.isError ? { border: '1px solid #EF4444', color: '#EF4444' } : {}}
                                 >
-                                    {msg.text}
+                                    {renderTextWithLinks(msg.text)}
                                 </div>
                             </div>
                         ))}

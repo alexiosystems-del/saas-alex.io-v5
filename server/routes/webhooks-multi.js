@@ -121,9 +121,9 @@ const handleTikTokWebhook = async (req, res) => {
  */
 const handleWebchatMessage = async (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    console.log(`[DEBUG] handleWebchatMessage INVOKED! req.body:`, typeof req.body, req.body);
     try {
-        const { senderId, text, metadata = {} } = req.body;
+        const { senderId, text, metadata = {}, tenantId: bodyTenantId } = req.body;
+        const tenantId = bodyTenantId || metadata?.tenantId || 'demo-tenant';
         
         if (!senderId || !text) {
             console.warn(`⚠️ [Webchat] Payload incompleto:`, req.body);
@@ -135,8 +135,9 @@ const handleWebchatMessage = async (req, res) => {
         
         // Inject IP for tracking
         metadata.ip = ip;
+        metadata.tenantId = tenantId;
         
-        logInfo(`[Webchat] Mensaje recibido de ${senderId} [IP: ${ip}]`);
+        logInfo(`[Webchat] Mensaje recibido de ${senderId} [IP: ${ip}] [Tenant: ${tenantId}]`);
         
         const enrichedMetadata = {
             ...(metadata || {}),
@@ -149,7 +150,43 @@ const handleWebchatMessage = async (req, res) => {
         const replyText = await messageRouterModule.processMessageLocally(stdMessage);
         
         console.log(`🧠 [Webchat] Respuesta generada:`, replyText);
-        res.status(200).json({ success: true, reply: replyText || 'IA está procesando... reintenta.' });
+        
+        const responsePayload = { 
+            success: true, 
+            reply: replyText || 'IA está procesando... reintenta.',
+            audioUrl: null 
+        };
+
+        // --- TTS CHECK ---
+        const { supabase } = require('../services/supabaseClient');
+        const { data: bot } = await supabase
+            .from('bots')
+            .select('voice_enabled, voice')
+            .or(`tenant_id.eq.${tenantId},id.eq.${enrichedMetadata.instanceId}`)
+            .limit(1)
+            .single();
+
+        if (bot && bot.voice_enabled && replyText) {
+            const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+            if (OPENAI_KEY && OPENAI_KEY.length > 10) {
+                try {
+                    const OpenAI = require('openai');
+                    const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                    const mp3 = await openai.audio.speech.create({
+                        model: 'tts-1',
+                        voice: bot.voice || 'nova',
+                        input: replyText.substring(0, 4096)
+                    });
+                    const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+                    responsePayload.audioUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`;
+                    logInfo(`[Webchat] TTS generado con voz: ${bot.voice || 'nova'}`);
+                } catch (ttsErr) {
+                    logError('[Webchat] TTS failed:', ttsErr.message);
+                }
+            }
+        }
+        
+        res.status(200).json(responsePayload);
     } catch (error) {
         logError(`[Webchat] Error en route [IP: ${ip}]`, error);
         res.status(500).json({ 
