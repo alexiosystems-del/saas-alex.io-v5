@@ -49,13 +49,24 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             try {
                 const socketUrl = getSocketUrl();
                 console.log("🌐 Socket Target:", socketUrl);
-                socketRef.current = io(socketUrl, {
+                
+                const isProduction = import.meta.env.PROD;
+                const socketConfig = {
                     reconnection: true,
                     reconnectionAttempts: 10,
-                    transports: ['websocket'],
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    timeout: 20000,
+                    transports: isProduction ? ['polling'] : ['websocket', 'polling'],
                     path: '/socket.io/',
-                    auth: { token }
-                });
+                    auth: { token },
+                    upgrade: !isProduction,
+                    rememberUpgrade: false,
+                    forceNew: false,
+                    autoConnect: true
+                };
+                
+                socketRef.current = io(socketUrl, socketConfig);
 
                 socketRef.current.on('connect', () => {
                     console.log("✅ Socket Connected");

@@ -52,15 +52,18 @@ const io = new Server(server, {
         origin: [
             'http://localhost:5173',
             'http://localhost:3000',
-            'https://whatsapp-fullstack-1-yjao.onrender.com'
+            'https://whatsapp-fullstack-1-yjao.onrender.com',
+            'https://www.whatsapp-fullstack-1-yjao.onrender.com'
         ],
         credentials: true,
-        methods: ['GET', 'POST']
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     },
+    allowEIO3: true,
     transports: ['websocket', 'polling'],
     path: '/socket.io/',
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    cookie: false
 });
 
 app.set('trust proxy', 1);
@@ -195,16 +198,12 @@ app.use(requestLogger);
 
 // --- CORS CONFIGURATION (STRICT) ---
 const corsOptions = {
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
-            callback(null, true);
-        } else {
-            console.error(`🛑 [CORS_BLOCKED] Origin ${origin} not in allowlist.`);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://whatsapp-fullstack-1-yjao.onrender.com',
+        'https://www.whatsapp-fullstack-1-yjao.onrender.com'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
