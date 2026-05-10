@@ -6,6 +6,13 @@ import { QrCode, Cloud, Activity, Loader2 } from 'lucide-react';
 
 const MAX_QR_TEXT_LENGTH = 2500;
 
+const getBackendUrl = () => {
+    if (import.meta.env.PROD) {
+        return import.meta.env.VITE_API_URL || 'https://whatsapp-fullstack-ylsx.onrender.com';
+    }
+    return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+};
+
 
 const getSocketUrl = () => {
     if (import.meta.env.PROD) {
@@ -282,7 +289,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     return;
                                                 }
 
-                                                const apiBase = import.meta.env.PROD ? window.location.origin : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+                                                const apiBase = getBackendUrl();
                                                 addLog('Solicitando QR al servidor...');
                                                 const res = await fetch(`${apiBase}/api/saas/connect`, {
                                                     method: 'POST',
@@ -322,7 +329,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
                                                 const poll = setInterval(async () => {
                                                     try {
-                                                        const pollApiBase = import.meta.env.PROD ? window.location.origin : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+                                                        const pollApiBase = getBackendUrl();
                                                         const s = await fetch(`${pollApiBase}/api/saas/status/${instanceId}`, {
                                                             headers: { 'Authorization': `Bearer ${authToken}` }
                                                         });
