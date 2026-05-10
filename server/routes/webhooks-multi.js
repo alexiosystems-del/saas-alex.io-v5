@@ -314,6 +314,97 @@ router.post('/tiktok', handleTikTokWebhook);
 router.post('/webchat', handleWebchatMessage);
 
 /**
+ * Webchat Voice handler (Audio input + Transcription + AI Response)
+ */
+const multer = require('multer');
+const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+router.post('/webchat/voice', voiceUpload.single('audio'), async (req, res) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    try {
+        const { senderId, tenantId } = req.body;
+        let historyRaw = [];
+        try { historyRaw = JSON.parse(req.body.history || '[]'); } catch (_) {}
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No audio file provided' });
+        }
+
+        let transcription = '(Mensaje de voz)';
+
+        // Try Whisper transcription
+        const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+        if (OPENAI_KEY && OPENAI_KEY.length > 10) {
+            try {
+                const OpenAI = require('openai');
+                const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                const fs = require('fs');
+                const path = require('path');
+                const tmpPath = path.join(__dirname, `../_voice_tmp_${Date.now()}.webm`);
+                fs.writeFileSync(tmpPath, req.file.buffer);
+
+                const result = await openai.audio.transcriptions.create({
+                    file: fs.createReadStream(tmpPath),
+                    model: 'whisper-1',
+                    language: 'es'
+                });
+                transcription = result.text || transcription;
+                fs.unlinkSync(tmpPath);
+                logInfo(`[Webchat Voice] Whisper transcription: "${transcription}"`);
+            } catch (whisperErr) {
+                logError('[Webchat Voice] Whisper failed:', whisperErr.message);
+            }
+        }
+
+        // Process through AI
+        const enrichedMetadata = {
+            tenantId: tenantId || 'demo-tenant',
+            instanceId: 'multi_web_voice',
+            ip
+        };
+        const stdMessage = {
+            ...messageRouterModule.createStandardizedMessage('web', senderId || 'voice_user', transcription, enrichedMetadata),
+            history: historyRaw
+        };
+        const replyText = await messageRouterModule.processMessageLocally(stdMessage);
+
+        const responsePayload = {
+            success: true,
+            transcription,
+            reply: replyText || 'Recibí tu mensaje de voz. ¿En qué puedo ayudarte?',
+            audioUrl: null
+        };
+
+        // Optional: Generate TTS audio response
+        if (OPENAI_KEY && OPENAI_KEY.length > 10 && replyText) {
+            try {
+                const OpenAI = require('openai');
+                const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                const mp3 = await openai.audio.speech.create({
+                    model: 'tts-1',
+                    voice: 'alloy',
+                    input: replyText.substring(0, 4096)
+                });
+                const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+                const base64Audio = audioBuffer.toString('base64');
+                responsePayload.audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
+            } catch (ttsErr) {
+                logError('[Webchat Voice] TTS failed:', ttsErr.message);
+            }
+        }
+
+        res.status(200).json(responsePayload);
+    } catch (error) {
+        logError(`[Webchat Voice] Error [IP: ${ip}]`, error);
+        res.status(500).json({
+            success: false,
+            error: 'Voice processing error',
+            reply: 'No pude procesar tu mensaje de voz. Por favor, intenta escribir tu mensaje.'
+        });
+    }
+});
+
+/**
  * Discord webhook handler (Inbound - Interactions)
  */
 router.post('/discord', async (req, res) => {
