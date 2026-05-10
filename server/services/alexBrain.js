@@ -864,18 +864,18 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
                 const voiceId = selectedVoice === 'minimax-zh' ? 'female-zh-beauty' : 'male-en-beauty';
                 result.audioBuffer = await callMiniMaxTTS(responseText.slice(0, 500), voiceId);
                 result.audioMime = 'audio/mpeg';
-                console.log(`✅ [VOICE] MiniMax HD generado.`);
             } else {
-                // Default OpenAI TTS
                 const mp3 = await openai.audio.speech.create({
+
                     model: 'tts-1',
                     voice: selectedVoice,
-                    input: responseText.slice(0, 1000)
+                    input: responseText.slice(0, 1000),
+                    response_format: 'opus'
                 });
                 result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
-                result.audioMime = 'audio/mpeg';
-                console.log(`✅ [VOICE] OpenAI TTS generado.`);
-            }
+                result.audioMime = 'audio/ogg; codecs=opus';
+                console.log(`✅ [VOICE] OpenAI TTS (OPUS) generado.`);
+
         } catch (err) {
             console.error('❌ TTS Error:', err.message);
         }
@@ -913,11 +913,9 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
 async function extractLeadInfo({ history = [], systemPrompt }) {
     if (!GEMINI_KEY || history.length < 2) return null;
 
-    try {
-        console.log(`🤖 [LeadExtractor] Analizando conversación de ${history.length} mensajes...`);
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
-
-        const contents = [];
+        let contents = [];
+        try {
+            console.log(`🤖 [LeadExtractor] Analizando conversación de ${history.length} mensajes...`);
         // Analizar últimos 8 mensajes para contexto
         history.slice(-15).forEach(h => {
             contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text || "" }] });

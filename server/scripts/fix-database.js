@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS public.document_chunks (
 CREATE INDEX IF NOT EXISTS idx_document_chunks_instance ON public.document_chunks (instance_id);
 
 -- 4. Create match function for RPC (RAG)
+-- DROP existing variants to avoid ambiguity
+DROP FUNCTION IF EXISTS match_document_chunks(vector, int, text, text);
+DROP FUNCTION IF EXISTS match_document_chunks(vector, text, text, int);
+
 CREATE OR REPLACE FUNCTION match_document_chunks (
   query_embedding vector(1536),
   match_count int DEFAULT 10,
