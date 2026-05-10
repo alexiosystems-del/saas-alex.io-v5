@@ -28,7 +28,71 @@ export default function LiveChat({ instanceId, tenantId }) {
     const [input, setInput] = useState('');
     const [isPaused, setIsPaused] = useState(false);
     const [sending, setSending] = useState(false);
+    const [translations, setTranslations] = useState({});
     const messagesEndRef = useRef(null);
+
+    // Detect if text looks non-Spanish
+    const looksNonSpanish = (text) => {
+        if (!text || text.length < 5) return false;
+        const clean = text.replace(/\[.*?\]\s*/g, '').trim().toLowerCase();
+        const spanishWords = /\b(hola|gracias|por favor|necesito|quiero|precio|buenas|buenos|qué|cómo|cuánto|puedo|ayuda|información|negocio|empresa)\b/i;
+        if (spanishWords.test(clean)) return false;
+        // Check for non-ASCII characters (Chinese, Arabic, Hindi, etc.)
+        if (/[\u4e00-\u9fff\u0600-\u06ff\u0900-\u097f]/.test(clean)) return true;
+        // Check for French/German/Portuguese signals
+        const foreignSignals = /\b(bonjour|merci|je|vous|avec|hello|thanks|please|need|want|price|hallo|danke|ich|olá|obrigado|você)\b/i;
+        return foreignSignals.test(clean);
+    };
+
+    // Auto-translate incoming messages
+    const autoTranslate = async (msgId, text) => {
+        if (!msgId || !text || translations[msgId]) return;
+        const clean = cleanContent(text);
+        if (!looksNonSpanish(clean)) return;
+
+        setTranslations(prev => ({ ...prev, [msgId]: { loading: true } }));
+        try {
+            const res = await fetch('/api/saas/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ text: clean, targetLang: 'es' })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.translated) {
+                    setTranslations(prev => ({ ...prev, [msgId]: { translated: data.translated, model: data.model } }));
+                } else {
+                    setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
+                }
+            }
+        } catch (e) {
+            console.error('[AutoTranslate] Error:', e);
+            setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
+        }
+    };
+
+    // Manual translate handler
+    const handleTranslate = async (msgId, text) => {
+        setTranslations(prev => ({ ...prev, [msgId]: { loading: true } }));
+        try {
+            const res = await fetch('/api/saas/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ text, targetLang: 'es' })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setTranslations(prev => ({
+                    ...prev,
+                    [msgId]: data.translated
+                        ? { translated: data.translated, model: data.model }
+                        : { translated: '(Ya está en español)', model: 'skip' }
+                }));
+            }
+        } catch (e) {
+            setTranslations(prev => ({ ...prev, [msgId]: { translated: '(Error al traducir)', model: 'error' } }));
+        }
+    };
 
     // Initial Data Load
     useEffect(() => {
@@ -118,14 +182,31 @@ export default function LiveChat({ instanceId, tenantId }) {
                 const data = await res.json();
                 setMessages(data.messages || []);
                 setIsPaused(false);
+                
+                // Auto-translate non-Spanish inbound messages
+                (data.messages || []).forEach(msg => {
+                    if (msg.direction === 'INBOUND' && msg.id) {
+                        autoTranslate(msg.id, msg.content);
+                    }
+                });
             } catch (e) {
                 console.error('Error loading conversation:', e);
                 setMessages([]);
             }
         };
 
+        setTranslations({}); // Clear translations when switching chats
         loadConversation();
     }, [selectedLead, instanceId]);
+
+    // Auto-translate new real-time messages
+    useEffect(() => {
+        if (messages.length === 0) return;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.direction === 'INBOUND' && lastMsg?.id && !translations[lastMsg.id]) {
+            autoTranslate(lastMsg.id, lastMsg.content);
+        }
+    }, [messages.length]);
 
     useEffect(() => {
         if (messagesEndRef.current) {
@@ -263,13 +344,45 @@ export default function LiveChat({ instanceId, tenantId }) {
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {messages.map((msg, idx) => {
                                 const isUser = msg.direction === 'INBOUND';
+                                const content = cleanContent(msg.content);
+                                const translation = translations[msg.id];
+                                
                                 return (
                                     <div key={msg.id || idx} className={`flex ${isUser ? 'justify-start' : 'justify-end'}`}>
                                         <div className={`max-w-[70%] rounded-xl p-3 text-sm flex flex-col ${isUser ? 'bg-slate-800 text-slate-200 rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'}`}>
-                                            <span>{cleanContent(msg.content)}</span>
+                                            <span>{content}</span>
+                                            
+                                            {/* Translation Display */}
+                                            {translation && translation.translated && (
+                                                <div className={`mt-2 pt-2 border-t ${isUser ? 'border-slate-700' : 'border-blue-500'}`}>
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">🇪🇸 Traducción</span>
+                                                    </div>
+                                                    <span className={`text-xs italic ${isUser ? 'text-slate-400' : 'text-blue-200'}`}>
+                                                        {translation.translated}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Translate button for untranslated messages */}
+                                            {isUser && !translation && content.length > 3 && (
+                                                <button 
+                                                    onClick={() => handleTranslate(msg.id, content)}
+                                                    className="mt-1.5 text-[9px] text-slate-500 hover:text-blue-400 transition-colors self-start flex items-center gap-1"
+                                                >
+                                                    🌐 Traducir
+                                                </button>
+                                            )}
+                                            
+                                            {/* Loading indicator */}
+                                            {translation && translation.loading && (
+                                                <span className="text-[9px] text-slate-500 mt-1 animate-pulse">Traduciendo...</span>
+                                            )}
+
                                             <span className={`text-[9px] mt-1 text-right ${isUser ? 'text-slate-500' : 'text-blue-300'}`}>
                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 {!isUser && msg.translation_model === 'none' && ' (Manual)'}
+                                                {translation?.model && ` · ${translation.model}`}
                                             </span>
                                         </div>
                                     </div>

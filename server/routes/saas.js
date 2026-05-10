@@ -193,4 +193,27 @@ router.get('/api/debug/system', async (req, res) => {
   }
 });
 
+// ============================================
+// TRANSLATE MESSAGE (On-demand for Live Chat)
+// ============================================
+router.post('/api/saas/translate', async (req, res) => {
+  try {
+    const { text, targetLang = 'es' } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const alexBrain = require('../services/alexBrain');
+    const result = await alexBrain.translateIncomingMessage(text, targetLang);
+
+    res.json({
+      original: result.original,
+      translated: result.translated,
+      model: result.model,
+      detectedLang: result.detectedLang || null
+    });
+  } catch (error) {
+    console.error('[Translate] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
