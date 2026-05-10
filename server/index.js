@@ -837,45 +837,30 @@ app.get('/api/metrics/:instance_id/:channel', authenticateTenant, (req, res) => 
     res.json(data);
 });
 
-// --- SPA CATCH-ALL (must be AFTER all API routes) ---
-app.get('*', (req, res, next) => {
-    // Si la ruta empieza por /api/ o /socket.io/, no es para el frontend
-    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) return next();
+// --- SPA CATCH-ALL (CONSOLIDATED) ---
+// This must be the VERY LAST route
+app.get('*', (req, res) => {
+    // 1. Exclude API and Socket.io from catch-all
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io')) {
+        return res.status(404).json({ error: 'Endpoint not found on ALEX IO Server' });
+    }
     
-    // Si es un asset que no se encontró arriba, retornamos 404 real para evitar SyntaxErrors
+    // 2. Handle assets with 404 to prevent index.html being served for missing scripts
     const isAsset = req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|json)$/);
     if (isAsset) {
-        console.warn(`⚠️ [SPA] Asset Missing: ${req.path}`);
         return res.status(404).send('Asset not found');
     }
 
-    // Para todo lo demás, servir index.html
-    const indexPath = path.join(clientPath, 'index.html');
+    // 3. Serve Frontend SPA
+    const distPath = path.join(__dirname, '../client/dist');
+    const indexPath = path.join(distPath, 'index.html');
+    
     if (fs.existsSync(indexPath)) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.sendFile(indexPath);
     } else {
-        return res.status(404).send('ALEX IO: Frontend not built or path incorrect.');
+        return res.status(404).send('ALEX IO: Frontend not built. Run npm run build.');
     }
-});
-
-
-app.use((err, req, res, next) => {
-    console.error('❌ Express unhandled error:', err.message, 'path:', req.path);
-    if (req.path.startsWith('/assets/')) {
-        return res.status(404).type('text/plain').send('Asset not found');
-    }
-    return res.status(500).json({ 
-        error: err.message || 'Internal server error' 
-    });
-});
-
-// --- SERVING FRONTEND (PRODUCTION) ---
-app.use(express.static(path.join(__dirname, '../client/dist')));
-app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/socket.io/')) return next();
-    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API route not found' });
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 // --- START SERVER ---
