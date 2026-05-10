@@ -60,6 +60,35 @@ const SaasDashboard = () => {
   const [lang, setLang] = useState(getCurrentLanguage());
   const [userEmail, setUserEmail] = useState('');
 
+  // Persistent config drafts — survives tab navigation
+  const [configDrafts, setConfigDrafts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alex_config_drafts');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  // Save drafts to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('alex_config_drafts', JSON.stringify(configDrafts));
+    } catch {}
+  }, [configDrafts]);
+
+  const getConfigDraft = (botId) => {
+    if (!botId) return {};
+    const bot = bots.find(b => (b.instance_id || b.id) === botId);
+    return { ...bot, ...(configDrafts[botId] || {}) };
+  };
+
+  const updateConfigDraft = (botId, updater) => {
+    setConfigDrafts(prev => {
+      const currentDraft = { ...(prev[botId] || {}) };
+      const newValues = typeof updater === 'function' ? updater(currentDraft) : updater;
+      return { ...prev, [botId]: { ...currentDraft, ...newValues } };
+    });
+  };
+
   useEffect(() => {
     const email = localStorage.getItem('alex_io_email') || 'Operador Master';
     setUserEmail(email);
@@ -172,40 +201,41 @@ const SaasDashboard = () => {
         return <BroadcastCampaign instanceId={selectedBotId} />;
       case 'config':
         const currentBot = bots.find(b => (b.instance_id || b.id) === selectedBotId);
+        const draft = getConfigDraft(selectedBotId);
         return (
           <ConfigTab 
             selected={currentBot} 
-            configDraft={currentBot || {}} 
+            configDraft={draft} 
             connectionStatus={connectionStatus}
-            setConfigDraft={(newData) => {
-              setBots(prev => prev.map(b => 
-                (b.instance_id || b.id) === selectedBotId ? { ...b, ...newData } : b
-              ));
+            setConfigDraft={(updater) => {
+              const newValues = typeof updater === 'function' ? updater(draft) : updater;
+              updateConfigDraft(selectedBotId, newValues);
             }}
             onSave={async () => {
               try {
-                const draft = bots.find(b => (b.instance_id || b.id) === selectedBotId);
-                if (!draft) return;
+                const saveDraft = getConfigDraft(selectedBotId);
+                if (!saveDraft) return;
 
-                const res = await fetch(`/api/saas/bots/${draft.instance_id || draft.id}`, {
+                const botId = saveDraft.instance_id || saveDraft.id || selectedBotId;
+                const res = await fetch(`/api/saas/bots/${botId}`, {
                   method: 'PUT',
                   headers: getAuthHeaders(),
                   body: JSON.stringify({
-                    name: draft.name || draft.company_name,
-                    prompt: draft.customPrompt,
-                    voice_enabled: draft.voiceEnabled,
-                    voice: draft.voice,
-                    provider: draft.provider,
-                    industry: draft.industry,
-                    objective: draft.objective,
-                    target_language: draft.target_language,
-                    access_token: draft.accessToken,
-                    phone_number_id: draft.phoneNumberId,
-                    d360_api_key: draft.d360ApiKey,
-                    discord_token: draft.discordToken,
-                    tiktok_access_token: draft.tiktokAccessToken,
-                    tiktok_seller_id: draft.tiktokSellerId,
-                    manychat_token: draft.manychatToken
+                    name: saveDraft.name || saveDraft.company_name,
+                    prompt: saveDraft.customPrompt,
+                    voice_enabled: saveDraft.voiceEnabled,
+                    voice: saveDraft.voice,
+                    provider: saveDraft.provider,
+                    industry: saveDraft.industry,
+                    objective: saveDraft.objective,
+                    target_language: saveDraft.target_language,
+                    access_token: saveDraft.accessToken,
+                    phone_number_id: saveDraft.phoneNumberId,
+                    d360_api_key: saveDraft.d360ApiKey,
+                    discord_token: saveDraft.discordToken,
+                    tiktok_access_token: saveDraft.tiktokAccessToken,
+                    tiktok_seller_id: saveDraft.tiktokSellerId,
+                    manychat_token: saveDraft.manychatToken
                   })
                 });
 
@@ -214,11 +244,13 @@ const SaasDashboard = () => {
                   throw new Error(errData.error || `HTTP ${res.status}`);
                 }
 
-                if (!res.ok) {
-                  const errData = await res.json();
-                  throw new Error(errData.error || `HTTP ${res.status}`);
-                }
-
+                // Clear draft after successful save (use server data)
+                setConfigDrafts(prev => {
+                  const next = { ...prev };
+                  delete next[selectedBotId];
+                  return next;
+                });
+                fetchBots();
                 alert('Configuración sincronizada exitosamente.');
               } catch (e) {
                 alert('Error al guardar: ' + e.message);
