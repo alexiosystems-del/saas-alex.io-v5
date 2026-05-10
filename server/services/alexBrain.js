@@ -875,10 +875,11 @@ async function generateResponse({ message, history = [], botConfig = {}, metadat
                 result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
                 result.audioMime = 'audio/ogg; codecs=opus';
                 console.log(`✅ [VOICE] OpenAI TTS (OPUS) generado.`);
-
+            }
         } catch (err) {
             console.error('❌ TTS Error:', err.message);
         }
+
     }
 
     try { if (global.responseCache) global.responseCache.set(`${botConfig.tenantId}_${customerId}_${normalizedUserMsg.slice(0,50)}`, result); } catch (_) {}
