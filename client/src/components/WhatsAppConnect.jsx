@@ -58,7 +58,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                     reconnectionDelayMax: 5000,
                     timeout: 20000,
                     transports: isProduction ? ['polling'] : ['websocket', 'polling'],
-                    path: '/socket.io/',
+                    path: '/socket.io',
                     auth: { token },
                     upgrade: !isProduction,
                     rememberUpgrade: false,
