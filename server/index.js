@@ -824,6 +824,12 @@ app.post('/api/rag/upload', async (req, res) => {
 const crmRouter = require('./routes/crm');
 app.use('/api/crm', authenticateTenant, tenantLimiter, crmRouter);
 
+// SaaS & WhatsApp Management Routes (CRITICAL FIX)
+const saasRouter = require('./routes/saas');
+const { router: whatsappSaasRouter } = require('./services/whatsappSaas');
+app.use('/api/saas', authenticateTenant, saasRouter);
+app.use('/api/saas', authenticateTenant, whatsappSaasRouter);
+
 // Health Check (Public or Internal)
 app.get('/api/health', (req, res) => {
     res.json({
