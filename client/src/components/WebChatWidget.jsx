@@ -9,7 +9,7 @@ const GB = '#6366F138';
 const BACKEND_URL = (() => {
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl && !envUrl.includes('supabase.co')) return envUrl.replace(/\/$/, '');
-    return 'https://whatsapp-fullstack-ylsx.onrender.com';
+    return 'https://whatsapp-fullstack-1-yjao.onrender.com';
 })();
 
 const INITIAL_MESSAGE = `👋 Hola, soy ALEX IO.
