@@ -830,6 +830,40 @@ const { router: whatsappSaasRouter } = require('./services/whatsappSaas');
 app.use('/api/saas', authenticateTenant, saasRouter);
 app.use('/api/saas', authenticateTenant, whatsappSaasRouter);
 
+// Voice Preview Endpoint (for bot voice selection)
+app.post('/api/voice/preview', authenticateTenant, async (req, res) => {
+    try {
+        const { text = 'Hola, soy ALEX IO.', voice = 'nova' } = req.body;
+        const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+
+        if (voice.startsWith('minimax-')) {
+            // MiniMax TTS
+            const alexBrain = require('./services/alexBrain');
+            const audioBuffer = await alexBrain.generateTTS(text, voice);
+            const base64Audio = audioBuffer.toString('base64');
+            return res.json({ audioUrl: `data:audio/mpeg;base64,${base64Audio}` });
+        }
+
+        if (!OPENAI_KEY) {
+            return res.status(400).json({ error: 'OpenAI key not configured for TTS' });
+        }
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: OPENAI_KEY });
+        const mp3 = await openai.audio.speech.create({
+            model: 'tts-1',
+            voice: voice,
+            input: text.substring(0, 500)
+        });
+        const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+        const base64Audio = audioBuffer.toString('base64');
+        res.json({ audioUrl: `data:audio/mpeg;base64,${base64Audio}` });
+    } catch (err) {
+        console.error('[Voice Preview] Error:', err.message);
+        res.status(500).json({ error: 'Voice preview failed: ' + err.message });
+    }
+});
+
 // Health Check (Public or Internal)
 app.get('/api/health', (req, res) => {
     res.json({

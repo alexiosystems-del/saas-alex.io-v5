@@ -140,16 +140,58 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                 <option value="pt">Português</option>
                             </select>
                         </div>
-                        <div>
+                        <div className="sm:col-span-2">
                             <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-500">Voz y Síntesis</label>
                             <div className="flex gap-2">
                                 <select className="flex-1 rounded-xl p-3 text-sm focus:outline-none appearance-none"
                                     style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text }}
                                     value={configDraft.voice || 'nova'} onChange={e => setConfigDraft(p => ({ ...p, voice: e.target.value }))}>
-                                    <option value="nova">Nova (Default)</option>
-                                    <option value="alloy">Alloy</option>
-                                    <option value="minimax-hd">MiniMax HD</option>
+                                    <optgroup label="🎙️ OpenAI — Voces Naturales">
+                                        <option value="alloy">Alloy — Neutral, versátil</option>
+                                        <option value="ash">Ash — Masculina, suave</option>
+                                        <option value="ballad">Ballad — Masculina, expresiva</option>
+                                        <option value="coral">Coral — Femenina, cálida</option>
+                                        <option value="echo">Echo — Masculina, profunda</option>
+                                        <option value="fable">Fable — Narrativa, británica</option>
+                                        <option value="nova">Nova — Femenina, joven (Default)</option>
+                                        <option value="onyx">Onyx — Masculina, autoridad</option>
+                                        <option value="sage">Sage — Femenina, profesional</option>
+                                        <option value="shimmer">Shimmer — Femenina, energética</option>
+                                    </optgroup>
+                                    <optgroup label="🔊 MiniMax — Voces HD Premium">
+                                        <option value="minimax-male-qn-qingse">QingNian — Masculina joven</option>
+                                        <option value="minimax-female-shaonv">ShaoNv — Femenina dulce</option>
+                                        <option value="minimax-male-qn-jingying">JingYing — Masculina ejecutiva</option>
+                                        <option value="minimax-female-yujie">YuJie — Femenina madura</option>
+                                        <option value="minimax-presenter_male">Presenter — Masculina narrador</option>
+                                        <option value="minimax-presenter_female">Presenter — Femenina narradora</option>
+                                    </optgroup>
                                 </select>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const baseUrl = import.meta.env.VITE_API_URL || 'https://whatsapp-fullstack-ylsx.onrender.com';
+                                            const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+                                            const previewText = `Hola, soy ${configDraft.name || 'ALEX IO'}. Diseñado para que ninguna conversación importante se pierda.`;
+                                            const res = await fetch(`${baseUrl}/api/voice/preview`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                                body: JSON.stringify({ text: previewText, voice: configDraft.voice || 'nova' })
+                                            });
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                if (data.audioUrl) {
+                                                    const audio = new Audio(data.audioUrl);
+                                                    audio.play();
+                                                }
+                                            }
+                                        } catch (e) { console.error('Voice preview error:', e); }
+                                    }}
+                                    className="px-3 rounded-xl text-sm transition-all bg-slate-800 text-slate-400 hover:text-white hover:bg-indigo-600"
+                                    title="Previsualizar voz"
+                                >
+                                    <Play size={14} />
+                                </button>
                                 <button
                                     onClick={() => setConfigDraft(p => ({ ...p, voiceEnabled: !p.voiceEnabled }))}
                                     className={`px-4 rounded-xl text-[10px] font-bold uppercase transition-all ${configDraft.voiceEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500'}`}

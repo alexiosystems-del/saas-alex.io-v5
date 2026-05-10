@@ -1251,5 +1251,20 @@ Bot: ${botRes}`;
     }
 }
 
-module.exports = { generateResponse, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory };
+async function generateTTS(text, voice = 'nova') {
+    if (voice.startsWith('minimax-')) {
+        return await callMiniMaxTTS(text, voice);
+    }
+    // OpenAI TTS
+    if (!OPENAI_KEY) throw new Error('OpenAI key not configured for TTS');
+    const openaiClient = new OpenAI({ apiKey: OPENAI_KEY });
+    const mp3 = await openaiClient.audio.speech.create({
+        model: 'tts-1',
+        voice: voice,
+        input: text.substring(0, 4096)
+    });
+    return Buffer.from(await mp3.arrayBuffer());
+}
+
+module.exports = { generateResponse, generateTTS, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory };
 
