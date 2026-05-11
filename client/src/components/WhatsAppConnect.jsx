@@ -150,7 +150,8 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
     const fetchCloudStatus = async () => {
         try {
-            const statusUrl = instanceId ? `/api/saas/status/${instanceId}` : '/api/status';
+            const isInvalidId = !instanceId || instanceId === 'null';
+            const statusUrl = !isInvalidId ? `/api/saas/status/${instanceId}` : '/api/status';
             const res = await api.get(statusUrl);
             setCloudStatus(res.data);
         } catch (err) {
@@ -171,7 +172,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         const shouldPoll = (status === 'CONNECTING' || status === 'DISCONNECTED') && !qrCode;
         if (shouldPoll) {
             pollIntervalRef.current = setInterval(async () => {
-                if (!instanceId) return;
+                if (!instanceId || instanceId === 'null') return;
                 try {
                     const res = await api.get(`/api/saas/status/${instanceId}`);
                     if (res.data) {

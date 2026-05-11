@@ -152,9 +152,9 @@ const SaasDashboard = () => {
       setLoading(true);
       setError(null);
       const { data } = await apiClient.get('/api/saas/bots', { retry: 3 });
-      const botsList = data.bots || data || [];
+      const botsList = (data.bots || data || []).filter(b => b && (b.instance_id || b.id) !== 'null');
       setBots(botsList);
-      if (botsList.length > 0 && !selectedBotId) {
+      if (botsList.length > 0 && (!selectedBotId || selectedBotId === 'null')) {
         setSelectedBotId(botsList[0].instance_id || botsList[0].id);
       }
     } catch (err) {
@@ -189,17 +189,17 @@ const SaasDashboard = () => {
       case 'settings':
         return <SettingsTab />;
       case 'whatsapp':
-        if (!selectedBotId) return <NoBotSelected onAction={() => setShowWizard(true)} />;
+        if (!selectedBotId || selectedBotId === 'null') return <NoBotSelected onAction={() => setShowWizard(true)} />;
         const botToConnect = bots.find(b => (b.instance_id || b.id) === selectedBotId);
         return <WhatsAppConnect instanceId={selectedBotId} initialCompanyName={botToConnect?.name || botToConnect?.company_name} />;
       case 'livechat':
-        if (!selectedBotId) return <NoBotSelected onAction={() => setShowWizard(true)} />;
+        if (!selectedBotId || selectedBotId === 'null') return <NoBotSelected onAction={() => setShowWizard(true)} />;
         return <LiveChat instanceId={selectedBotId} />;
       case 'campaigns':
-        if (!selectedBotId) return <NoBotSelected onAction={() => setShowWizard(true)} />;
+        if (!selectedBotId || selectedBotId === 'null') return <NoBotSelected onAction={() => setShowWizard(true)} />;
         return <BroadcastCampaign instanceId={selectedBotId} />;
       case 'config':
-        if (!selectedBotId) return <NoBotSelected onAction={() => setShowWizard(true)} />;
+        if (!selectedBotId || selectedBotId === 'null') return <NoBotSelected onAction={() => setShowWizard(true)} />;
         const currentBot = bots.find(b => (b.instance_id || b.id) === selectedBotId);
         const draft = getConfigDraft(selectedBotId);
         return (

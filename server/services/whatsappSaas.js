@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const pino = require('pino');
 const axios = require('axios');
+const path = require('path');
 
 // Polyfill for global crypto (Required for Baileys on some Node envs like older Node 18/20)
 if (!global.crypto) {
@@ -756,16 +757,7 @@ const startBotInstance = async (instanceId, config, res = null) => {
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) => {
-  const sessionPath = path.join(__dirname, `../sessions/${instanceId}`);
-  
-  let state, saveCreds;
-  try {
-    ({ state, saveCreds } = await useMultiFileAuthState(sessionPath));
-  } catch (err) {
-    console.error(`[WA] Failed to load auth state for ${instanceId}:`, err.message);
-    if (res && !res.headersSent) return res.status(500).json({ error: 'Session state corrupted' });
-    return;
-  }
+  const { state, saveCreds } = await useSupabaseAuthState(instanceId, supabaseAdmin);
 
   const { makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
 
