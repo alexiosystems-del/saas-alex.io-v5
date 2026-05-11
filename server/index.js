@@ -53,8 +53,11 @@ const io = new Server(server, {
             'http://localhost:5173',
             'http://localhost:3000',
             'https://whatsapp-fullstack-1-yjao.onrender.com',
-            'https://www.whatsapp-fullstack-1-yjao.onrender.com'
-        ],
+            'https://www.whatsapp-fullstack-1-yjao.onrender.com',
+            'https://whatsapp-fullstack-ylsx.onrender.com',
+            'https://whatsapp-fullstack-y1sx.onrender.com',
+            process.env.RENDER_EXTERNAL_URL
+        ].filter(Boolean),
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     },
@@ -203,7 +206,9 @@ const getAllowedOrigins = () => {
         'http://localhost:5173',
         'http://localhost:3000',
         'https://whatsapp-fullstack-1-yjao.onrender.com',
-        'https://www.whatsapp-fullstack-1-yjao.onrender.com'
+        'https://www.whatsapp-fullstack-1-yjao.onrender.com',
+        'https://whatsapp-fullstack-ylsx.onrender.com',
+        'https://whatsapp-fullstack-y1sx.onrender.com'
     ];
     if (process.env.RENDER_EXTERNAL_URL) list.push(process.env.RENDER_EXTERNAL_URL);
     if (process.env.ALLOWED_ORIGINS) {

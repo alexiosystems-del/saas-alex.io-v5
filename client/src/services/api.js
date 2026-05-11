@@ -2,16 +2,9 @@ import axios from 'axios';
 
 const getBaseUrl = () => {
     if (import.meta.env.PROD) {
-        // 1. Prioritize Environment Variable
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-
-        // 2. Intelligent Detection for Render
-        if (typeof window !== 'undefined' && window.location.origin.includes('onrender.com')) {
-            return 'https://whatsapp-fullstack-ylsx.onrender.com';
-        }
-        return 'https://whatsapp-fullstack-ylsx.onrender.com';
+        // Use relative path — frontend and backend share the same Render service
+        return import.meta.env.VITE_API_URL || '';
     }
-
     return 'http://localhost:3000';
 };
 
