@@ -560,7 +560,7 @@ app.use('/api/webhooks', webhooksMulti);
 // 1. Unified SaaS Management Router
 const saasRouter = require('./routes/saas');
 const enterpriseRouter = require('./routes/leadsAndBroadcast');
-const { router: whatsappRouter } = require('./services/whatsappSaas');
+const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
 
 app.use('/api/saas', authenticateTenant, tenantLimiter, saasRouter);
 app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
@@ -858,11 +858,7 @@ app.post('/api/rag/upload', async (req, res) => {
 const crmRouter = require('./routes/crm');
 app.use('/api/crm', authenticateTenant, tenantLimiter, crmRouter);
 
-// SaaS & WhatsApp Management Routes (CRITICAL FIX)
-const saasRouter = require('./routes/saas');
-const { router: whatsappSaasRouter } = require('./services/whatsappSaas');
-app.use('/api/saas', authenticateTenant, saasRouter);
-app.use('/api/saas', authenticateTenant, whatsappSaasRouter);
+// SaaS & WhatsApp routes already mounted in ENTERPRISE SAAS API block (lines 560-567)
 
 // Voice Preview Endpoint (for bot voice selection)
 app.post('/api/voice/preview', authenticateTenant, async (req, res) => {
