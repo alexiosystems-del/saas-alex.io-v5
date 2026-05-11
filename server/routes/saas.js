@@ -5,7 +5,7 @@ const { supabase } = require('../services/supabaseClient');
 // ============================================
 // GET ALL BOTS
 // ============================================
-router.get('/api/saas/bots', async (req, res) => {
+router.get('/bots', async (req, res) => {
   try {
     console.log('📥 [GET BOTS] Request received');
 
@@ -15,6 +15,7 @@ router.get('/api/saas/bots', async (req, res) => {
         *,
         bot_configs (*)
       `)
+      .eq('tenant_id', req.tenant.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false });
 
@@ -38,7 +39,7 @@ router.get('/api/saas/bots', async (req, res) => {
 // ============================================
 // CREATE BOT
 // ============================================
-router.post('/api/saas/bots', async (req, res) => {
+router.post('/bots', async (req, res) => {
   try {
     const { 
       name, prompt, tone, industry, objective, 
@@ -52,12 +53,9 @@ router.post('/api/saas/bots', async (req, res) => {
       });
     }
 
-    if (!tenant_id) {
-      return res.status(401).json({ error: 'Unauthorized: tenant_id required' });
-    }
-
+    const tenantId = req.tenant.id;
     const botData = {
-      tenant_id,
+      tenant_id: tenantId,
       name: name.trim(),
       prompt: prompt.trim(),
       tone: tone || 'professional',
@@ -116,7 +114,7 @@ router.post('/api/saas/bots', async (req, res) => {
 // ============================================
 // GET LEADS
 // ============================================
-router.get('/api/saas/leads', async (req, res) => {
+router.get('/leads', async (req, res) => {
   try {
     const { temp, status } = req.query;
     let query = supabase.from('leads').select('*, lead_tags(tag)');
@@ -133,7 +131,7 @@ router.get('/api/saas/leads', async (req, res) => {
 // ============================================
 // GET LEAD TAGS
 // ============================================
-router.get('/api/saas/leads/tags', async (req, res) => {
+router.get('/leads/tags', async (req, res) => {
   try {
     const { data, error } = await supabase.from('lead_tags').select('tag');
     if (error) throw error;
@@ -203,7 +201,7 @@ router.get('/api/debug/system', async (req, res) => {
 // ============================================
 // TRANSLATE MESSAGE (On-demand for Live Chat)
 // ============================================
-router.post('/api/saas/translate', async (req, res) => {
+router.post('/translate', async (req, res) => {
   try {
     const { text, targetLang = 'es' } = req.body;
     if (!text) return res.status(400).json({ error: 'text is required' });
