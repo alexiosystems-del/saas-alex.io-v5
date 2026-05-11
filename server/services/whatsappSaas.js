@@ -753,164 +753,111 @@ const startBotInstance = async (instanceId, config, res = null) => {
     }
 };
 
-// --- CONNECT FUNCTION (Hardened V5 with Locking) ---
-async function connectToWhatsApp(instanceId, config, res = null) {
-    const currentState = connectionStates.get(instanceId);
-    if (currentState === 'connecting' || currentState === 'online') {
-        console.warn(`⚠️ [${instanceId}] Intento de conexión duplicado detectado (Estado: ${currentState}). Ignorando.`);
-        if (res && !res.headersSent) res.status(409).json({ error: 'Ya existe una conexión en curso para este bot.' });
-        return;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) => {
+  const sessionPath = path.join(__dirname, `../sessions/${instanceId}`);
+  
+  let state, saveCreds;
+  try {
+    ({ state, saveCreds } = await useMultiFileAuthState(sessionPath));
+  } catch (err) {
+    console.error(`[WA] Failed to load auth state for ${instanceId}:`, err.message);
+    if (res && !res.headersSent) return res.status(500).json({ error: 'Session state corrupted' });
+    return;
+  }
+
+  const { makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
+
+  const sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: false,
+    logger: pino({ level: 'silent' }),
+    browser: ['ALEX IO', 'Chrome', '1.0.0'],
+    connectTimeoutMs: 30000,
+    defaultQueryTimeoutMs: 20000,
+  });
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr && res && !res.headersSent) {
+      await supabase
+        .from('whatsapp_sessions')
+        .upsert({ 
+          instance_id: instanceId, 
+          qr_code: qr,
+          status: 'waiting_scan',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'instance_id' });
+
+      return res.json({ qr, instanceId });
     }
 
-    // 1. Acquire Distributed Lock (SaaS Multi-instance safety)
-    const lockKey = `lock:wa:connect:${instanceId}`;
-    const hasLock = await acquireLock(lockKey, 90000); // 90s lock
-    if (!hasLock) {
-        console.warn(`⚠️ [${instanceId}] No se pudo obtener el lock de conexión. ¿Otro worker está conectando?`);
-        if (res && !res.headersSent) res.status(423).json({ error: 'Operación en curso por otro worker. Espera 60s.' });
-        return;
+    if (connection === 'close') {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+      console.warn(`[WA] Session ${instanceId} closed. Code: ${statusCode}`);
+
+      await supabase
+        .from('whatsapp_sessions')
+        .update({ status: 'disconnected', updated_at: new Date().toISOString() })
+        .eq('instance_id', instanceId);
+
+      if (shouldReconnect && attempt < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(1000 * 2 ** attempt, 30000);
+        console.log(`[WA] Reconnecting ${instanceId} in ${delay}ms (attempt ${attempt})`);
+        setTimeout(() => connectToWhatsApp(instanceId, config, null, attempt + 1), delay);
+      } else {
+        console.error(`[WA] Session ${instanceId} permanently disconnected`);
+        activeSessions.delete(instanceId);
+      }
     }
 
-    try {
-        connectionStates.set(instanceId, 'connecting');
-        const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-        clientConfigs.set(instanceId, config);
+    if (connection === 'open') {
+      console.log(`✅ Sesión [${instanceId}] Conectada`);
+      activeSessions.set(instanceId, sock);
 
-        let state, saveCreds, clearState;
+      await supabase
+        .from('whatsapp_sessions')
+        .update({ 
+          status: 'connected', 
+          connected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('instance_id', instanceId);
+    }
+  });
 
-        if (isSupabaseEnabled) {
-            const authStore = await useSupabaseAuthState(instanceId, supabase);
-            state = authStore.state;
-            saveCreds = authStore.saveCreds;
-            clearState = authStore.clearState;
-        } else {
-            const sessionPath = `${sessionsDir}/${instanceId}`;
-            const localAuth = await useMultiFileAuthState(sessionPath);
-            state = localAuth.state;
-            saveCreds = localAuth.saveCreds;
-            clearState = () => fs.rmSync(sessionPath, { recursive: true, force: true });
-        }
+  sock.ev.on('messages.upsert', async ({ messages: msgs }) => {
+    for (const msg of msgs) {
+      if (!msg.message || msg.key.fromMe) continue;
+      const incomingMsg = msg.message?.conversation || 
+                          msg.message?.extendedTextMessage?.text || '';
+      if (!incomingMsg.trim()) continue;
 
-        let version;
-        try {
-            const versionInfo = await fetchLatestBaileysVersion();
-            version = versionInfo.version;
-        } catch (e) {
-            version = [2, 3000, 1015901307];
-        }
+      const senderId = msg.key.remoteJid;
+      const translation = await alexBrain.translateIncomingMessage(incomingMsg, 'es');
 
-        const sock = makeWASocket({
-            auth: state,
-            version,
-            printQRInTerminal: false,
-            logger: pino({ level: 'silent' }),
-            browser: ['Windows', 'Chrome', '20.0.04'],
-            connectTimeoutMs: 120000,
-            keepAliveIntervalMs: 30000,
-            maxMsgRetryCount: 5,
-        });
+      await supabase.from('messages').insert({
+        instance_id: instanceId,
+        remote_jid: senderId,
+        direction: 'INBOUND',
+        content: translation.translated || incomingMsg,
+        content_original: incomingMsg,
+        language_detected: translation.detected || 'es',
+        was_translated: translation.was_translated || false,
+        translation_skipped: translation.skipped || false,
+        created_at: new Date().toISOString()
+      });
+    }
+  });
 
-        whatsappSockets.set(instanceId, sock);
-        const { BaileysAdapter } = require('./adapterFactory');
-        activeSessions.set(instanceId, new BaileysAdapter(instanceId, whatsappSockets));
+  sock.ev.on('creds.update', saveCreds);
+  return sock;
+};
 
-        await updateSessionStatus(instanceId, 'connecting', { companyName: config.companyName });
-        console.log(`🔄 [${instanceId}] Iniciando conexión para ${config.companyName || 'ALEX IO'}...`);
-
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            const closeCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode || null;
-
-            if (qr) {
-                QRCode.toDataURL(qr)
-                    .then(async (url) => {
-                        await updateSessionStatus(instanceId, 'qr_ready', {
-                            companyName: config.companyName,
-                            qr_code: url
-                        });
-                        
-                        // BROADCAST TO FRONTEND (Saas Integration Fix)
-                        if (ioInstance) {
-                            ioInstance.emit('wa_qr', { qr: url, instanceId, status: 'QR_READY' });
-                            ioInstance.emit('wa_status', { status: 'QR_READY', instanceId });
-                        }
-
-                        if (res && !res.headersSent) {
-                            res.json({ success: true, qr_code: url, instance_id: instanceId });
-                        }
-                    })
-                    .catch((error) => console.error(`❌ [${instanceId}] QR Error:`, error.message));
-            }
-
-            if (connection === 'close') {
-                connectionStates.set(instanceId, 'failed');
-                await releaseLock(lockKey); // Release lock on failure to allow retry
-                
-                updateSessionStatus(instanceId, 'disconnected', {
-                    companyName: config.companyName,
-                    qr_code: null
-                }).catch(() => null);
-
-                const FATAL_CODES = [403, 405, 406, 409, 410, 440];
-                const isFatal = FATAL_CODES.includes(closeCode);
-                const isLoggedOut = closeCode === DisconnectReason.loggedOut;
-                const shouldReconnect = !isFatal && !isLoggedOut;
-                const attempts = (reconnectAttempts.get(instanceId) || 0) + 1;
-                reconnectAttempts.set(instanceId, attempts);
-
-                if (isFatal) {
-                    if (clearState) clearState().catch(() => null);
-                    updateSessionStatus(instanceId, `fatal_error_${closeCode}`, {
-                        companyName: config.companyName,
-                        qr_code: null,
-                        error: `Error fatal ${closeCode}. Reautentica.`
-                    }).catch(() => null);
-                    
-                    if (res && !res.headersSent) res.status(503).json({ error: `Error fatal ${closeCode}`, instance_id: instanceId });
-                    clearSessionRuntime(instanceId);
-                } else if (shouldReconnect && attempts <= maxReconnectAttempts) {
-                    const delay = Math.min(5000 * Math.pow(2, attempts - 1), 60000);
-                    console.log(`🔁 [${instanceId}] Reintentando en ${delay / 1000}s...`);
-                    setTimeout(() => {
-                        connectionStates.delete(instanceId); // Reset state for retry
-                        connectToWhatsApp(instanceId, config, null);
-                    }, delay);
-                } else {
-                    updateSessionStatus(instanceId, 'failed_max_retries', { companyName: config.companyName }).catch(() => null);
-                    if (res && !res.headersSent) res.status(503).json({ error: 'Máximo de reintentos alcanzado', instance_id: instanceId });
-                    clearSessionRuntime(instanceId);
-                }
-            } else if (connection === 'open') {
-                connectionStates.set(instanceId, 'online');
-                await releaseLock(lockKey); // Success! Release lock.
-                reconnectAttempts.set(instanceId, 0);
-                updateSessionStatus(instanceId, 'online', { companyName: config.companyName, qr_code: null }).catch(() => null);
-                console.log(`✅ [${instanceId}] ${config.companyName} ONLINE!`);
-                
-                if (ioInstance) {
-                    ioInstance.emit('wa_status', { status: 'READY', instanceId });
-                }
-            }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('messages.upsert', ({ messages }) => {
-        messages.forEach(msg => {
-            handleQRMessage(sock, msg, instanceId).catch(err => {
-                console.error(`❌ [${instanceId}] Message Error:`, err.message);
-            });
-        });
-    });
-
-    return sock;
-} catch (err) {
-    console.error(`❌ [${instanceId}] Critical connection crash:`, err.message);
-    await releaseLock(lockKey);
-    connectionStates.set(instanceId, 'failed');
-    throw err;
-}
-}
 
 // --- ENDPOINTS ---
 router.post('/connect', async (req, res) => {

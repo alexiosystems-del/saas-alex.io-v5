@@ -40,29 +40,24 @@ router.get('/api/saas/bots', async (req, res) => {
 // ============================================
 router.post('/api/saas/bots', async (req, res) => {
   try {
-    console.log('📥 [CREATE BOT] Request body:', JSON.stringify(req.body, null, 2));
-
     const { 
-      name, 
-      prompt, 
-      tone, 
-      industry, 
-      objective, 
-      voice_enabled, 
-      translation_enabled,
-      channel,
-      identity,
-      strategy
+      name, prompt, tone, industry, objective, 
+      voice_enabled, translation_enabled, channel, 
+      identity, strategy, tenant_id
     } = req.body;
 
-    if (!name || !prompt) {
+    if (!name?.trim() || !prompt?.trim()) {
       return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['name', 'prompt']
+        error: 'Missing required fields: name and prompt are required' 
       });
     }
 
+    if (!tenant_id) {
+      return res.status(401).json({ error: 'Unauthorized: tenant_id required' });
+    }
+
     const botData = {
+      tenant_id,
       name: name.trim(),
       prompt: prompt.trim(),
       tone: tone || 'professional',
@@ -70,7 +65,8 @@ router.post('/api/saas/bots', async (req, res) => {
       objective: objective || 'assist customers',
       voice_enabled: voice_enabled === true || voice_enabled === 'true',
       translation_enabled: translation_enabled === true || translation_enabled === 'true',
-      status: 'active'
+      status: 'active',
+      created_at: new Date().toISOString()
     };
 
     const { data: bot, error: botError } = await supabase
@@ -79,16 +75,23 @@ router.post('/api/saas/bots', async (req, res) => {
       .select()
       .single();
 
-    if (botError) throw botError;
+    if (botError) {
+      console.error('[BOTS] Create error:', botError.message);
+      return res.status(500).json({ 
+        error: 'Failed to create bot',
+        detail: botError.message
+      });
+    }
 
     const configData = {
       bot_id: bot.id,
+      tenant_id,
       channel: channel || 'whatsapp',
-      voice_model: voice_enabled ? 'MINIMAX-ZH' : null,
-      translation_enabled: translation_enabled === true,
-      config: {
-        identity: identity || name,
-        strategy: strategy || 'undefined'
+      voice_model: (voice_enabled === true || voice_enabled === 'true') ? 'MINIMAX-ZH' : null,
+      translation_enabled: translation_enabled === true || translation_enabled === 'true',
+      config: { 
+        identity: identity || name.trim(), 
+        strategy: strategy || 'default'
       }
     };
 
@@ -96,13 +99,17 @@ router.post('/api/saas/bots', async (req, res) => {
       .from('bot_configs')
       .insert([configData]);
 
-    if (configError) console.error('⚠️ [CREATE BOT] Config error:', configError);
+    if (configError) {
+      console.error('[BOT_CONFIG] Insert error:', configError.message);
+      await supabase.from('bots').delete().eq('id', bot.id);
+      return res.status(500).json({ error: 'Failed to save bot configuration' });
+    }
 
-    res.json({ success: true, bot, message: 'Bot creado exitosamente' });
+    return res.status(201).json({ success: true, bot });
 
   } catch (error) {
-    console.error('💥 [CREATE BOT] Fatal error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[BOTS] Unexpected error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

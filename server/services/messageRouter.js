@@ -13,203 +13,117 @@ const { loadInstanceConfig } = require('./instanceLoader');
 const { getAdapterByInstanceId } = require('./adapterFactory');
 const { trackEvent } = require('./observability');
 const crypto = require('crypto');
-const operationalState = require('./operationalState');
-const botPool = require('./botPoolRouter');
 
-const detectUserLanguage = (text = '') => {
-    const sample = String(text || '').trim();
-    if (!sample) return 'es';
-    if (/[¿¡]|(?:\b(hola|gracias|por favor|necesito|quiero|ayuda|precio|campaña)\b)/i.test(sample)) return 'es';
-    return 'en';
+// ── Helpers ───────────────────────────────────────────────
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    )
+  ]);
+
+// Deduplicación persistente en Supabase
+const isDuplicate = async (instanceId, senderId, text) => {
+  if (!text) return false;
+  const key = `${instanceId}:${senderId}:${text.slice(0, 50)}`;
+  const hash = crypto.createHash('md5').update(key).digest('hex');
+  
+  try {
+    const { data } = await supabase
+      .from('message_dedup_cache')
+      .select('id')
+      .eq('hash', hash)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (data) return true;
+
+    await supabase.from('message_dedup_cache').insert({
+      hash,
+      expires_at: new Date(Date.now() + 30000).toISOString()
+    });
+    return false;
+  } catch {
+    return false; // si falla la caché, dejar pasar el mensaje
+  }
 };
 
-const handleIncomingMessage = async (standardizedMessage) => {
-    const instanceId = standardizedMessage.metadata?.instanceId;
-    if (instanceId && operationalState.isPaused(instanceId)) {
-        logInfo(`[MessageRouter] Instance ${instanceId} is PAUSED. Skipping message.`);
-        return;
-    }
+const handleIncomingMessage = async (stdMsg) => {
+  const { platform, senderId, text, metadata } = stdMsg;
+  const instanceId = metadata?.instanceId;
 
-    const start = Date.now();
-    try {
-        logInfo(`[MessageRouter] Mensaje recibido de la plataforma: ${standardizedMessage.platform}`);
-        
-        const botResponseText = await processMessageWithAI(standardizedMessage);
+  if (!instanceId || !senderId || !text?.trim()) {
+    console.warn('[ROUTER] Invalid message received:', { instanceId, senderId, hasText: !!text });
+    return;
+  }
 
-        await routeResponseToPlatform(standardizedMessage.platform, standardizedMessage.senderId, botResponseText, standardizedMessage.metadata);
+  // Deduplicación
+  if (await isDuplicate(instanceId, senderId, text)) {
+    console.log(`[ROUTER] Duplicate message ignored: ${instanceId}/${senderId}`);
+    return;
+  }
 
-        trackEvent({
-            event_id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            instance_id: instanceId || 'unknown',
-            channel: standardizedMessage.platform,
-            direction: 'outbound',
-            message_id: standardizedMessage.metadata?.messageId || Date.now().toString(),
-            status: 'success',
-            latency_ms: Date.now() - start
-        });
+  let config;
+  try {
+    config = await withTimeout(loadInstanceConfig(instanceId), 5000, 'LoadConfig');
+  } catch (err) {
+    console.error(`[ROUTER] Config load failed for ${instanceId}:`, err.message);
+    return;
+  }
 
-    } catch (error) {
-        logError('[MessageRouter] Error procesando mensaje centralizado', error);
-
-        trackEvent({
-            event_id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            instance_id: instanceId || 'unknown',
-            channel: standardizedMessage.platform,
-            direction: 'outbound',
-            message_id: standardizedMessage.metadata?.messageId || Date.now().toString(),
-            status: 'error',
-            latency_ms: Date.now() - start,
-            error_message: error.message || 'Error genérico router'
-        });
-    }
-};
-
-const processMessageWithAI = async (msg) => {
-    const start = Date.now();
-    const tenantId = msg.metadata?.tenantId || 'global-tenant';
-    const instanceId = msg.metadata?.instanceId || msg.metadata?.instance_id || msg.metadata?.botId || `multi_${msg.platform}_${msg.metadata?.pageId || msg.senderId}`;
-    const userLang = detectUserLanguage(msg.text);
-
-    // Load dynamic configuration (includes Sales Engine, Constitution, Demo Mode)
-    const instanceConfig = await loadInstanceConfig(instanceId) || {};
-    
-    const botConfig = {
-        bot_name: instanceConfig?.personality?.botName || 'ALEX IO',
-        personality: instanceConfig?.personality || { botName: 'ALEX IO' }, 
-        tenantId: instanceConfig?.tenantId || tenantId,
-        instanceId: instanceId,
-        maxWords: 60,
-        maxMessages: 15
+  let aiResult;
+  try {
+    aiResult = await withTimeout(
+      alexBrain.generateResponse({
+        message: text,
+        history: stdMsg.history || [],
+        botConfig: config
+      }),
+      25000, 'AlexBrain'
+    );
+  } catch (err) {
+    console.error(`[ROUTER] Brain failed for ${instanceId}:`, err.message);
+    aiResult = { 
+      text: 'Estamos experimentando dificultades técnicas. Te respondemos en breve.',
+      trace: { model: 'fallback_static', error: err.message }
     };
+  }
 
-    const logToDB = (direction, content) => {
-        if (!isSupabaseEnabled || (msg.platform === 'whatsapp' && direction === 'INBOUND')) return;
-        if (['discord', 'web', 'tiktok', 'messenger', 'instagram'].includes(msg.platform) || msg.platform.includes('baileys')) {
-            (async () => {
-                const ipInfo = msg.metadata?.ip ? `[IP: ${msg.metadata.ip}] ` : '';
-                try {
-                    const { error } = await supabase.from('messages').insert({
-                        instance_id: instanceId,
-                        tenant_id: tenantId,
-                        remote_jid: msg.senderId,
-                        direction: direction,
-                        message_type: 'text',
-                        content: `[${msg.platform}] ${ipInfo}` + content
-                    });
-                    if (error) logError('[MessageRouter] DB log error', error);
-                } catch (e) {
-                    logError('[MessageRouter] DB log exception', e);
-                }
-            })();
-        }
-    };
-
-    const history = (msg.history && msg.history.length > 0) 
-        ? msg.history 
-        : [{ role: 'user', content: msg.text }];
-
-    try {
-        logToDB('INBOUND', msg.text);
-
-        // TIMEOUT GUARD: Render kills requests after 30s. We must respond in under 25s.
-        const AI_TIMEOUT_MS = 20000;
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('AI_TIMEOUT')), AI_TIMEOUT_MS)
-        );
-
-        const aiPromise = alexBrain.generateResponse({
-            message: msg.text,
-            history: history,
-            botConfig: botConfig,
-            isAudio: false
-        });
-
-        const result = await Promise.race([aiPromise, timeoutPromise]);
-        
-        // SAFETY: generateResponse can return null when AI limiter fires
-        if (!result) {
-            logInfo(`[MessageRouter] AI returned null (limiter/silent mode) for ${instanceId}`);
-            return null;
-        }
-        
-        const answer = result.text || 'No pude procesar tu mensaje.';
-        
-        // Report success to Bot Pool Router
-        try { botPool.reportSuccess(instanceId, Date.now() - start); } catch (_) {}
-
-        // Log AI Cascade for monitoring (Async)
-        if (isSupabaseEnabled && result.trace) {
-            const { error: cascadeError } = await supabase.from('ai_cascade_logs').insert({
-                tenant_id: tenantId,
-                instance_id: instanceId,
-                model_used: result.trace.model,
-                reason: result.trace.reason || 'Primary choice',
-                latency_ms: Date.now() - start
-            });
-            if (cascadeError) console.warn('⚠️ [CascadeLog] Error saving:', cascadeError.message);
-        }
-
-        logToDB('OUTBOUND', answer);
-        
-        const fullHistoryContext = [...history, { role: 'assistant', content: answer }];
-        processLeadAsync(tenantId, instanceId, msg.senderId, fullHistoryContext).catch(e => logError('[MessageRouter] Lead process error', e));
-
-        return answer;
-    } catch (e) {
-        const isTimeout = e.message === 'AI_TIMEOUT';
-        
-        // Report failure to Bot Pool Router
-        try { botPool.reportFailure(instanceId, e.message); } catch (_) {}
-        
-        if (isTimeout) {
-            logError('[MessageRouter] ⏱️ AI TIMEOUT - respondiendo con safeguard', { instanceId });
-        } else {
-            logError(`[MessageRouter] ❌ CRITICAL ERROR in alexBrain [${instanceId}]: ${e.message}`, { stack: e.stack?.split('\n').slice(0, 5).join(' | ') });
-        }
-        const fallback = isTimeout 
-            ? '¡Hola! Soy ALEX IO. Mis sistemas de IA están bajo alta demanda. ¿Podés contarme brevemente qué necesitás y te respondo enseguida?'
-            : '¡Hola! Soy ALEX IO. ¿En qué puedo ayudarte hoy?';
-        logToDB('OUTBOUND', fallback);
-        return fallback;
+  // Envío con manejo de error
+  try {
+    const adapter = await getAdapterByInstanceId(instanceId);
+    if (!adapter) {
+      console.error(`[ROUTER] No adapter found for instance: ${instanceId}`);
+      return;
     }
+    await withTimeout(
+      adapter.sendMessage(senderId, aiResult.text),
+      10000, 'SendMessage'
+    );
+  } catch (err) {
+    console.error(`[ROUTER] Send failed to ${senderId}:`, err.message);
+    await supabase.from('failed_messages').insert({
+      instance_id: instanceId,
+      sender_id: senderId,
+      text: aiResult.text,
+      error: err.message,
+      created_at: new Date().toISOString()
+    }).catch(() => {});
+  }
+
+  // Lead processing — fire & forget con error handling
+  processLeadAsync(instanceId, senderId, aiResult.text)
+    .catch(err => console.error('[ROUTER] Lead processing failed:', err.message));
+
+  // Telemetría
+  supabase.from('ai_cascade_logs').insert({
+    tenant_id: config?.tenant_id,
+    instance_id: instanceId,
+    model_used: aiResult.trace?.model,
+    latency_ms: aiResult.trace?.latency,
+    created_at: new Date().toISOString()
+  }).catch(() => {});
 };
 
-const routeResponseToPlatform = async (platform, senderId, text, metadata = {}) => {
-    const instanceId = metadata?.instanceId;
-    logInfo(`[MessageRouter] Routing response to ${platform} for instance ${instanceId}`);
-
-    if (platform === 'baileys') {
-        // Baileys sockets are managed in alexbrain/whatsappSaas.js
-        logInfo(`[MessageRouter] Baileys session [${instanceId}] assumed managed by Saas service.`);
-        return;
-    }
-
-    // Unified logic for all instantiable adapters
-    try {
-        const adapter = await getAdapterByInstanceId(instanceId);
-        if (adapter) {
-            await adapter.sendMessage(senderId, text);
-            logInfo(`[MessageRouter] Response sent via ${platform} [${instanceId}]`);
-        } else {
-            throw new Error(`Failed to get adapter for ${platform} / instance ${instanceId}`);
-        }
-    } catch (e) {
-        logError(`[MessageRouter] Error sending via ${platform} [${instanceId}]:`, e.message);
-    }
-};
-
-const createStandardizedMessage = (platform, senderId, text, metadata = {}) => {
-    return {
-        platform,
-        senderId,
-        text,
-        metadata,
-        timestamp: new Date().toISOString()
-    };
-};
-
-const processMessageLocally = processMessageWithAI;
-
-module.exports = { handleIncomingMessage, createStandardizedMessage, processMessageLocally };
+module.exports = { handleIncomingMessage };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, MessageSquare, Clock, Shield, ChevronRight, ChevronLeft, Sparkles, Copy, Check, Play, HelpCircle, ExternalLink, Loader2, Volume2, Key, Globe as GlobeIcon, Users, BarChart3, Wifi, WifiOff, Star, ArrowRight, Facebook, Instagram, Music, Smartphone, Cloud, Eye, EyeOff, Bot, Mic, ShieldAlert, Wand2, RotateCcw, RefreshCw } from 'lucide-react';
+import apiClient from '../api/apiClient';
 import EnterpriseWizard from './EnterpriseWizard';
 import MetaWizard from './MetaWizard';
 import PromptWizard from './PromptWizard';
@@ -170,22 +171,15 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const baseUrl = import.meta.env.VITE_API_URL || 'https://whatsapp-fullstack-ylsx.onrender.com';
-                                            const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
-                                            const previewText = `Hola, soy ${configDraft.name || 'ALEX IO'}. Diseñado para que ninguna conversación importante se pierda.`;
-                                            const res = await fetch(`${baseUrl}/api/voice/preview`, {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                                body: JSON.stringify({ text: previewText, voice: configDraft.voice || 'nova' })
+                                            const { data } = await apiClient.post('/api/voice/preview', { 
+                                                text: `Hola, soy ${configDraft.name || 'ALEX IO'}. ¿Cómo puedo ayudarte hoy?`,
+                                                voice: configDraft.voice || 'nova'
                                             });
-                                            if (res.ok) {
-                                                const data = await res.json();
-                                                if (data.audioUrl) {
-                                                    const audio = new Audio(data.audioUrl);
-                                                    audio.play();
-                                                }
+                                            if (data.audioUrl) {
+                                                const audio = new Audio(data.audioUrl);
+                                                audio.play();
                                             }
-                                        } catch (e) { console.error('Voice preview error:', e); }
+                                        } catch (e) { console.error('Voice preview failed', e); }
                                     }}
                                     className="px-3 rounded-xl text-sm transition-all bg-slate-800 text-slate-400 hover:text-white hover:bg-indigo-600"
                                     title="Previsualizar voz"

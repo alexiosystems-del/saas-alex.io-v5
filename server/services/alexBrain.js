@@ -567,344 +567,140 @@ function auditResponseQuality(text, config) {
     return score;
 }
 
-async function generateResponse({ message, history = [], botConfig = {}, metadata = {}, isAudio = false }) {
-  try {
-    const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
-    const provider = botConfig.provider || 'baileys';
-    const normalizedUserMsg = String(message || '').trim().toLowerCase();
-    
-    // --- LAYER 1: SYSTEM CORE (Identity from PROMPT MASTER) ---
-    let systemPrompt = DEFAULT_SYSTEM_PROMPT;
+// ── Helpers ───────────────────────────────────────────────
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    )
+  ]);
 
-    // --- PHASE 4/5: BIC CONTEXT ASSEMBLER (Shadow Mode Enabled) ---
-    try {
-        const bicPrompt = await contextAssembler.assemble(botConfig, message, history, metadata);
-        if (bicPrompt && global.FLAGS.FEATURE_CONTEXT_ASSEMBLER) {
-            console.log(`🧠 [BIC] Aplicando prompt ensamblado para ${botName}`);
-            systemPrompt = bicPrompt;
-        }
-    } catch (err) {
-        console.error(`⚠️ [BIC_SHADOW_ERROR] Falló el ensamblado de contexto:`, err.message);
-    }
+const SPANISH_PATTERN = /^[a-záéíóúñü\s\d.,!?¿¡'"()\-]+$/i;
+const COMMON_SPANISH  = /\b(hola|gracias|quiero|necesito|buenos|cómo|qué|sí|precio|info|ayuda|buenas|favor|puedo|tengo)\b/i;
 
-    // --- LAYER 5: RAG (Knowledge Injection) ---
-    if (botConfig.tenantId && botConfig.instanceId) {
-        const knowledgeChunk = await ragService.queryKnowledgeBase(botConfig.tenantId, botConfig.instanceId, message);
-        if (knowledgeChunk) {
-            console.log(`📚 [${botName}] Inyectando Knowledge Base en System Prompt...`);
-            systemPrompt += `\n\n--- CONTEXTO DE NEGOCIO (RAG) ---\n${knowledgeChunk}\n------------------------------------------`;
-        }
-    }
+const log = {
+  info:  (msg, meta = {}) => console.log(JSON.stringify({ level: 'info',  time: new Date().toISOString(), msg, ...meta })),
+  warn:  (msg, meta = {}) => console.log(JSON.stringify({ level: 'warn',  time: new Date().toISOString(), msg, ...meta })),
+  error: (msg, meta = {}) => console.log(JSON.stringify({ level: 'error', time: new Date().toISOString(), msg, ...meta })),
+};
 
-    // --- LAYER 6: DUAL MEMORY (STM + LTM) ---
-    const customerId = botConfig.customerId || botConfig.remoteJid || 'unknown';
-    if (botConfig.tenantId && customerId !== 'unknown') {
-        const memory = await memoryService.getMemory(botConfig.tenantId, customerId);
-        
-        if (memory.persistedFacts?.length > 0) {
-            console.log(`🧠 [${botName}] Inyectando ${memory.persistedFacts.length} hechos de LTM.`);
-            let memorySection = `\n\n--- HECHOS CONOCIDOS DEL CLIENTE (LTM) ---\n`;
-            memory.persistedFacts.forEach(f => {
-                memorySection += `- ${f.fact} (${f.category})\n`;
-            });
-            systemPrompt += memorySection;
-        }
-    }
+// ── Traducción con skip inteligente ───────────────────────
+async function translateIncomingMessage(text, targetLang = 'es') {
+  if (!text || text.trim().length < 3) return { original: text, translated: null, skipped: true };
 
-    // AI Limiters: Extraction and Application
-    const maxWords = botConfig.maxWords || 50;
-    const maxMessages = botConfig.maxMessages || 100;
-
-    const userMessageCount = history.filter(h => h.role === 'user').length;
-    if (userMessageCount >= maxMessages) {
-        // Only send the pause message ONCE (at the exact limit), then go silent
-        if (userMessageCount === maxMessages) {
-            console.log(`⏸️ [${botName}] Límite de mensajes alcanzado (${userMessageCount}/${maxMessages}). Enviando aviso único.`);
-            return {
-                text: "He alcanzado el límite de interacción automática. Un asesor humano continuará con tu atención en breve.",
-                trace: { model: 'limiter_pause', timestamp: new Date().toISOString() },
-                botPaused: true
-            };
-        }
-        // Already past the limit — stay silent (no spam loop)
-        console.log(`⏸️ [${botName}] AI Limiter: ya superó ${maxMessages} msgs (${userMessageCount}). Silencio total.`);
-        return null;
-    }
-
-    const forcedLanguage = metadata?.language || metadata?.userLanguage || botConfig?.language || botConfig?.default_language || '';
-    const detectedLanguage = detectLanguage(message, history, forcedLanguage);
-    // Force conciseness
-    systemPrompt += `\n\nREGLA ESTRICTA: Tu respuesta DEBE tener como MÁXIMO ${maxWords} palabras. Sé muy conciso y directo.`;
-    systemPrompt += `\n\nREGLA DE IDIOMA: Detecta el idioma del usuario y responde en ese idioma. Idioma detectado para este turno: ${detectedLanguage}.`;
-
-    // --- PHASE 3: MEMORY RETRIEVAL ---
-    const start = Date.now();
-    const business_id = botConfig.business_id || botConfig.tenantId || 'default';
-    const memory = await memoryService.getMemory(business_id, customerId);
-    if (memory.lastMessage) {
-        systemPrompt += `\n\n--- MEMORIA RECIENTE ---\nÚltimo mensaje del usuario: ${memory.lastMessage}`;
-    }
-
-    // --- QUOTA CHECK ---
-    const quotaStatus = await checkQuota(botConfig.tenantId || 'default');
-    if (!quotaStatus.allowed) {
-        console.warn(`🛑 [${botName}] Quota BLOQUEADA para ${botConfig.tenantId || 'default'}.`);
-        return {
-            text: "He alcanzado el límite de mi capacidad operativa mensual bajo tu plan actual. Por favor, contacta con soporte o mejora tu plan para continuar.",
-            trace: { model: 'quota_blocked', timestamp: new Date().toISOString() },
-            botPaused: true
-        };
-    }
-
-    // --- PHASE 3: COST OPTIMIZER (Initial Model Selection) ---
-    const preferredModel = chooseModel(message.length);
-    console.log(`💰 [CostOptimizer] Sugerencia inicial: ${preferredModel}`);
-
-    // --- PHASE 4: LEAD SCORING ---
-    const leadScore = scoreLead(message);
-    console.log(`🎯 [Scoring] Lead Score: ${leadScore.toFixed(2)}`);
-
-    // --- PHASE 5: AUTONOMOUS AGENT (Strategic Analysis) ---
-    const agentDecision = await salesAgent({ phone: customerId, score: leadScore });
-    if (agentDecision.action === 'offer_premium') {
-        systemPrompt += `\n\nESTRATEGIA AGENTE: El usuario es un Lead Calificado. PRIORIZA el cierre Premium y el link: ${ctaLink}`;
-    }
-
-    // --- LAYER 7: CASCADE BRAIN (Enterprise Phase 3) ---
-    const cascadeDefinitions = {
-        gemini: { id: 'gemini', call: async () => {
-            const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-                contents: [{ role: 'user', parts: [{ text: `System: ${systemPrompt}\n\nUser: ${message}` }] }],
-                generationConfig: { maxOutputTokens: maxWords * 6 }
-            }, { timeout: 5000 });
-            return res.data.candidates?.[0]?.content?.parts?.[0]?.text;
-        }},
-        gpt: { id: 'gpt', call: async () => {
-            const res = await axios.post('https://api.openai.com/v1/chat/completions', {
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
-                max_tokens: maxWords * 6
-            }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
-            return res.data.choices[0].message.content;
-        }},
-        claude: { id: 'claude', call: async () => {
-            const res = await axios.post('https://api.anthropic.com/v1/messages', {
-                model: 'claude-3-haiku-20240307',
-                max_tokens: maxWords * 6,
-                system: systemPrompt,
-                messages: [{ role: 'user', content: message }]
-            }, { headers: { 
-                'x-api-key': ANTHROPIC_KEY,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json'
-            }, timeout: 8000 });
-            return res.data.content[0].text;
-        }},
-        deepseek: { id: 'deepseek', call: async () => {
-            const res = await axios.post('https://api.deepseek.com/chat/completions', {
-                model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
-                max_tokens: maxWords * 6
-            }, { headers: { Authorization: `Bearer ${DEEPSEEK_KEY}` }, timeout: 8000 });
-            return res.data.choices[0].message.content;
-        }},
-        minimax: { id: 'minimax', call: async () => {
-            return await callMiniMax(systemPrompt, message, maxWords);
-        }}
-    };
-
-    // Reorder cascade based on cost optimizer and skip providers without configured keys/circuit availability.
-    const { available: modelOrder, skipped: skippedModels } = getCascadeModelOrder(preferredModel);
-    if (skippedModels.length > 0) {
-        console.warn(`⚠️ [CASCADE] Proveedores omitidos por falta de key/circuit breaker: ${skippedModels.join(', ')}`);
-    }
-    const cascadeModels = modelOrder.map(m => cascadeDefinitions[m]).filter(Boolean);
-
-    let responseText = '';
-    let usedModel = '';
-    let finalScore = 0;
-
-    const telemetry = [];
-
-    for (const model of cascadeModels) {
-        let retries = 0;
-        const maxRetries = 2; // 2 retries + initial attempt = 3 max
-        let modelSuccess = false;
-
-        while (retries <= maxRetries) {
-            const startAttempt = Date.now();
-            try {
-                console.log(`🧠 [CASCADE] Intentando con ${model.id} (Intento ${retries + 1})...`);
-                
-                // Call the model (timeouts are already inside cascadeDefinitions)
-                const text = await model.call();
-                
-                if (!text) throw new Error('Empty response from model');
-
-                // --- PHASE 3: CONFIDENCE AI (REAL EVALUATION) ---
-                const evalResult = await evaluateAI(message, text);
-                finalScore = evalResult.score;
-
-                if (evalResult.decision === 'accept' || evalResult.score >= 0.7 || model.id === 'minimax') {
-                    responseText = text;
-                    usedModel = model.id;
-                    modelSuccess = true;
-                    circuitBreaker.recordSuccess(model.id.toUpperCase());
-                    
-                    telemetry.push({
-                        provider: model.id,
-                        latency: Date.now() - startAttempt,
-                        attempt: retries + 1,
-                        status: 'SUCCESS',
-                        score: finalScore
-                    });
-                    break;
-                } else if (model.id === 'gpt') {
-                    console.warn(`⚠️ [ConfidenceAI] Low score (${evalResult.score}) but accepting as it's the final fallback model.`);
-                    responseText = text;
-                    usedModel = model.id;
-                    modelSuccess = true;
-                    break;
-                } else {
-                    console.warn(`🔄 [ConfidenceAI] Decisión: RETRY. Score: ${evalResult.score}`);
-                    throw new Error(`Low confidence score: ${finalScore}`);
-                }
-            } catch (err) {
-                const isRateLimit = err.response?.status === 429 || err.message?.includes('429');
-                const latency = Date.now() - startAttempt;
-                console.warn(`⚠️ [CASCADE] Falló ${model.id} (Intento ${retries + 1}):`, err.message);
-                
-                if (isRateLimit && retries < maxRetries) {
-                    console.log(`⏳ [429 Backoff] Esperando 1.5s antes de reintentar ${model.id}...`);
-                    await new Promise(r => setTimeout(r, 1500));
-                }
-                
-                telemetry.push({
-                    provider: model.id,
-                    latency,
-                    attempt: retries + 1,
-                    status: 'FAIL',
-                    error: err.message
-                });
-
-                if (retries < maxRetries) {
-                    const backoff = Math.pow(2, retries) * 1000;
-                    await new Promise(r => setTimeout(r, backoff));
-                    retries++;
-                } else {
-                    circuitBreaker.recordFailure(model.id.toUpperCase(), err.message);
-                    break; // Move to next model in cascade
-                }
-            }
-        }
-        if (modelSuccess) break;
-    }
-
-    if (!responseText) {
-        console.error('🚨 [CASCADE_FATAL] Todos los proveedores de IA fallaron.', { 
-            telemetry, 
-            message,
-            tenantId: botConfig.tenantId,
-            timestamp: new Date().toISOString()
-        });
-        responseText = botConfig.personality?.fallbackResponse || "Lo siento, mis sistemas están experimentando una alta demanda en este momento. Por favor, intenta de nuevo en unos minutos o contacta a soporte si el problema persiste.";
-        usedModel = 'fallback_safety';
-    }
-
-    // Log full cascade telemetry for analysis
-    console.log(`📊 [CASCADE TELEMETRY] Finalizado en ${Date.now() - start}ms. Usado: ${usedModel}. Intentos: ${telemetry.length}`);
-
-    // --- PHASE 3/4/5: POST-RESPONSE AUTOMATION (Memory, CRM, Analytics, Automations) ---
-    const latency = Date.now() - start;
-    
-    // Fire-and-forget background tasks
-    memoryService.saveMemory(business_id, customerId, { lastMessage: message, score: leadScore }).catch(() => {});
-    upsertLeadPro({
-        business_id,
-        phone: customerId,
-        last_message: message,
-        score: leadScore,
-        stage: leadScore > 0.7 ? 'qualified' : 'new',
-        source: 'ai_conversation',
-        metadata: { model: usedModel, confidence: finalScore }
-    }).catch(() => {});
-    logAnalytics({
-        business_id,
-        latency,
-        score: finalScore,
-        model: usedModel,
-        cost: usedModel === 'gpt' ? 0.0005 : 0.0001 // Estimated
-    }).catch(() => {});
-
-    // Phase 4: Automation Trigger
-    if (leadScore > 0.7) triggerAutomation('high_intent', { phone: customerId, botConfig });
-
-    const result = {
-        text: responseText,
-        trace: { 
-            model: usedModel, 
-            provider: provider,
-            timestamp: new Date().toISOString(), 
-            score: finalScore, 
-            leadScore,
-            latency 
-        },
-        botPaused: false
-    };
-
-    // --- VOZ (Respect Always-on mode) ---
-    const forceVoice = String(botConfig.voiceMode || '').toLowerCase() === 'always';
-    if (isAudio || forceVoice) {
-        try {
-            const selectedVoice = getVoiceForLanguage(detectedLanguage, botConfig.voice);
-            console.log(`🎙️ [VOICE] Generando audio con voz: ${selectedVoice}`);
-
-            if (selectedVoice.startsWith('minimax-')) {
-                // MiniMax Premium TTS
-                const voiceId = selectedVoice === 'minimax-zh' ? 'female-zh-beauty' : 'male-en-beauty';
-                result.audioBuffer = await callMiniMaxTTS(responseText.slice(0, 500), voiceId);
-                result.audioMime = 'audio/mpeg';
-            } else {
-                const mp3 = await openai.audio.speech.create({
-
-                    model: 'tts-1',
-                    voice: selectedVoice,
-                    input: responseText.slice(0, 1000),
-                    response_format: 'opus'
-                });
-                result.audioBuffer = Buffer.from(await mp3.arrayBuffer());
-                result.audioMime = 'audio/ogg; codecs=opus';
-                console.log(`✅ [VOICE] OpenAI TTS (OPUS) generado.`);
-            }
-        } catch (err) {
-            console.error('❌ TTS Error:', err.message);
-        }
-
-    }
-
-    try { if (global.responseCache) global.responseCache.set(`${botConfig.tenantId}_${customerId}_${normalizedUserMsg.slice(0,50)}`, result); } catch (_) {}
-
-    // --- POST-INTERACTION: MEMORY EXTRACTION (Async) ---
-    if (botConfig.tenantId && customerId !== 'unknown' && responseText && usedModel !== 'safeguard') {
-        extractAndSaveMemory({
-            tenantId: botConfig.tenantId,
-            customerId,
-            userMsg: normalizedUserMsg,
-            botRes: responseText,
-            history
-        }).catch(e => console.error('⚠️ [MemoryExtraction] Fatal:', e.message));
-    }
-
-    return result;
-
-  } catch (masterError) {
-    console.error('🔥 [ALEX BRAIN MASTER ERROR] Fallo catastrófico en generateResponse:', masterError.message);
-    return {
-        text: '¡Hola! Soy ALEX IO. Estoy recalibrando mis sistemas. ¿Podés contarme qué necesitás?',
-        trace: { model: 'master_safeguard', error: masterError.message, timestamp: new Date().toISOString() },
-        botPaused: false
-    };
+  if (targetLang === 'es' && (SPANISH_PATTERN.test(text) || COMMON_SPANISH.test(text))) {
+    return { original: text, translated: text, skipped: true, detected: 'es', was_translated: false };
   }
+
+  try {
+    const prompt = `Detect the language and translate to ${targetLang} if needed.
+Return ONLY valid JSON, no markdown: {"detected_lang":"xx","translated":"text","was_translated":true}
+Text: "${text.slice(0, 500)}"`;
+
+    const res = await withTimeout(
+      axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      }),
+      5000,
+      'Translation'
+    );
+
+    const raw = res.data.candidates[0].content.parts[0].text.trim();
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+
+    return {
+      original: text,
+      translated: parsed.translated,
+      detected: parsed.detected_lang,
+      was_translated: parsed.was_translated,
+      skipped: false
+    };
+  } catch (err) {
+    log.error('[TRANSLATE] Failed', { error: err.message });
+    return { original: text, translated: text, skipped: true, error: err.message, was_translated: false };
+  }
+}
+
+// ── Cascada Neural con timeouts ───────────────────────────
+async function generateResponse({ message, history, botConfig, isAudio = false }) {
+  let responseText = '';
+  let usedModel = '';
+  const startTime = Date.now();
+
+  const translation = await translateIncomingMessage(message, 'es');
+  const processedMsg = translation.translated || message;
+  const leadLanguage  = translation.detected || 'es';
+
+  // Limitar historia para no explotar context window
+  const trimmedHistory = (history || []).slice(-20);
+
+  try {
+    const geminiRes = await withTimeout(
+      callGemini(processedMsg, trimmedHistory, botConfig),
+      8000, 'Gemini'
+    );
+    responseText = geminiRes.text;
+    usedModel = 'gemini-2.0-flash';
+  } catch (err) {
+    log.warn('Gemini falló, usando GPT fallback', { error: err.message });
+    try {
+      const gptRes = await withTimeout(
+        callOpenAI(processedMsg, trimmedHistory, botConfig),
+        10000, 'GPT'
+      );
+      responseText = gptRes.text;
+      usedModel = 'gpt-4o-mini';
+    } catch (err2) {
+      log.error('Cascada completa falló', { error: err2.message });
+      responseText = 'En este momento no puedo responder. Un agente te contactará pronto.';
+      usedModel = 'fallback_static';
+    }
+  }
+
+  // Auto-Switch: responder en el idioma del lead
+  let finalResponse = responseText;
+  if (botConfig.auto_language_response && leadLanguage !== 'es' && usedModel !== 'fallback_static') {
+    try {
+      const translateBack = await translateIncomingMessage(responseText, leadLanguage);
+      finalResponse = translateBack.translated || responseText;
+    } catch {
+      log.warn('Auto-switch translation failed, usando español');
+    }
+  }
+
+  // TTS con validación
+  let audioBuffer = null;
+  if (isAudio && finalResponse?.trim()) {
+    try {
+      const sanitizedText = finalResponse.replace(/[*_~`#]/g, '').slice(0, 1000);
+      if (sanitizedText.length > 10) {
+        const mp3 = await withTimeout(
+          openai.audio.speech.create({
+            model: 'tts-1',
+            voice: botConfig.voice || 'alloy',
+            input: sanitizedText,
+            response_format: 'opus'
+          }),
+          15000, 'TTS'
+        );
+        audioBuffer = Buffer.from(await mp3.arrayBuffer());
+      }
+    } catch (err) {
+      log.error('[TTS] Audio generation failed', { error: err.message });
+    }
+  }
+
+  return { 
+    text: finalResponse, 
+    audioBuffer, 
+    trace: { 
+      model: usedModel,
+      latency: Date.now() - startTime,
+      lead_language: leadLanguage,
+      auto_switched: leadLanguage !== 'es' && botConfig.auto_language_response
+    } 
+  };
 }
 
 /**
@@ -937,6 +733,7 @@ Extrae la información del usuario en un objeto JSON estricto con esta estructur
 `;
         contents.push({ role: 'user', parts: [{ text: analysisPrompt }] });
 
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
         const payload = {
             contents,
             generationConfig: {
@@ -1010,39 +807,6 @@ Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
     }
     return null;
 }
-
-/**
- * Traduce mensajes entrantes si no están en español.
- * Fast path: Gemini Flash
- */
-async function translateIncomingMessage(text, targetLang = 'es') {
-    if (!text || text.length < 2 || !GEMINI_KEY) return { original: text, translated: null, model: null };
-
-    // Quick heuristic: if it contains typical Spanish words, ignore translation to save cost/latency
-    const lower = text.toLowerCase();
-    if (lower.match(/^(hola|gracias|precio|costo|info|buen|dia|tarde|noche|si|no)$/)) {
-        return { original: text, translated: null, model: 'skipped' };
-    }
-
-    try {
-        // Use gemini-2.0-flash-lite for maximum stability/latency in translation task
-        const model = 'gemini-2.0-flash-lite';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-        const prompt = `Analiza el texto. Si ya está en idioma ISO '${targetLang}', devuelve exacto el mismo texto. Si está en OTRO idioma, tradúcelo de forma natural a '${targetLang}'. Devuelve SOLO la traducción o el texto original, sin explicaciones, comillas ni prefijos. Texto: "${text}"`;
-
-        const payload = {
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
-        };
-
-        const res = await axios.post(url, payload, { 
-            headers: { 'x-goog-api-key': GEMINI_KEY },
-            timeout: 3500 
-        });
-        if (res.data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            let translated = res.data.candidates[0].content.parts[0].text.trim();
-            // Clean up possible weird outputs
-            translated = translated.replace(/^['"](.*)['"]$/, '$1').trim();
 
             if (translated.toLowerCase() === text.toLowerCase()) {
                 return { original: text, translated: null, model: 'gemini-flash' };

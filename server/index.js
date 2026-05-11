@@ -231,22 +231,19 @@ app.use(helmet({
     }
 }));
 
-// Middleware
-const jsonParser = express.json();
+// Unified JSON parser with rawBody capture for HMAC verification (Meta, Stripe, TikTok)
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();
-});
-
-// Stripe y TikTok requieren body crudo para validar firma de webhook (HMAC).
-app.use((req, res, next) => {
-    if (req.path === '/api/payments/stripe/webhook') return next();
-    if (req.path === '/api/webhooks/tiktok' || req.path === '/api/webhooks/discord') {
-        // TikTok/Discord Ed25519 necesitan raw body — parseamos manualmente después
-        return express.raw({ type: '*/*' })(req, res, next);
-    }
-    return jsonParser(req, res, next);
 });
 
 // In-Memory Cache Fallback

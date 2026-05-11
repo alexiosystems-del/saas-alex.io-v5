@@ -49,6 +49,8 @@ const getAuthHeaders = () => {
   };
 };
 
+import apiClient from '../api/apiClient';
+
 const SaasDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showWizard, setShowWizard] = useState(false);
@@ -149,9 +151,7 @@ const SaasDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/saas/bots', { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const { data } = await apiClient.get('/api/saas/bots', { retry: 3 });
       const botsList = data.bots || data || [];
       setBots(botsList);
       if (botsList.length > 0 && !selectedBotId) {
@@ -159,7 +159,7 @@ const SaasDashboard = () => {
       }
     } catch (err) {
       console.error('Error fetching bots:', err);
-      setError(err.message);
+      setError("Error de conexión con el centro de comando.");
     } finally {
       setLoading(false);
     }

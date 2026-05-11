@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe as GlobeIcon, Smartphone } from 'lucide-react';
+import apiClient from '../api/apiClient';
 import { supabase } from '../supabaseClient';
 import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
 
@@ -52,18 +53,14 @@ export default function LiveChat({ instanceId, tenantId }) {
 
         setTranslations(prev => ({ ...prev, [msgId]: { loading: true } }));
         try {
-            const res = await fetch('/api/saas/translate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                body: JSON.stringify({ text: clean, targetLang: 'es' })
+            const { data } = await apiClient.post('/api/saas/translate', { 
+                text: clean, 
+                targetLang: 'es' 
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.translated) {
-                    setTranslations(prev => ({ ...prev, [msgId]: { translated: data.translated, model: data.model } }));
-                } else {
-                    setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
-                }
+            if (data.translated) {
+                setTranslations(prev => ({ ...prev, [msgId]: { translated: data.translated, model: data.model } }));
+            } else {
+                setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
             }
         } catch (e) {
             console.error('[AutoTranslate] Error:', e);

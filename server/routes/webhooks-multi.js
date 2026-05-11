@@ -306,43 +306,56 @@ router.post('/instagram', async (req, res) => {
     res.status(200).send('EVENT_RECEIVED');
 });
 
-router.post('/meta', async (req, res) => {
-    try {
-        const body = req.body;
-        if (body.object === 'whatsapp_business_account') {
-            for (let entry of body.entry) {
-                for (let change of (entry.changes || [])) {
-                    if (change.field === 'messages') {
-                        const value = change.value;
-                        const phoneId = value.metadata?.phone_number_id;
-                        const contact = value.contacts?.[0];
-                        const message = value.messages?.[0];
+const crypto = require('crypto');
 
-                        if (message && phoneId) {
-                            const resolvedId = await resolveInstanceId('meta', phoneId);
-                            const text = message.text?.body || '[media]';
-                            
-                            const stdMessage = messageRouterModule.createStandardizedMessage(
-                                'meta',
-                                message.from,
-                                text,
-                                { 
-                                    instanceId: resolvedId || 'multi_meta_default', 
-                                    phoneId, 
-                                    senderName: contact?.profile?.name,
-                                    messageId: message.id 
-                                }
-                            );
-                            await messageRouterModule.handleIncomingMessage(stdMessage);
-                        }
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        logError('[Webhook] Meta Error', e);
+const verifyMetaSignature = (req) => {
+  const signature = req.headers['x-hub-signature-256'];
+  if (!signature) return false;
+  const hmac = crypto.createHmac('sha256', process.env.META_APP_SECRET || '');
+  const digest = 'sha256=' + hmac.update(req.rawBody || JSON.stringify(req.body)).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+};
+
+router.post('/meta', async (req, res) => {
+  // ACK inmediato para evitar reintentos de Meta (20s limit)
+  res.status(200).send('EVENT_RECEIVED');
+
+  try {
+    if (!verifyMetaSignature(req)) {
+      console.warn('[META] Invalid signature');
+      return;
     }
-    res.status(200).send('OK');
+
+    const body = req.body;
+    if (body.object === 'whatsapp_business_account') {
+      for (let entry of body.entry) {
+        for (let change of (entry.changes || [])) {
+          if (change.field === 'messages') {
+            const val = change.value;
+            const msg = val.messages?.[0];
+            if (!msg) continue;
+
+            const phoneId = val.metadata?.phone_number_id;
+            const resolvedId = await resolveInstanceId('meta', phoneId);
+
+            await messageRouterModule.handleIncomingMessage({
+              platform: 'meta',
+              senderId: msg.from,
+              text: msg.text?.body || '[media]',
+              metadata: { 
+                instanceId: resolvedId || 'multi_meta_default',
+                phoneId,
+                messageId: msg.id,
+                senderName: val.contacts?.[0]?.profile?.name
+              }
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[META] Webhook Error:', e.message);
+  }
 });
 
 router.get('/tiktok', handleTikTokChallenge);

@@ -14,35 +14,49 @@ const PIPELINE_STAGES = ['new', 'contacted', 'qualified', 'proposal', 'negotiati
  * Upsert a lead with full metadata.
  */
 async function upsertLeadPro(data) {
-  if (!isSupabaseEnabled) return null;
-  try {
-    const payload = {
-      business_id: data.business_id,
-      phone: data.phone,
-      name: data.name || null,
-      email: data.email || null,
-      source: data.source || 'whatsapp',
-      stage: data.stage || 'new',
-      score: data.score || 0,
-      tags: data.tags || [],
-      last_message: data.last_message || null,
-      metadata: data.metadata || {},
-      assigned_to: data.assigned_to || null,
-      updated_at: new Date().toISOString()
-    };
-
-    const { data: result, error } = await supabase
-      .from('crm_leads')
-      .upsert(payload, { onConflict: 'business_id,phone' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return result;
-  } catch (e) {
-    console.warn('⚠️ [CRM-PRO] upsertLeadPro failed:', e.message);
-    return null;
+  if (!data.business_id || !data.phone) {
+    console.error('[CRM] upsertLeadPro: missing required fields', { 
+      business_id: data.business_id, phone: data.phone 
+    });
+    return { error: 'Missing required fields' };
   }
+
+  const now = new Date().toISOString();
+
+  const metadata = {
+    ...(data.utm_source   && { utm_source: data.utm_source }),
+    ...(data.utm_campaign && { utm_campaign: data.utm_campaign }),
+    ...(data.ad_id        && { ad_id: data.ad_id }),
+    ...(data.referrer     && { referrer: data.referrer }),
+    last_seen: now
+  };
+
+  const payload = {
+    business_id: data.business_id,
+    phone: data.phone.replace(/\D/g, ''), // normalizar — solo dígitos
+    name: data.name || null,
+    source: data.source || 'organic',
+    stage: data.stage || 'new',
+    score: typeof data.score === 'number' ? data.score : 0,
+    metadata,
+    updated_at: now
+  };
+
+  const { data: lead, error } = await supabase
+    .from('crm_leads')
+    .upsert(payload, { 
+      onConflict: 'business_id,phone',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[CRM] upsertLeadPro error:', error.message, { payload });
+    return { error: error.message };
+  }
+
+  return { data: lead };
 }
 
 /**

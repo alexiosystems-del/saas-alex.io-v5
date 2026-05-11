@@ -62,6 +62,8 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
   const [sending, setSending]           = useState(false);
   const [progress, setProgress]         = useState(null); // { sent, total, nextDelay, failed }
   const [showImport, setShowImport]     = useState(false);
+  const [isTemplate, setIsTemplate]     = useState(false);
+  const [warning, setWarning]           = useState("");
   const pollRef                         = useRef(null);
   const campaignIdRef                   = useRef(null);
   const fileInputRef                    = useRef(null);
@@ -79,6 +81,15 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
     };
     loadInit();
   }, []);
+
+  useEffect(() => {
+    const currentBot = bots.find(b => b.id === selectedBot);
+    if (currentBot?.provider === 'meta' && !isTemplate) {
+      setWarning("Meta requiere Templates aprobados para iniciar conversaciones.");
+    } else {
+      setWarning("");
+    }
+  }, [selectedBot, isTemplate, bots]);
 
   // --- Buscar leads con filtros ---
   const fetchLeads = useCallback(async () => {
@@ -189,6 +200,7 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
             };
           }),
           message,
+          isTemplate,
           mediaType:  mediaUrl ? mediaType : null,
           mediaUrl:   mediaUrl || null,
         }),
@@ -434,6 +446,13 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
                     </select>
                     <input type="text" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="Pegar URL pública del archivo..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-fuchsia-500" />
                 </div>
+            </div>
+            <div className="flex items-center gap-4 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={isTemplate} onChange={e => setIsTemplate(e.target.checked)} className="accent-fuchsia-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">¿Es un Template oficial?</span>
+                </label>
+                {warning && <span className="text-[9px] font-bold text-amber-500 animate-pulse">{warning}</span>}
             </div>
         </div>
 
