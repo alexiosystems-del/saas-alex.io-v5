@@ -282,14 +282,15 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     } catch (e) { addLog('Error al recuperar sesión: ' + e.message, 'error'); }
                                                 }
 
-                                                if (!authToken) {
+                                                if (!instanceId) {
+                                                    addLog('Error: No se ha seleccionado un agente.', 'error');
+                                                    alert('Por favor, selecciona un agente en el selector superior antes de conectar.');
                                                     setStatus('DISCONNECTED');
-                                                    addLog('No se encontró una sesión activa.', 'error');
-                                                    alert('Sesión expirada. Por favor, vuelve a iniciar sesión.');
                                                     return;
                                                 }
 
-                                                const apiBase = getBackendUrl();
+                                                // Use relative path or VITE_API_URL
+                                                const apiBase = import.meta.env.VITE_API_URL || '';
                                                 addLog('Solicitando QR al servidor...');
                                                 const res = await fetch(`${apiBase}/api/saas/connect`, {
                                                     method: 'POST',
@@ -328,8 +329,12 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                 }
 
                                                 const poll = setInterval(async () => {
+                                                    if (!instanceId) {
+                                                        clearInterval(poll);
+                                                        return;
+                                                    }
                                                     try {
-                                                        const pollApiBase = getBackendUrl();
+                                                        const pollApiBase = import.meta.env.VITE_API_URL || '';
                                                         const s = await fetch(`${pollApiBase}/api/saas/status/${instanceId}`, {
                                                             headers: { 'Authorization': `Bearer ${authToken}` }
                                                         });
