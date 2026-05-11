@@ -197,13 +197,33 @@ app.use(globalLimiter);
 app.use(requestLogger);
 
 // --- CORS CONFIGURATION (STRICT) ---
-const corsOptions = {
-    origin: [
+// --- DYNAMIC CORS SYSTEM (Hardened) ---
+const getAllowedOrigins = () => {
+    const list = [
         'http://localhost:5173',
         'http://localhost:3000',
         'https://whatsapp-fullstack-1-yjao.onrender.com',
         'https://www.whatsapp-fullstack-1-yjao.onrender.com'
-    ],
+    ];
+    if (process.env.RENDER_EXTERNAL_URL) list.push(process.env.RENDER_EXTERNAL_URL);
+    if (process.env.ALLOWED_ORIGINS) {
+        process.env.ALLOWED_ORIGINS.split(',').forEach(o => list.push(o.trim()));
+    }
+    return [...new Set(list)].filter(Boolean);
+};
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        const allowed = getAllowedOrigins();
+        if (allowed.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+            callback(null, true);
+        } else {
+            console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
@@ -537,13 +557,14 @@ app.use('/api/webhooks', webhooksMulti);
 // ENTERPRISE SAAS API - CONSOLIDATED (V5)
 // ============================================
 
-// 1. WHATSAPP CORE (HIGH PRIORITY FOR QR)
-const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
-app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
-
-// 2. ENTERPRISE LOGIC
+// 1. Unified SaaS Management Router
+const saasRouter = require('./routes/saas');
 const enterpriseRouter = require('./routes/leadsAndBroadcast');
+const { router: whatsappRouter } = require('./services/whatsappSaas');
+
+app.use('/api/saas', authenticateTenant, tenantLimiter, saasRouter);
 app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
+app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
 
 // 3. SYSTEM STATUS (NEURAL HEALTH)
 app.get('/api/status', (req, res) => res.json({ status: 'online', timestamp: new Date().toISOString() }));
@@ -926,23 +947,35 @@ app.get('*', (req, res) => {
     }
 });
 
-// --- START SERVER ---
-server.listen(PORT, async () => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`✅ Socket.IO mounted at /socket.io/`);
-    console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
-    logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
-    logger.info(`📡 WhatsApp Handler Listo...`);
-    logger.info(`🧠 AI Brain Listo... backend está esperando, 50 sin drama`);
-
-    // Auto-restore previous sessions
-    restoreSessions().catch(e => logger.error(`❌ Session restoration failed: ${e.message}`));
-
-    // Phase 4: Hydrate Bot Pool from DB and start health monitor
-    await botPool.hydratePool().catch(e => logger.error(`❌ Bot Pool hydration failed: ${e.message}`));
-    botPool.startHealthMonitor(60000);
-    logger.info(`🏊 Bot Pool Router Activo.`);
+// --- GLOBAL ERROR HANDLER (Last defense) ---
+app.use((err, req, res, next) => {
+    console.error('💥 [CRITICAL_ERROR]:', err.stack);
+    res.status(err.status || 500).json({
+        error: err.message || 'Internal Server Error',
+        code: err.code || 'INTERNAL_ERROR'
+    });
 });
+
+const startServer = async () => {
+    try {
+        server.listen(PORT, HOST, async () => {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`✅ [ALEX IO v5] System Online on http://${HOST}:${PORT}`);
+            console.log(`✅ Socket.IO mounted at /socket.io/`);
+            console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            
+            // Restore sessions in background
+            restoreSessions().catch(e => console.error(`❌ Session restoration failed: ${e.message}`));
+
+            // Hydrate Bot Pool
+            await botPool.hydratePool().catch(e => console.error(`❌ Bot Pool hydration failed: ${e.message}`));
+            botPool.startHealthMonitor(60000);
+        });
+    } catch (err) {
+        console.error('❌ [BOOT_FATAL]:', err.message);
+        process.exit(1);
+    }
+};
+
+startServer();
