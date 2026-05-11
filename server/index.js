@@ -246,6 +246,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// 🔱 PROMPT GENERATION ENGINE (BIC Logic)
+app.post('/api/saas/generate-prompt', authenticateTenant, (req, res) => {
+    try {
+        const { businessName, businessType, extra, tone, objective } = req.body;
+        const prompt = generatePrompt({
+            industry: businessType || 'General',
+            objective: objective || 'Assist customers',
+            tone: tone || 'professional',
+            extra: `Nombre del negocio: ${businessName}\nDetalles adicionales: ${extra}`
+        });
+        res.json({ success: true, prompt });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // In-Memory Cache Fallback
 const NodeCache = require('node-cache');
 global.responseCache = global.responseCache || new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hour TTL

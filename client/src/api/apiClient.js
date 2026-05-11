@@ -1,16 +1,15 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: import.meta.env.VITE_API_URL || '',
   timeout: 15000,
 });
 
-// Interceptor para inyectar Token de Supabase
+// Interceptor para inyectar Token de ALEX IO
 apiClient.interceptors.request.use(async (config) => {
-  const sessionStr = localStorage.getItem('supabase.auth.token');
-  if (sessionStr) {
-    const session = JSON.parse(sessionStr);
-    config.headers.Authorization = `Bearer ${session.currentSession?.access_token}`;
+  const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });

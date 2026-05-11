@@ -168,10 +168,7 @@ const SaasDashboard = () => {
   const handleDeleteBot = async (botId) => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
-      const res = await fetch(`/api/saas/bots/${botId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      await apiClient.delete(`/api/saas/bots/${botId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBots(bots.filter(b => (b.instance_id || b.id) !== botId));
     } catch (e) {
@@ -217,10 +214,7 @@ const SaasDashboard = () => {
                 if (!saveDraft) return;
 
                 const botId = saveDraft.instance_id || saveDraft.id || selectedBotId;
-                const res = await fetch(`/api/saas/bots/${botId}`, {
-                  method: 'PUT',
-                  headers: getAuthHeaders(),
-                  body: JSON.stringify({
+                await apiClient.put(`/api/saas/bots/${botId}`, {
                     name: saveDraft.name || saveDraft.company_name,
                     prompt: saveDraft.customPrompt,
                     voice_enabled: saveDraft.voiceEnabled,
@@ -236,7 +230,6 @@ const SaasDashboard = () => {
                     tiktok_access_token: saveDraft.tiktokAccessToken,
                     tiktok_seller_id: saveDraft.tiktokSellerId,
                     manychat_token: saveDraft.manychatToken
-                  })
                 });
 
                 if (!res.ok) {
@@ -509,17 +502,7 @@ const SaasDashboard = () => {
                       strategy: data.salesStyle || 'consultive'
                     };
 
-                    const res = await fetch('/api/saas/bots', {
-                      method: 'POST',
-                      headers: getAuthHeaders(),
-                      body: JSON.stringify(payload)
-                    });
-
-                    const result = await res.json();
-                    if (!res.ok) {
-                      console.error('Bot Create Error Response:', result);
-                      throw new Error(result.error || `HTTP ${res.status}: ${JSON.stringify(result)}`);
-                    }
+                    const { data: result } = await apiClient.post('/api/saas/bots', payload);
 
                     setShowWizard(false); 
                     fetchBots();

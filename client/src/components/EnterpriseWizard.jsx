@@ -196,21 +196,13 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                         onClick={async () => {
                             setValidating('prompt');
                             try {
-                                const res = await fetch('/api/saas/generate-prompt', {
-                                    method: 'POST',
-                                    headers: { 
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${localStorage.getItem('alex_io_token')}`
-                                    },
-                                    body: JSON.stringify({
-                                        businessName: data.businessName,
-                                        businessType: data.industry,
-                                        extra: data.products,
-                                        tone: data.tone,
-                                        objective: data.salesStyle
-                                    })
+                                const { data: result } = await apiClient.post('/api/saas/generate-prompt', {
+                                    businessName: data.businessName,
+                                    businessType: data.industry,
+                                    extra: data.products,
+                                    tone: data.tone,
+                                    objective: data.salesStyle
                                 });
-                                const result = await res.json();
                                 if (result.prompt) {
                                     handleChange('systemPrompt', result.prompt);
                                 }
