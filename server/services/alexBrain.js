@@ -808,6 +808,35 @@ Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
     return null;
 }
 
+/**
+ * Traduce un mensaje entrante si no está en español.
+ * Usa un sistema de "Fast Path" (regex) para saltar traducción si ya es español.
+ */
+async function translateIncomingMessage(text, targetLang = 'es') {
+    if (!text || text.length < 3) return { original: text, translated: null, model: 'none' };
+
+    // --- FAST PATH: Spanish Detection (RegEx) ---
+    const spanishIndicators = /\b(hola|gracias|por favor|buenos|buenas|que|donde|como|cuando|quiero|necesito|precio|info|asesor|vender|comprar|casa|lote|terreno|cita|turno)\b/i;
+    if (spanishIndicators.test(text)) {
+        return { original: text, translated: null, model: 'fast-path-regex' };
+    }
+
+    if (!GEMINI_KEY) return { original: text, translated: null, model: 'error' };
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+        const payload = {
+            contents: [{
+                role: 'user',
+                parts: [{ text: `Traduce este mensaje a '${targetLang}'. Devuelve ÚNICAMENTE la traducción, sin explicaciones ni markdown:\n\n${text}` }]
+            }],
+            generationConfig: { temperature: 0.1 }
+        };
+
+        const res = await axios.post(url, payload, { timeout: 5000 });
+        const translated = res.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        if (translated) {
             if (translated.toLowerCase() === text.toLowerCase()) {
                 return { original: text, translated: null, model: 'gemini-flash' };
             }
