@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const { supabase } = require('../services/supabaseClient');
+const { supabaseAdmin: supabase } = require('../services/supabaseClient');
 const { clientConfigs } = require('../services/whatsappSaas');
 const fs = require('fs');
 const path = require('path');

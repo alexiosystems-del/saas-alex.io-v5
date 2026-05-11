@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../services/supabaseClient');
+const { supabaseAdmin: supabase } = require('../services/supabaseClient');
 
 // ============================================
 // GET ALL BOTS
