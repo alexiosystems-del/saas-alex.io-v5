@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap, Music, Cloud, MessageSquare, Loader } from 'lucide-react';
+import { Bot, Mic, ShieldAlert, CheckCircle2, ArrowRight, ArrowLeft, Save, Info, Globe as GlobeIcon, Smartphone, Zap, Music, Cloud, MessageSquare, Loader, Play } from 'lucide-react';
+import apiClient from '../api/apiClient';
 
 const STEPS = [
   { id: 'identity', title: 'Identidad', icon: Bot, color: '#6366f1' },
@@ -418,12 +419,30 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                   <button
                     key={v.id}
                     onClick={() => handleChange('voice', v.id)}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`p-3 rounded-xl border text-left transition-all relative group/voice ${
                       data.voice === v.id ? 'bg-pink-500/20 border-pink-500/50 text-white' : 'bg-white/5 border-white/10 text-slate-400'
                     }`}
                   >
-                    <div className="text-sm font-bold">{v.name}</div>
-                    <div className="text-[10px] opacity-70">{v.desc}</div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-sm font-bold">{v.name}</div>
+                        <div className="text-[10px] opacity-70">{v.desc}</div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          apiClient.post('/api/voice/preview', { 
+                            text: `Hola, soy una voz de ALEX IO.`,
+                            voice: v.id 
+                          }).then(({data}) => {
+                            if (data.audioUrl) new Audio(data.audioUrl).play();
+                          }).catch(err => console.error('Preview error', err));
+                        }}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 opacity-0 group-hover/voice:opacity-100 transition-opacity"
+                      >
+                        <Play size={10} className="text-pink-400" />
+                      </button>
+                    </div>
                   </button>
                 ))}
               </div>

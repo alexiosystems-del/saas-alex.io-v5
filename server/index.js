@@ -306,7 +306,7 @@ const sessionExchangeLimiter = rateLimit({
 
 // POST /api/auth/session-exchange
 // Exchange a Supabase access_token for a backend JWT
-app.post('/api/auth/session-exchange', sessionExchangeLimiter, jsonParser, async (req, res) => {
+app.post('/api/auth/session-exchange', sessionExchangeLimiter, async (req, res) => {
     const { access_token } = req.body;
     if (!access_token) return res.status(400).json({ error: 'Supabase access_token is required' });
 

@@ -2,6 +2,7 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const NodeCache = require('node-cache');
 const crypto = require('crypto');
+const { franc } = require('franc-min');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -98,6 +99,57 @@ if (GEMINI_KEY && !GEMINI_KEY.startsWith('AIza')) {
 }
 const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
 const MINIMAX_KEY = (process.env.MINIMAX_API_KEY || '').trim();
+const ANTHROPIC_KEY = (process.env.ANTHROPIC_KEY || process.env.CLAUDE_KEY || '').trim();
+
+// --- 40 LANGUAGES HARDENING (Fix A & B Helpers) ---
+const ISO3_TO_ISO2 = {
+    'spa': 'es', 'eng': 'en', 'por': 'pt', 'fra': 'fr',
+    'deu': 'de', 'ita': 'it', 'rus': 'ru', 'ara': 'ar',
+    'zho': 'zh', 'jpn': 'ja', 'kor': 'ko', 'hin': 'hi',
+    'tur': 'tr', 'nld': 'nl', 'pol': 'pl', 'swe': 'sv',
+    'ita': 'it', 'cat': 'ca', 'glg': 'gl', 'eus': 'eu'
+};
+
+const detectLanguage = (text) => {
+    if (!text || text.length < 10) return 'und';
+    const iso3 = franc(text);
+    return ISO3_TO_ISO2[iso3] || 'unknown';
+};
+
+const getCachedTranslation = async (text, targetLang) => {
+    try {
+        const hash = crypto.createHash('md5').update(`${text.slice(0, 500)}:${targetLang}`).digest('hex');
+        const { data, error } = await supabase
+            .from('translation_cache')
+            .select('translated, detected_lang')
+            .eq('hash', hash)
+            .maybeSingle();
+        if (error) return null;
+        return data;
+    } catch (e) { return null; }
+};
+
+const setCachedTranslation = async (text, targetLang, translated, detected) => {
+    try {
+        const hash = crypto.createHash('md5').update(`${text.slice(0, 500)}:${targetLang}`).digest('hex');
+        await supabase.from('translation_cache').upsert({
+            hash, translated, detected_lang: detected,
+            created_at: new Date().toISOString()
+        }, { onConflict: 'hash' }).catch(() => {});
+    } catch (e) {}
+};
+
+// Fix C: Prompt Multiidioma
+const buildSystemPrompt = (botConfig, leadLanguage) => {
+    const base = botConfig.prompt || '';
+    if (leadLanguage === 'es' || !leadLanguage || leadLanguage === 'unknown') return base;
+
+    return `${base}
+
+IMPORTANT: The user is communicating in language code "${leadLanguage}". 
+You MUST respond in that same language (${leadLanguage}).
+Do not switch to Spanish even if your instructions are in Spanish.`;
+};
 
 const DEFAULT_SYSTEM_PROMPT = `
 Eres ALEX IO.
@@ -180,7 +232,6 @@ Llevar la conversación hacia: demo, onboarding, implementación, cierre.
 NO vendas IA. Vende: tranquilidad, velocidad, continuidad, capacidad operativa, recuperación de ingresos.
 `;
 const MINIMAX_GROUP_ID = (process.env.MINIMAX_GROUP_ID || '').trim();
-const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim(); // Para Shadow Audit
 const AI_BUDGETS = {
     gemini: Number.parseFloat(process.env.GEMINI_BUDGET_USD || ''),
     openai: Number.parseFloat(process.env.OPENAI_BUDGET_USD || ''),
@@ -206,44 +257,47 @@ const MODEL_COST_PER_1K = {
     'gemini-2.0-flash': 0.000075,
     'minimax-abab6.5s-chat': 0.00010,
     'deepseek-chat': 0.00014,
-    'gpt-4o-mini': 0.00015,
-    'claude-3-5-sonnet-20241022': 0.003,
+    'gpt-4o-mini': 0.00015
 };
-const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
-function detectLanguage(text = '', history = [], forcedLanguage = '') {
-    const forced = String(forcedLanguage || '').trim().toLowerCase();
-    const supported = ['es', 'en', 'pt', 'fr', 'de', 'it', 'zh', 'hi', 'ar'];
-    if (supported.includes(forced)) return forced;
+const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
-    const recentHistory = (history || [])
-        .slice(-8)
-        .filter(h => h && h.role === 'user')
-        .map(h => h.content || h.text || '')
-        .join(' ');
-    const sample = `${String(text || '')} ${recentHistory}`.trim().toLowerCase();
-    if (!sample) return 'es';
+async function callGemini(message, history, botConfig) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+    const leadLang = detectLanguage(message);
+    const systemPrompt = buildSystemPrompt(botConfig, leadLang);
+    
+    const contents = history.map(h => ({
+        role: h.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: h.content || h.text || "" }]
+    }));
+    contents.push({ role: 'user', parts: [{ text: message }] });
 
-    const signals = {
-        es: [' el ', ' la ', ' de ', ' que ', ' por ', ' para ', 'hola', 'gracias', 'necesito', 'quiero', 'cómo', 'dónde', 'precio', 'cuánto'],
-        en: [' the ', ' and ', ' for ', ' with ', 'hello', 'thanks', 'please', 'need', 'want', 'where', 'how', 'price'],
-        pt: [' não ', ' você ', ' obrigado', ' olá', ' preciso', ' quero', ' para ', ' preço', 'quanto custa'],
-        fr: [' bonjour', ' merci', ' je ', ' vous ', ' avec ', ' prix ', ' combien', ' besoin'],
-        de: [' hallo', ' danke', ' ich ', ' und ', ' mit ', ' preis', ' brauche'],
-        it: [' ciao', ' grazie', ' io ', ' con ', ' precio', ' quanto costa'],
-        zh: ['你好', '谢谢', '多少钱', '需要', '要', '在哪'],
-        hi: ['नमस्ते', 'धन्यवाद', 'कितना', 'चाहिए', 'कहाँ'],
-        ar: ['مرحبا', 'شكرا', 'كم', 'اين', 'اريد']
+    const payload = {
+        contents,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { temperature: 0.7 }
     };
 
-    const score = (tokens) => tokens.reduce((acc, token) => acc + (sample.includes(token) ? 1 : 0), 0);
-    const ranked = Object.entries(signals)
-        .map(([lang, tokens]) => [lang, score(tokens)])
-        .sort((a, b) => b[1] - a[1]);
+    const res = await axios.post(url, payload, { timeout: 10000 });
+    return { text: res.data.candidates?.[0]?.content?.parts?.[0]?.text || '' };
+}
 
-    const [bestLang, bestScore] = ranked[0] || ['es', 0];
-    if (bestScore === 0) return 'es';
-    return bestLang;
+async function callOpenAI(message, history, botConfig) {
+    const leadLang = detectLanguage(message);
+    const systemPrompt = buildSystemPrompt(botConfig, leadLang);
+    
+    const messages = [{ role: 'system', content: systemPrompt }];
+    history.forEach(h => messages.push({ role: h.role, content: h.content || h.text || "" }));
+    messages.push({ role: 'user', content: message });
+
+    const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.7
+    }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 10000 });
+
+    return { text: res.data.choices?.[0]?.message?.content || '' };
 }
 
 function getVoiceForLanguage(lang, configuredVoice) {
@@ -427,13 +481,9 @@ async function callMiniMaxTTS(text, voiceId = 'male-en-beauty') {
     return Buffer.from(res.data);
 }
 
-// --- UTILS ---
-
 // Global Response Cache
 global.responseCache = global.responseCache || new NodeCache({ stdTTL: 1800, checkperiod: 300 });
 
-// OpenAI Client (for TTS)
-const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
 const mask = (key) => key ? `${key.substring(0, 7)}...${key.substring(key.length - 4)}` : 'MISSING';
 console.log(`🧠 [CASCADE] Inicializando Cerebro:`);
@@ -586,122 +636,78 @@ const log = {
 };
 
 // ── Traducción con skip inteligente ───────────────────────
-async function translateIncomingMessage(text, targetLang = 'es') {
-  if (!text || text.trim().length < 3) return { original: text, translated: null, skipped: true };
-
-  if (targetLang === 'es' && (SPANISH_PATTERN.test(text) || COMMON_SPANISH.test(text))) {
-    return { original: text, translated: text, skipped: true, detected: 'es', was_translated: false };
-  }
-
-  try {
-    const prompt = `Detect the language and translate to ${targetLang} if needed.
-Return ONLY valid JSON, no markdown: {"detected_lang":"xx","translated":"text","was_translated":true}
-Text: "${text.slice(0, 500)}"`;
-
-    const res = await withTimeout(
-      axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
-      }),
-      5000,
-      'Translation'
-    );
-
-    const raw = res.data.candidates[0].content.parts[0].text.trim();
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-
-    return {
-      original: text,
-      translated: parsed.translated,
-      detected: parsed.detected_lang,
-      was_translated: parsed.was_translated,
-      skipped: false
-    };
-  } catch (err) {
-    log.error('[TRANSLATE] Failed', { error: err.message });
-    return { original: text, translated: text, skipped: true, error: err.message, was_translated: false };
-  }
-}
-
 // ── Cascada Neural con timeouts ───────────────────────────
 async function generateResponse({ message, history, botConfig, isAudio = false }) {
-  let responseText = '';
-  let usedModel = '';
-  const startTime = Date.now();
+    let responseText = '';
+    let usedModel = '';
+    const startTime = Date.now();
 
-  const translation = await translateIncomingMessage(message, 'es');
-  const processedMsg = translation.translated || message;
-  const leadLanguage  = translation.detected || 'es';
+    const translation = await translateIncomingMessage(message, 'es');
+    const processedMsg = translation.translated || message;
+    const leadLanguage = translation.detected || 'es';
 
-  // Limitar historia para no explotar context window
-  const trimmedHistory = (history || []).slice(-20);
+    // Limitar historia para no explotar context window
+    const trimmedHistory = (history || []).slice(-20);
 
-  try {
-    const geminiRes = await withTimeout(
-      callGemini(processedMsg, trimmedHistory, botConfig),
-      8000, 'Gemini'
-    );
-    responseText = geminiRes.text;
-    usedModel = 'gemini-2.0-flash';
-  } catch (err) {
-    log.warn('Gemini falló, usando GPT fallback', { error: err.message });
     try {
-      const gptRes = await withTimeout(
-        callOpenAI(processedMsg, trimmedHistory, botConfig),
-        10000, 'GPT'
-      );
-      responseText = gptRes.text;
-      usedModel = 'gpt-4o-mini';
-    } catch (err2) {
-      log.error('Cascada completa falló', { error: err2.message });
-      responseText = 'En este momento no puedo responder. Un agente te contactará pronto.';
-      usedModel = 'fallback_static';
-    }
-  }
-
-  // Auto-Switch: responder en el idioma del lead
-  let finalResponse = responseText;
-  if (botConfig.auto_language_response && leadLanguage !== 'es' && usedModel !== 'fallback_static') {
-    try {
-      const translateBack = await translateIncomingMessage(responseText, leadLanguage);
-      finalResponse = translateBack.translated || responseText;
-    } catch {
-      log.warn('Auto-switch translation failed, usando español');
-    }
-  }
-
-  // TTS con validación
-  let audioBuffer = null;
-  if (isAudio && finalResponse?.trim()) {
-    try {
-      const sanitizedText = finalResponse.replace(/[*_~`#]/g, '').slice(0, 1000);
-      if (sanitizedText.length > 10) {
-        const mp3 = await withTimeout(
-          openai.audio.speech.create({
-            model: 'tts-1',
-            voice: botConfig.voice || 'alloy',
-            input: sanitizedText,
-            response_format: 'opus'
-          }),
-          15000, 'TTS'
+        const geminiRes = await withTimeout(
+            callGemini(processedMsg, trimmedHistory, botConfig),
+            8000, 'Gemini'
         );
-        audioBuffer = Buffer.from(await mp3.arrayBuffer());
-      }
+        responseText = geminiRes.text;
+        usedModel = 'gemini-2.0-flash';
     } catch (err) {
-      log.error('[TTS] Audio generation failed', { error: err.message });
+        log.warn('Gemini falló, usando GPT fallback', { error: err.message });
+        try {
+            const gptRes = await withTimeout(
+                callOpenAI(processedMsg, trimmedHistory, botConfig),
+                10000, 'GPT'
+            );
+            responseText = gptRes.text;
+            usedModel = 'gpt-4o-mini';
+        } catch (err2) {
+            log.error('Cascada completa falló', { error: err2.message });
+            responseText = 'En este momento no puedo responder. Un agente te contactará pronto.';
+            usedModel = 'fallback_static';
+        }
     }
-  }
 
-  return { 
-    text: finalResponse, 
-    audioBuffer, 
-    trace: { 
-      model: usedModel,
-      latency: Date.now() - startTime,
-      lead_language: leadLanguage,
-      auto_switched: leadLanguage !== 'es' && botConfig.auto_language_response
-    } 
-  };
+    // Auto-Switch: responder en el idioma del lead
+    let finalResponse = responseText;
+    if (botConfig.auto_language_response && leadLanguage !== 'es' && usedModel !== 'fallback_static') {
+        try {
+            const translateBack = await translateIncomingMessage(responseText, leadLanguage);
+            finalResponse = translateBack.translated || responseText;
+        } catch {
+            log.warn('Auto-switch translation failed, usando español');
+        }
+    }
+
+    // TTS con validación
+    let audioBuffer = null;
+    if (isAudio && finalResponse?.trim()) {
+        try {
+            const sanitizedText = finalResponse.replace(/[*_~`#]/g, '').slice(0, 1000);
+            if (sanitizedText.length > 10) {
+                audioBuffer = await generateTTS(sanitizedText, botConfig.voice || 'nova');
+            }
+        } catch (err) {
+            log.error('[TTS] Audio generation failed', { error: err.message });
+        }
+    }
+
+    return { 
+        text: finalResponse, 
+        audioBuffer, 
+        trace: { 
+            model: usedModel,
+            latency: Date.now() - startTime,
+            lead_language: leadLanguage,
+            auto_switched: leadLanguage !== 'es' && botConfig.auto_language_response
+        } 
+    };
 }
+
 
 /**
  * Función en segundo plano para analizar si la conversación actual forma a un prospecto (Lead)
@@ -813,15 +819,35 @@ Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
  * Usa un sistema de "Fast Path" (regex) para saltar traducción si ya es español.
  */
 async function translateIncomingMessage(text, targetLang = 'es') {
-    if (!text || text.length < 3) return { original: text, translated: null, model: 'none' };
+    if (!text || text.trim().length < 3) return { original: text, translated: null, skipped: true };
 
-    // --- FAST PATH: Spanish Detection (RegEx) ---
-    const spanishIndicators = /\b(hola|gracias|por favor|buenos|buenas|que|donde|como|cuando|quiero|necesito|precio|info|asesor|vender|comprar|casa|lote|terreno|cita|turno)\b/i;
-    if (spanishIndicators.test(text)) {
-        return { original: text, translated: null, model: 'fast-path-regex' };
+    const leadLanguage = detectLanguage(text);
+    
+    // Skip if already in target language
+    if (leadLanguage === targetLang) {
+        return { original: text, translated: text, skipped: true, detected: leadLanguage, was_translated: false };
     }
 
-    if (!GEMINI_KEY) return { original: text, translated: null, model: 'error' };
+    // Fast Path: Legacy Spanish RegEx fallback for very short text
+    const spanishIndicators = /\b(hola|gracias|por favor|buenos|buenas|que|donde|como|cuando|quiero|necesito|precio|info|asesor|vender|comprar|casa|lote|terreno|cita|turno)\b/i;
+    if (targetLang === 'es' && spanishIndicators.test(text)) {
+        return { original: text, translated: text, skipped: true, detected: 'es', was_translated: false };
+    }
+
+    // Fix B: Check Cache
+    const cached = await getCachedTranslation(text, targetLang);
+    if (cached) {
+        return { 
+            original: text, 
+            translated: cached.translated, 
+            detected: cached.detected_lang, 
+            was_translated: true, 
+            skipped: false, 
+            cached: true 
+        };
+    }
+
+    if (!GEMINI_KEY) return { original: text, translated: text, skipped: true, model: 'error' };
 
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
@@ -837,10 +863,15 @@ async function translateIncomingMessage(text, targetLang = 'es') {
         const translated = res.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
         if (translated) {
+            const detected = leadLanguage !== 'und' ? leadLanguage : 'unknown';
+            
+            // Persist in cache
+            await setCachedTranslation(text, targetLang, translated, detected);
+
             if (translated.toLowerCase() === text.toLowerCase()) {
-                return { original: text, translated: null, model: 'gemini-flash' };
+                return { original: text, translated: null, model: 'gemini-flash', detected };
             }
-            return { original: text, translated, model: 'gemini-flash' };
+            return { original: text, translated, model: 'gemini-flash', detected, was_translated: true };
         }
     } catch (err) {
         const errorDetail = err.response?.data?.error?.message || err.message;

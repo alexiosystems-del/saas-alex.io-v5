@@ -540,7 +540,7 @@ export default function ConfigTab({ selected, configDraft, setConfigDraft, onSav
 
             {showPromptWizard && (
                 <PromptWizard 
-                    instanceName={configDraft.name || selected?.company_name}
+                    instanceName={configDraft.name || selected?.company_name || 'ALEX IO'}
                     onClose={() => setShowPromptWizard(false)}
                     onPromptGenerated={(prompt) => {
                         setConfigDraft(p => ({ ...p, customPrompt: prompt }));
