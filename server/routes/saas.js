@@ -54,7 +54,11 @@ router.post('/bots', async (req, res) => {
     }
 
     const tenantId = req.tenant.id;
+    const { v4: uuidv4 } = require('uuid');
+    const instanceId = uuidv4();
+    
     const botData = {
+      instance_id: instanceId,
       tenant_id: tenantId,
       name: name.trim(),
       prompt: prompt.trim(),
@@ -63,9 +67,12 @@ router.post('/bots', async (req, res) => {
       objective: objective || 'assist customers',
       voice_enabled: voice_enabled === true || voice_enabled === 'true',
       translation_enabled: translation_enabled === true || translation_enabled === 'true',
+      channel: channel || 'whatsapp',
       status: 'active',
       created_at: new Date().toISOString()
     };
+
+    console.log('[BOTS] Creating bot:', { instanceId, tenantId, name: name.trim() });
 
     const { data: bot, error: botError } = await supabase
       .from('bots')
@@ -74,40 +81,46 @@ router.post('/bots', async (req, res) => {
       .single();
 
     if (botError) {
-      console.error('[BOTS] Create error:', botError.message);
+      console.error('[BOTS] Create error:', botError.message, botError.details, botError.hint);
       return res.status(500).json({ 
         error: 'Failed to create bot',
         detail: botError.message
       });
     }
 
-    const configData = {
-      bot_id: bot.id,
-      tenant_id,
-      channel: channel || 'whatsapp',
-      voice_model: (voice_enabled === true || voice_enabled === 'true') ? 'MINIMAX-ZH' : null,
-      translation_enabled: translation_enabled === true || translation_enabled === 'true',
-      config: { 
-        identity: identity || name.trim(), 
-        strategy: strategy || 'default'
+    console.log('[BOTS] ✅ Bot created:', bot.id);
+
+    // Optional: insert bot_configs (non-fatal)
+    try {
+      const configData = {
+        bot_id: bot.id,
+        instance_id: instanceId,
+        tenant_id: tenantId,
+        channel: channel || 'whatsapp',
+        voice_model: (voice_enabled === true || voice_enabled === 'true') ? 'MINIMAX-ZH' : null,
+        translation_enabled: translation_enabled === true || translation_enabled === 'true',
+        config: { 
+          identity: identity || name.trim(), 
+          strategy: strategy || 'default'
+        }
+      };
+
+      const { error: configError } = await supabase
+        .from('bot_configs')
+        .insert([configData]);
+
+      if (configError) {
+        console.warn('[BOT_CONFIG] Insert warning (non-fatal):', configError.message);
       }
-    };
-
-    const { error: configError } = await supabase
-      .from('bot_configs')
-      .insert([configData]);
-
-    if (configError) {
-      console.error('[BOT_CONFIG] Insert error:', configError.message);
-      await supabase.from('bots').delete().eq('id', bot.id);
-      return res.status(500).json({ error: 'Failed to save bot configuration' });
+    } catch (configErr) {
+      console.warn('[BOT_CONFIG] Exception (non-fatal):', configErr.message);
     }
 
     return res.status(201).json({ success: true, bot });
 
   } catch (error) {
-    console.error('[BOTS] Unexpected error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('[BOTS] Unexpected error:', error.message, error.stack?.split('\n').slice(0,3).join('\n'));
+    return res.status(500).json({ error: 'Internal server error', detail: error.message });
   }
 });
 
