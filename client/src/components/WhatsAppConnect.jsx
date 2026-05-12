@@ -328,37 +328,6 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     setStatus('QR_READY');
                                                     addLog('QR recibido vía HTTP.', 'success');
                                                 }
-
-                                                const poll = setInterval(async () => {
-                                                    if (!instanceId) {
-                                                        clearInterval(poll);
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const pollApiBase = import.meta.env.VITE_API_URL || '';
-                                                        const s = await fetch(`${pollApiBase}/api/saas/status/${instanceId}`, {
-                                                            headers: { 'Authorization': `Bearer ${authToken}` }
-                                                        });
-                                                        const contentType = s.headers.get('content-type') || '';
-                                                        if (!contentType.includes('application/json')) {
-                                                            console.warn('[Polling] Non-JSON response, skipping cycle');
-                                                            return;
-                                                        }
-                                                        const sData = await s.json();
-                                                        if (sData.status === 'online' || sData.status === 'READY') {
-                                                            setStatus('READY');
-                                                            setQrCode(null);
-                                                            addLog('Conexión confirmada vía polling.', 'success');
-                                                            clearInterval(poll);
-                                                        } else if (sData.qr_code && !qrCode) {
-                                                            setQrCode(sData.qr_code);
-                                                            setStatus('QR_READY');
-                                                            addLog('QR recuperado vía polling.', 'info');
-                                                        }
-                                                    } catch (err) {
-                                                        console.error("Polling error:", err.message);
-                                                    }
-                                                }, 5000);
                                             } catch (e) {
                                                 addLog('Error fatal en el proceso: ' + e.message, 'error');
                                                 setStatus('DISCONNECTED');

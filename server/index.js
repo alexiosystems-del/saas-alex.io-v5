@@ -169,7 +169,7 @@ if (isRedisEnabled) {
 const globalLimiter = rateLimit({
     store: limiterStore,
     windowMs: 15 * 60 * 1000, // 15 minutos
-    limit: 100, // Máximo 100 peticiones por ventana
+    limit: 2000, // Incremented from 100 to 2000 to allow legitimate UI polling
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Demasiadas peticiones. Por favor, intenta más tarde.', code: 'RATE_LIMIT_EXCEEDED' }
