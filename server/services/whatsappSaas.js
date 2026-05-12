@@ -2554,6 +2554,7 @@ module.exports = {
     whatsappSockets, // Export sockets for broadcast and other services
     logBotEvent,
     updateSessionStatus,
+    getSessionStatus: (id) => sessionStatus.get(id),
     trackEvent,
     __intentUtils: {
         normalizeIntentText,

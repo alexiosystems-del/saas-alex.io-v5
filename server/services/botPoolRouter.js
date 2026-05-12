@@ -200,8 +200,14 @@ function startHealthMonitor(intervalMs = 60000) {
         logInfo(`[BotPool] 🧠 Neural Self-Healing: Instancia ${id} re-calibrada exitosamente.`);
       }
       
+      // ✅ FIX: No degradar si está esperando QR
+      // Importamos lazy load para evitar require loops circulares
+      const getSessionStatus = require('./whatsappSaas').getSessionStatus;
+      const botInfo = getSessionStatus ? getSessionStatus(id) : null;
+      const estaEsperandoQR = botInfo?.status === 'qr_ready' || botInfo?.status === 'initializing' || botInfo?.status === 'waiting_scan';
+
       // Degradación preventiva
-      if (bot.health === HEALTH.HEALTHY && inactiveTime > 300000) {
+      if (bot.health === HEALTH.HEALTHY && inactiveTime > 300000 && !estaEsperandoQR) {
         bot.health = HEALTH.DEGRADED;
         logInfo(`[BotPool] ⏰ Bot ${id} degradado preventivamente (Inactivo 5 min).`);
       }
