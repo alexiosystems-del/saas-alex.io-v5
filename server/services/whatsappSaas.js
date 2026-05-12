@@ -773,17 +773,18 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr && res && !res.headersSent) {
-      await supabase
-        .from('whatsapp_sessions')
-        .upsert({ 
-          instance_id: instanceId, 
-          qr_code: qr,
-          status: 'waiting_scan',
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'instance_id' });
+    if (qr) {
+      await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qr });
 
-      return res.json({ qr, instanceId });
+      // Emit to WebSocket for instant UI update
+      const io = require('../index').io;
+      if (io) {
+          io.emit('wa_qr', { instanceId, qr });
+      }
+
+      if (res && !res.headersSent) {
+          return res.json({ qr, instanceId });
+      }
     }
 
     if (connection === 'close') {
@@ -792,10 +793,7 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
 
       console.warn(`[WA] Session ${instanceId} closed. Code: ${statusCode}`);
 
-      await supabase
-        .from('whatsapp_sessions')
-        .update({ status: 'disconnected', updated_at: new Date().toISOString() })
-        .eq('instance_id', instanceId);
+      await updateSessionStatus(instanceId, 'disconnected');
 
       if (shouldReconnect && attempt < MAX_RECONNECT_ATTEMPTS) {
         const delay = Math.min(1000 * 2 ** attempt, 30000);
@@ -811,14 +809,7 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
       console.log(`✅ Sesión [${instanceId}] Conectada`);
       activeSessions.set(instanceId, sock);
 
-      await supabase
-        .from('whatsapp_sessions')
-        .update({ 
-          status: 'connected', 
-          connected_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('instance_id', instanceId);
+      await updateSessionStatus(instanceId, 'connected');
     }
   });
 
