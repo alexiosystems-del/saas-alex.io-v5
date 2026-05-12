@@ -97,7 +97,8 @@ const authenticateTenant = async (req, res, next) => {
         console.error('❌ Auth FAILED:', error.message, '| Token preview:', token?.substring(0, 20));
         return res.status(403).json({
             error: 'Token inválido o expirado.',
-            code: 'INVALID_TOKEN'
+            code: 'INVALID_TOKEN',
+            details: error.message
         });
     }
 };

@@ -512,7 +512,8 @@ const SaasDashboard = () => {
                     alert(`Agente "${result.bot?.name || payload.name}" inicializado correctamente.`);
                   } catch (e) {
                     console.error('Error creating bot:', e);
-                    alert('Error al crear bot: ' + e.message);
+                    const detail = e.response?.data?.details || e.response?.data?.error || e.message;
+                    alert('Error al crear bot: ' + detail);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
