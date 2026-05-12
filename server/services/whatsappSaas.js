@@ -1385,9 +1385,32 @@ router.get('/status', async (req, res) => {
     });
 });
 
-router.get('/status/:instanceId', (req, res) => {
+router.get('/status/:instanceId', async (req, res) => {
     const { instanceId } = req.params;
-    const info = sessionStatus.get(instanceId);
+    let info = sessionStatus.get(instanceId);
+    
+    if (!info && isSupabaseEnabled) {
+        try {
+            const { data } = await supabase
+                .from('whatsapp_sessions')
+                .select('status, qr_code, updated_at, tenant_id, owner_email')
+                .eq('instance_id', instanceId)
+                .single();
+                
+            if (data) {
+                info = {
+                    status: data.status,
+                    qr_code: data.qr_code,
+                    updatedAt: data.updated_at,
+                    tenantId: data.tenant_id,
+                    ownerEmail: data.owner_email
+                };
+            }
+        } catch (e) {
+            console.warn(`⚠️ Supabase fallback for /status/${instanceId} failed:`, e.message);
+        }
+    }
+
     if (!info) return res.status(404).json({ error: 'Instance not found' });
 
     // Ownership check
@@ -1401,7 +1424,7 @@ router.get('/status/:instanceId', (req, res) => {
         instance_id: instanceId,
         reconnect_attempts: reconnectAttempts.get(instanceId) || 0,
         ...info,
-        provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
+        provider: info.provider || config?.provider || 'baileys'
     });
 });
 
