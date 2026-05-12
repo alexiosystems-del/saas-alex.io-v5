@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import api from '../services/api';
 import { motion } from 'framer-motion';
@@ -13,7 +13,6 @@ const getBackendUrl = () => {
     return import.meta.env.VITE_API_URL || 'http://localhost:3000';
 };
 
-
 const getSocketUrl = () => {
     if (import.meta.env.PROD) {
         return window.location.origin;
@@ -25,7 +24,6 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started for:", instanceId);
     const [mode, setMode] = useState('QR');
     const [qrCode, setQrCode] = useState(null);
-
     const [status, setStatus] = useState('DISCONNECTED');
     const [cloudStatus, setCloudStatus] = useState({ configured: false });
     const [loading, setLoading] = useState(true);
@@ -33,10 +31,53 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     const [diagnostics, setDiagnostics] = useState(null);
     const socketRef = useRef(null);
     const pollIntervalRef = useRef(null);
+    // 🛡️ ANTI-GRAVITY: ref para evitar doble-fetch en reconexiones rápidas
+    const qrFetchingRef = useRef(false);
 
     const addLog = (message, level = 'info') => {
         setLogs(prev => [{ timestamp: new Date().toISOString(), message, level }, ...prev].slice(0, 50));
     };
+
+    // ✅ FIX ANTI-GRAVITY: recupera el QR actual vía HTTP cuando el socket (re)conecta
+    // Esto soluciona el caso donde el socket llega tarde y el evento wa_qr ya fue emitido
+    const fetchQRFromHTTP = useCallback(async () => {
+        if (!instanceId || instanceId === 'null') return;
+        if (qrFetchingRef.current) return; // evitar fetch concurrentes
+        qrFetchingRef.current = true;
+        try {
+            const res = await api.get(`/api/saas/status/${instanceId}`);
+            const data = res.data;
+            if (!data) return;
+
+            const qr = data.qr || data.qr_code;
+            const st = (data.status || '').toLowerCase();
+
+            if ((st === 'qr_ready' || st === 'waiting_scan') && qr) {
+                setQrCode(qr);
+                setStatus('QR_READY');
+                addLog('QR recuperado vía HTTP (anti-gravity sync).', 'success');
+                // Detener polling si ya lo tenemos
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                }
+            } else if (st === 'ready' || st === 'online' || st === 'connected') {
+                setStatus('READY');
+                setQrCode(null);
+                addLog('Sesión ya conectada detectada vía HTTP.', 'success');
+            } else if (st === 'initializing') {
+                // Todavía arrancando, el polling se encarga
+                addLog('Motor inicializando, esperando QR...', 'info');
+            }
+        } catch (err) {
+            // 404 = instancia no existe aún, silencio
+            if (err?.response?.status !== 404) {
+                console.warn('[AntiGravity] HTTP status fetch error:', err.message);
+            }
+        } finally {
+            qrFetchingRef.current = false;
+        }
+    }, [instanceId]);
 
     useEffect(() => {
         console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
@@ -48,7 +89,6 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 return false;
             }
 
-            // Disconnect previous socket if reconnecting with new token
             if (socketRef.current) {
                 socketRef.current.disconnect();
             }
@@ -56,7 +96,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             try {
                 const socketUrl = getSocketUrl();
                 console.log("🌐 Socket Target:", socketUrl);
-                
+
                 const isProduction = import.meta.env.PROD;
                 const socketConfig = {
                     reconnection: true,
@@ -72,13 +112,17 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                     forceNew: false,
                     autoConnect: true
                 };
-                
+
                 socketRef.current = io(socketUrl, socketConfig);
 
                 socketRef.current.on('connect', () => {
                     console.log("✅ Socket Connected");
                     addLog('Servidor de eventos conectado.', 'success');
+                    // 🛡️ ANTI-GRAVITY: al conectar/reconectar, recuperar el QR actual
+                    // por si el evento wa_qr ya fue emitido mientras el socket estaba caído
+                    fetchQRFromHTTP();
                 });
+
                 socketRef.current.on('connect_error', (err) => {
                     console.error("❌ Socket Connect Error:", err);
                     addLog('Error de conexión con el servidor de eventos.', 'error');
@@ -107,6 +151,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                         }
                     }
                 });
+
                 return true;
             } catch (err) {
                 console.error("❌ Error setting up Socket.io:", err);
@@ -114,14 +159,12 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             }
         };
 
-        // Try immediately; if no token, poll until one appears (max ~30s)
         if (!connectSocket()) {
             const retryInterval = setInterval(() => {
                 if (connectSocket()) {
                     clearInterval(retryInterval);
                 }
             }, 1500);
-            // Safety: stop retrying after 30 seconds
             const retryTimeout = setTimeout(() => {
                 clearInterval(retryInterval);
                 console.warn("⚠️ [Socket] Gave up waiting for auth token after 30s");
@@ -137,7 +180,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         return () => {
             if (socketRef.current) socketRef.current.disconnect();
         };
-    }, []);
+    }, [fetchQRFromHTTP]);
 
     const fetchDiagnostics = async () => {
         try {
@@ -154,9 +197,20 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             const statusUrl = !isInvalidId ? `/api/saas/status/${instanceId}` : '/api/status';
             const res = await api.get(statusUrl);
             setCloudStatus(res.data);
+
+            // 🛡️ ANTI-GRAVITY: si al cargar ya hay un QR en el status, mostrarlo de inmediato
+            const data = res.data;
+            const qr = data?.qr || data?.qr_code;
+            const st = (data?.status || '').toLowerCase();
+            if ((st === 'qr_ready' || st === 'waiting_scan') && qr) {
+                setQrCode(qr);
+                setStatus('QR_READY');
+                addLog('QR detectado al iniciar componente.', 'success');
+            } else if (st === 'ready' || st === 'online' || st === 'connected') {
+                setStatus('READY');
+            }
         } catch (err) {
             console.error("❌ Error fetching cloud status:", err);
-            // Graceful fallback — don't crash the UI
             setCloudStatus({ configured: false });
         } finally {
             setLoading(false);
@@ -165,9 +219,9 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
     useEffect(() => {
         fetchCloudStatus();
-    }, []);
+    }, [instanceId]); // 🛡️ re-fetch cuando cambia el bot seleccionado
 
-    // POLLING FALLBACK: Retrieve QR via HTTP if WebSockets fail (Render reliability fix)
+    // POLLING FALLBACK: Retrieve QR via HTTP if WebSockets fail
     useEffect(() => {
         const shouldPoll = (status === 'CONNECTING' || status === 'DISCONNECTED') && !qrCode;
         if (shouldPoll) {
@@ -176,21 +230,23 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 try {
                     const res = await api.get(`/api/saas/status/${instanceId}`);
                     if (res.data) {
-                        if (res.data.status === 'qr_ready' && res.data.qr_code && !qrCode) {
-                            setQrCode(res.data.qr_code);
+                        const qr = res.data.qr || res.data.qr_code;
+                        const st = (res.data.status || '').toLowerCase();
+                        if ((st === 'qr_ready' || st === 'waiting_scan') && qr && !qrCode) {
+                            setQrCode(qr);
                             setStatus('QR_READY');
                             addLog('QR sincronizado vía red de respaldo HTTP.', 'success');
                             if (pollIntervalRef.current) {
                                 clearInterval(pollIntervalRef.current);
                                 pollIntervalRef.current = null;
                             }
-                        } else if (res.data.status === 'ready' || res.data.status === 'online') {
+                        } else if (st === 'ready' || st === 'online' || st === 'connected') {
                             setStatus('READY');
                             setQrCode(null);
                         }
                     }
                 } catch (err) {
-                    // Fail silently to not spam logs
+                    // Fail silently
                 }
             }, 3000);
         }
@@ -267,7 +323,6 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                             setStatus('CONNECTING');
                                             addLog('Iniciando proceso de conexión...');
                                             try {
-                                                // Get auth token (backend JWT or Supabase session)
                                                 let authToken = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
                                                 if (!authToken) {
                                                     addLog('Buscando sesión de Supabase...', 'info');
@@ -290,7 +345,6 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                     return;
                                                 }
 
-                                                // Use relative path or VITE_API_URL
                                                 const apiBase = import.meta.env.VITE_API_URL || '';
                                                 addLog('Solicitando QR al servidor...');
                                                 const res = await fetch(`${apiBase}/api/saas/connect`, {
@@ -299,9 +353,9 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                         'Content-Type': 'application/json',
                                                         'Authorization': `Bearer ${authToken}`
                                                     },
-                                                    body: JSON.stringify({ 
-                                                        instanceId: instanceId, 
-                                                        companyName: initialCompanyName || 'Alex Bot' 
+                                                    body: JSON.stringify({
+                                                        instanceId: instanceId,
+                                                        companyName: initialCompanyName || 'Alex Bot'
                                                     })
                                                 });
 
@@ -323,10 +377,16 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                                 }
 
                                                 addLog('Petición aceptada. Motor inicializado en background.', 'success');
+
                                                 if (data.qr_code) {
                                                     setQrCode(data.qr_code);
                                                     setStatus('QR_READY');
                                                     addLog('QR recibido vía HTTP.', 'success');
+                                                } else {
+                                                    // 🛡️ ANTI-GRAVITY: si no vino QR en la respuesta del connect,
+                                                    // esperar 2s y hacer fetch del status para atrapar el QR
+                                                    addLog('Motor arrancado. Sincronizando QR...', 'info');
+                                                    setTimeout(() => fetchQRFromHTTP(), 2000);
                                                 }
                                             } catch (e) {
                                                 addLog('Error fatal en el proceso: ' + e.message, 'error');
