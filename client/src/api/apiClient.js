@@ -14,27 +14,22 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Retry logic simple para errores 5xx o red y manejo de sesión (401/403)
+// Retry logic simple para errores 5xx o red
 apiClient.interceptors.response.use(null, async (error) => {
   const { config, response } = error;
   
-  // Si es un error de autenticación (401 o 403), limpiamos la sesión
-  if (response && (response.status === 401 || response.status === 403)) {
-    const isAuthError = response.data?.code === 'TOKEN_EXPIRED' || 
-                        response.data?.code === 'INVALID_TOKEN' ||
-                        response.data?.code === 'USER_NOT_FOUND' ||
-                        response.data?.code === 'AUTH_REQUIRED';
-    
-    if (isAuthError || response.status === 401) {
-      console.error('🔓 Sesión expirada o inválida. Limpiando credenciales...');
-      localStorage.removeItem('alex_io_token');
-      sessionStorage.removeItem('alex_io_token');
-      // Despachar evento para que el frontend reaccione (e.g. App.jsx)
-      window.dispatchEvent(new Event('auth_expired'));
-      // Opcional: recargar si estamos en una ruta protegida y no en el login
-      if (window.location.hash.includes('/dashboard')) {
-          window.location.hash = '/login';
-      }
+  const isAuthExpired = response?.status === 403 && (
+    response?.data?.code === 'TOKEN_EXPIRED' ||
+    response?.data?.reason === 'Token expired' ||
+    String(response?.data?.details || '').toLowerCase().includes('expired')
+  );
+
+  if (isAuthExpired && typeof window !== 'undefined') {
+    localStorage.removeItem('alex_io_token');
+    sessionStorage.removeItem('alex_io_token');
+    if (!window.location.pathname.includes('/login')) {
+      alert('Tu sesión expiró. Iniciá sesión nuevamente.');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

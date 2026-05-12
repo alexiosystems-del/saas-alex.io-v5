@@ -197,7 +197,7 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                             setValidating('prompt');
                             try {
                                 const { data: result } = await apiClient.post('/api/saas/generate-prompt', {
-                                    businessName: data.businessName,
+                                    businessName: data.botName,
                                     businessType: data.industry,
                                     extra: data.products,
                                     tone: data.tone,
@@ -208,6 +208,15 @@ export default function EnterpriseWizard({ config, onSave, onCancel }) {
                                 }
                             } catch (e) {
                                 console.error("Error generating prompt:", e);
+                                const status = e.response?.status;
+                                const reason = e.response?.data?.reason;
+                                const details = e.response?.data?.details || e.response?.data?.error || e.message;
+                                const isExpired = reason === 'Token expired' || e.response?.data?.code === 'TOKEN_EXPIRED' || String(details).toLowerCase().includes('expired');
+                                if (isExpired) {
+                                  alert('Tu sesión expiró. Volvé a iniciar sesión para generar el prompt.');
+                                } else {
+                                  alert(`Error generando prompt: ${status ? `HTTP ${status} | ` : ''}${details}`);
+                                }
                             } finally {
                                 setValidating(null);
                             }

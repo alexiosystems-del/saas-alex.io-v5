@@ -169,7 +169,6 @@ const SaasDashboard = () => {
     if (!window.confirm('¿Estás seguro? Se borrará la configuración.')) return;
     try {
       await apiClient.delete(`/api/saas/bots/${botId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBots(bots.filter(b => (b.instance_id || b.id) !== botId));
     } catch (e) {
       alert('Error al eliminar: ' + e.message);
@@ -234,11 +233,6 @@ const SaasDashboard = () => {
                     tiktok_seller_id: saveDraft.tiktokSellerId,
                     manychat_token: saveDraft.manychatToken
                 });
-
-                if (!res.ok) {
-                  const errData = await res.json();
-                  throw new Error(errData.error || `HTTP ${res.status}`);
-                }
 
                 // Clear draft after successful save (use server data)
                 setConfigDrafts(prev => {
@@ -512,8 +506,17 @@ const SaasDashboard = () => {
                     alert(`Agente "${result.bot?.name || payload.name}" inicializado correctamente.`);
                   } catch (e) {
                     console.error('Error creating bot:', e);
+                    const reason = e.response?.data?.reason;
                     const detail = e.response?.data?.details || e.response?.data?.error || e.message;
-                    alert('Error al crear bot: ' + detail);
+                    const code = e.response?.data?.code;
+                    const status = e.response?.status;
+                    const debugMessage = [
+                      status ? `HTTP ${status}` : null,
+                      code ? `code=${code}` : null,
+                      reason ? `reason=${reason}` : null,
+                      detail ? `details=${detail}` : null
+                    ].filter(Boolean).join(' | ');
+                    alert('Error al crear bot: ' + debugMessage);
                   }
                 }}
                 onCancel={() => setShowWizard(false)}
