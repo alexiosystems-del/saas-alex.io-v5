@@ -1401,8 +1401,34 @@ router.get('/status/:instanceId', async (req, res) => {
             console.warn(`⚠️ Supabase fallback for /status/${instanceId} failed:`, e.message);
         }
     }
+    // ✅ FIX: Si existe en DB pero no en memoria (server hibernate), auto-reinicializar
+    if (!info) {
+        return res.status(404).json({ error: 'Instance not found' });
+    }
 
-    if (!info) return res.status(404).json({ error: 'Instance not found' });
+    if (!sessionStatus.has(instanceId)) {
+        // Está en Supabase pero no en memoria → server se reinició → relanzar
+        console.log(`[STATUS] 🔄 Instance ${instanceId} found in DB but not in memory. Auto-reinitializing...`);
+        try {
+            const { data: botData } = await supabase
+                .from('bots')
+                .select('*')
+                .eq('instance_id', instanceId)
+                .single();
+
+            if (botData) {
+                // Marcar como inicializando antes de responder
+                sessionStatus.set(instanceId, { status: 'initializing', qr_code: null });
+                // Lanzar en background sin bloquear la respuesta
+                startBotInstance(instanceId, botData).catch(err =>
+                    console.error(`[STATUS] Auto-init failed for ${instanceId}:`, err.message)
+                );
+                return res.json({ status: 'initializing', qr: null, autoRestarted: true });
+            }
+        } catch (err) {
+            console.error(`[STATUS] Auto-init error:`, err.message);
+        }
+    }
 
     // Ownership check
     const config = clientConfigs.get(instanceId);
