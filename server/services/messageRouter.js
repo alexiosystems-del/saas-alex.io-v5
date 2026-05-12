@@ -126,4 +126,96 @@ const handleIncomingMessage = async (stdMsg) => {
   }).catch(() => {});
 };
 
-module.exports = { handleIncomingMessage };
+/**
+ * Create a standardized message object for cross-platform routing.
+ */
+const createStandardizedMessage = (platform, senderId, text, metadata = {}) => ({
+  platform,
+  senderId,
+  text,
+  metadata,
+  timestamp: new Date().toISOString()
+});
+
+// ── Anti-repetition cache (per sender) ─────────────────────
+const recentResponses = new Map();
+const RESPONSE_CACHE_TTL = 300000; // 5 min
+
+function deduplicateResponse(senderId, response) {
+  const now = Date.now();
+  const key = senderId || 'anon';
+  
+  if (!recentResponses.has(key)) {
+    recentResponses.set(key, []);
+  }
+  
+  const history = recentResponses.get(key).filter(r => now - r.ts < RESPONSE_CACHE_TTL);
+  
+  // Check if the first 80 chars match any recent response (catches repeated openings)
+  const snippet = (response || '').substring(0, 80).toLowerCase().trim();
+  const isDuplicate = history.some(r => r.snippet === snippet);
+  
+  // Store this response
+  history.push({ snippet, ts: now });
+  // Keep only last 10
+  recentResponses.set(key, history.slice(-10));
+  
+  return isDuplicate;
+}
+
+/**
+ * Process a message locally (synchronous response for webchat).
+ * Calls alexBrain.generateResponse directly and returns the reply text.
+ */
+const processMessageLocally = async (stdMsg) => {
+  const { text, metadata, history = [] } = stdMsg;
+  const instanceId = metadata?.instanceId || 'multi_web_default';
+
+  let config = {};
+  try {
+    config = await withTimeout(loadInstanceConfig(instanceId), 5000, 'LoadConfig');
+  } catch (err) {
+    console.error(`[processMessageLocally] Config load failed for ${instanceId}:`, err.message);
+    // Continue with empty config — alexBrain has DEFAULT_SYSTEM_PROMPT built-in
+  }
+
+  try {
+    const aiResult = await withTimeout(
+      alexBrain.generateResponse({
+        message: text,
+        history: history || [],
+        botConfig: config || {}
+      }),
+      20000, 'AlexBrain'
+    );
+
+    let reply = aiResult?.text || '';
+
+    // Anti-repetition: if reply matches a recent one, ask the AI to rephrase
+    if (reply && deduplicateResponse(stdMsg.senderId, reply)) {
+      console.warn(`[processMessageLocally] Duplicate response detected for ${stdMsg.senderId}, requesting rephrase`);
+      try {
+        const rephraseResult = await withTimeout(
+          alexBrain.generateResponse({
+            message: `${text}\n\n[INSTRUCCIÓN INTERNA: Tu respuesta anterior fue idéntica. Reformula completamente tu respuesta. No repitas la misma frase de apertura ni las mismas preguntas. Sé original.]`,
+            history: [...(history || []), { role: 'assistant', content: reply }],
+            botConfig: config || {}
+          }),
+          15000, 'AlexBrain-Rephrase'
+        );
+        if (rephraseResult?.text && rephraseResult.text !== reply) {
+          reply = rephraseResult.text;
+        }
+      } catch {
+        // Use original reply if rephrase fails
+      }
+    }
+
+    return reply;
+  } catch (err) {
+    console.error(`[processMessageLocally] Brain failed:`, err.message);
+    return 'Gracias por tu mensaje. Un asesor te contactará en breve para ayudarte.';
+  }
+};
+
+module.exports = { handleIncomingMessage, createStandardizedMessage, processMessageLocally };

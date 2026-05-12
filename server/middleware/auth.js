@@ -38,6 +38,35 @@ const authenticateTenant = async (req, res, next) => {
         console.log(`[Auth] Validating token: ${token.substring(0, 10)}...`);
     }
 
+    const buildAuthError = (error, fallbackCode = 'INVALID_TOKEN') => {
+        const message = error?.message || 'Token inválido o expirado.';
+        const normalized = String(message).toLowerCase();
+
+        let reason = 'Token inválido o expirado.';
+        let code = fallbackCode;
+
+        if (normalized.includes('jwt expired') || normalized.includes('token expired')) {
+            reason = 'Token expired';
+            code = 'TOKEN_EXPIRED';
+        } else if (normalized.includes('invalid signature') || normalized.includes('signature')) {
+            reason = 'Invalid signature';
+            code = 'INVALID_SIGNATURE';
+        } else if (normalized.includes('user not found') || normalized.includes('no user')) {
+            reason = 'User not found';
+            code = 'USER_NOT_FOUND';
+        } else if (normalized.includes('malformed')) {
+            reason = 'Malformed token';
+            code = 'MALFORMED_TOKEN';
+        } else if (normalized.includes('invalid token')) {
+            reason = 'Invalid token';
+        } else if (normalized.includes('supabase')) {
+            reason = message;
+            code = 'SUPABASE_TOKEN_INVALID';
+        }
+
+        return { reason, code, details: message };
+    };
+
     try {
         const unverified = jwt.decode(token);
         console.log(`[Auth] Token decoded. aud=${unverified?.aud}, tenantId=${unverified?.tenantId}, exp=${unverified?.exp ? new Date(unverified.exp * 1000).toISOString() : 'none'}`);
@@ -65,7 +94,8 @@ const authenticateTenant = async (req, res, next) => {
             const { data: { user }, error } = await supabase.auth.getUser(token);
             if (error || !user) {
                 console.error('[Auth] Supabase getUser failed:', error?.message || 'no user');
-                throw new Error('Token de Supabase inválido o expirado.');
+                const detail = error?.message || (!user ? 'User not found' : 'Supabase token rejected');
+                throw new Error(`Supabase auth failed: ${detail}`);
             }
 
             const isAdmin = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'].includes(user.email.toLowerCase());
@@ -94,11 +124,13 @@ const authenticateTenant = async (req, res, next) => {
         console.log(`[Auth] ✅ Local JWT OK: tenant=${req.tenant.id}, role=${req.tenant.role}`);
         next();
     } catch (error) {
-        console.error('❌ Auth FAILED:', error.message, '| Token preview:', token?.substring(0, 20));
+        const authError = buildAuthError(error);
+        console.error('❌ Auth FAILED:', authError.reason, '| details:', authError.details, '| Token preview:', token?.substring(0, 20));
         return res.status(403).json({
             error: 'Token inválido o expirado.',
-            code: 'INVALID_TOKEN',
-            details: error.message
+            code: authError.code,
+            reason: authError.reason,
+            details: authError.details
         });
     }
 };
