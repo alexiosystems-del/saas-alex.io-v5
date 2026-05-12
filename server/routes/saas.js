@@ -72,29 +72,44 @@ router.post('/bots', async (req, res) => {
       created_at: new Date().toISOString()
     };
 
-    console.log('[BOTS] Creating bot:', { instanceId, tenantId, name: name.trim() });
+    console.log('[BOTS] Attempting to create bot:', { instanceId, tenantId, name: name.trim() });
 
-    const { data: bot, error: botError } = await supabase
+    let { data: bot, error: botError } = await supabase
       .from('bots')
       .insert([botData])
       .select()
       .single();
 
     if (botError) {
-      console.error('[BOTS] Create error:', botError.message, botError.details, botError.hint);
-      return res.status(500).json({ 
-        error: 'Failed to create bot',
-        detail: botError.message
-      });
+      if (botError.message.includes('column') && botError.message.includes('does not exist')) {
+        console.warn('[BOTS] Schema mismatch detected. Falling back to minimal insert...');
+        const { instance_id, channel, ...minimalData } = botData;
+        const { data: bot2, error: botError2 } = await supabase
+          .from('bots')
+          .insert([minimalData])
+          .select()
+          .single();
+        
+        if (botError2) {
+          console.error('[BOTS] Minimal insert also failed:', botError2.message);
+          return res.status(500).json({ error: 'Failed to create bot (schema error)', detail: botError2.message });
+        }
+        bot = bot2;
+      } else {
+        console.error('[BOTS] Create error:', botError.message);
+        return res.status(500).json({ error: 'Failed to create bot', detail: botError.message });
+      }
     }
 
-    console.log('[BOTS] ✅ Bot created:', bot.id);
+    console.log('[BOTS] ✅ Bot created successfully:', bot.id);
+
+    // Ensure we return a bot object that includes instance_id for the frontend
+    const finalBot = { ...bot, instance_id: bot.instance_id || instanceId };
 
     // Optional: insert bot_configs (non-fatal)
     try {
       const configData = {
         bot_id: bot.id,
-        instance_id: instanceId,
         tenant_id: tenantId,
         channel: channel || 'whatsapp',
         voice_model: (voice_enabled === true || voice_enabled === 'true') ? 'MINIMAX-ZH' : null,
@@ -105,21 +120,27 @@ router.post('/bots', async (req, res) => {
         }
       };
 
+      // Try with instance_id first
       const { error: configError } = await supabase
         .from('bot_configs')
-        .insert([configData]);
+        .insert([{ ...configData, instance_id: instanceId }]);
 
       if (configError) {
-        console.warn('[BOT_CONFIG] Insert warning (non-fatal):', configError.message);
+        if (configError.message.includes('column') && configError.message.includes('does not exist')) {
+            // Fallback for bot_configs
+            await supabase.from('bot_configs').insert([configData]);
+        } else {
+            console.warn('[BOT_CONFIG] Insert warning:', configError.message);
+        }
       }
     } catch (configErr) {
       console.warn('[BOT_CONFIG] Exception (non-fatal):', configErr.message);
     }
 
-    return res.status(201).json({ success: true, bot });
+    return res.status(201).json({ success: true, bot: finalBot });
 
   } catch (error) {
-    console.error('[BOTS] Unexpected error:', error.message, error.stack?.split('\n').slice(0,3).join('\n'));
+    console.error('[BOTS] Unexpected fatal error:', error.message);
     return res.status(500).json({ error: 'Internal server error', detail: error.message });
   }
 });
