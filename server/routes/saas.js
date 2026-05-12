@@ -76,14 +76,21 @@ router.post('/bots', async (req, res) => {
 
     let { data: bot, error: botError } = await supabase
       .from('bots')
-      .insert([botData])
+      .insert([{ ...botData, provider: channel || 'whatsapp' }])
       .select()
       .single();
 
     if (botError) {
-      if (botError.message.includes('column') && botError.message.includes('does not exist')) {
+      if (botError.message.includes('column') && (botError.message.includes('does not exist') || botError.message.includes('Could not find'))) {
         console.warn('[BOTS] Schema mismatch detected. Falling back to minimal insert...');
-        const { instance_id, channel, ...minimalData } = botData;
+        const minimalData = {
+          instance_id: botData.instance_id,
+          tenant_id: botData.tenant_id,
+          name: botData.name,
+          prompt: botData.prompt,
+          status: 'active',
+          created_at: botData.created_at
+        };
         const { data: bot2, error: botError2 } = await supabase
           .from('bots')
           .insert([minimalData])
