@@ -84,7 +84,6 @@ router.post('/bots', async (req, res) => {
       if (botError.message.includes('column') && (botError.message.includes('does not exist') || botError.message.includes('Could not find'))) {
         console.warn('[BOTS] Schema mismatch detected. Falling back to minimal insert...');
         const minimalData = {
-          instance_id: botData.instance_id,
           tenant_id: botData.tenant_id,
           name: botData.name,
           prompt: botData.prompt,
