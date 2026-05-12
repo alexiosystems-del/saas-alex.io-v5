@@ -774,16 +774,34 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qr });
-
-      // Emit to WebSocket for instant UI update
-      const io = require('../index').io;
-      if (io) {
-          io.emit('wa_qr', { instanceId, qr });
+      // 🛡️ ANTI-GRAVITY: Convertir QR string de Baileys a imagen base64
+      // El string raw no es una URL — necesita conversión para mostrarse en <img>
+      let qrImageBase64 = null;
+      try {
+        const QRCode = require('qrcode');
+        qrImageBase64 = await QRCode.toDataURL(qr, {
+          width: 300,
+          margin: 2,
+          color: { dark: '#000000', light: '#ffffff' }
+        });
+        console.log(`[WA] ✅ QR image generated for ${instanceId}`);
+      } catch (qrErr) {
+        console.error(`[WA] ❌ QR image generation failed for ${instanceId}:`, qrErr.message);
+        qrImageBase64 = qr; // fallback al string crudo
       }
 
+      // Guardar en memoria y Supabase como base64
+      await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qrImageBase64 });
+
+      // Emitir al frontend vía WebSocket
+      const io = require('../index').io;
+      if (io) {
+        io.emit('wa_qr', { instanceId, qr: qrImageBase64 });
+      }
+
+      // Responder HTTP si hay res pendiente
       if (res && !res.headersSent) {
-          return res.json({ qr, instanceId });
+        return res.json({ qr_code: qrImageBase64, instanceId });
       }
     }
 
@@ -808,7 +826,6 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
     if (connection === 'open') {
       console.log(`✅ Sesión [${instanceId}] Conectada`);
       activeSessions.set(instanceId, sock);
-
       await updateSessionStatus(instanceId, 'connected');
     }
   });
