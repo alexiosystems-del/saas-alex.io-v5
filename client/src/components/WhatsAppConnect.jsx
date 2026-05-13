@@ -29,6 +29,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState([]);
     const [diagnostics, setDiagnostics] = useState(null);
+    const [isAwaitingQr, setIsAwaitingQr] = useState(false);
     const socketRef = useRef(null);
     const pollIntervalRef = useRef(null);
     // 🛡️ ANTI-GRAVITY: ref para evitar doble-fetch en reconexiones rápidas
@@ -55,6 +56,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             if ((st === 'qr_ready' || st === 'waiting_scan') && qr) {
                 setQrCode(qr);
                 setStatus('QR_READY');
+                setIsAwaitingQr(true);
                 addLog('QR recuperado vía HTTP (anti-gravity sync).', 'success');
                 // Detener polling si ya lo tenemos
                 if (pollIntervalRef.current) {
@@ -64,6 +66,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             } else if (st === 'ready' || st === 'online' || st === 'connected') {
                 setStatus('READY');
                 setQrCode(null);
+                setIsAwaitingQr(false);
                 addLog('Sesión ya conectada detectada vía HTTP.', 'success');
             } else if (st === 'initializing') {
                 // Todavía arrancando, el polling se encarga
@@ -146,13 +149,16 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                         if (nextStatus === 'READY' || nextStatus === 'CONNECTED' || nextStatus === 'ONLINE') {
                             setStatus('READY');
                             setQrCode(null);
+                            setIsAwaitingQr(false);
                             addLog('WhatsApp conectado exitosamente.', 'success');
                         } else if (nextStatus === 'QR_READY' || nextStatus === 'WAITING_SCAN') {
                             setStatus('QR_READY');
+                            setIsAwaitingQr(true);
                             addLog('Estado QR_READY detectado. Sincronizando QR...', 'info');
                             fetchQRFromHTTP();
                         } else if (nextStatus === 'DISCONNECTED') {
                             setStatus('DISCONNECTED');
+                            setIsAwaitingQr(true);
                             addLog('Estado de conexión: DISCONNECTED. Reintentando sincronización QR...', 'info');
                             fetchQRFromHTTP();
                         } else if (nextStatus === 'INITIALIZING' || nextStatus === 'CONNECTING') {
@@ -217,9 +223,11 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             if ((st === 'qr_ready' || st === 'waiting_scan') && qr) {
                 setQrCode(qr);
                 setStatus('QR_READY');
+                setIsAwaitingQr(true);
                 addLog('QR detectado al iniciar componente.', 'success');
             } else if (st === 'ready' || st === 'online' || st === 'connected') {
                 setStatus('READY');
+                setIsAwaitingQr(false);
             }
         } catch (err) {
             console.error("❌ Error fetching cloud status:", err);
@@ -233,12 +241,15 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         fetchCloudStatus();
     }, [instanceId]); // 🛡️ re-fetch cuando cambia el bot seleccionado
 
-    // POLLING FALLBACK: Retrieve QR via HTTP if WebSockets fail
+    // POLLING FALLBACK: only while we are actively awaiting a QR
     useEffect(() => {
-        const shouldPoll = (status === 'CONNECTING' || status === 'DISCONNECTED') && !qrCode;
+        let attempts = 0;
+        const shouldPoll = isAwaitingQr && (status === 'CONNECTING' || status === 'DISCONNECTED') && !qrCode;
         if (shouldPoll) {
             pollIntervalRef.current = setInterval(async () => {
                 if (!instanceId || instanceId === 'null') return;
+                if (document.visibilityState === 'hidden') return;
+                attempts += 1;
                 try {
                     const res = await api.get(`/api/saas/status/${instanceId}`);
                     if (res.data) {
@@ -247,18 +258,22 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                         if ((st === 'qr_ready' || st === 'waiting_scan') && qr && !qrCode) {
                             setQrCode(qr);
                             setStatus('QR_READY');
+                            setIsAwaitingQr(true);
                             addLog('QR sincronizado vía red de respaldo HTTP.', 'success');
-                            if (pollIntervalRef.current) {
-                                clearInterval(pollIntervalRef.current);
-                                pollIntervalRef.current = null;
-                            }
                         } else if (st === 'ready' || st === 'online' || st === 'connected') {
                             setStatus('READY');
                             setQrCode(null);
+                            setIsAwaitingQr(false);
                         }
                     }
                 } catch (err) {
                     // Fail silently
+                }
+
+                if (attempts >= 20) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                    addLog('Pausa de polling de respaldo tras múltiples intentos sin QR.', 'info');
                 }
             }, 3000);
         }
@@ -269,7 +284,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 pollIntervalRef.current = null;
             }
         };
-    }, [status, instanceId, qrCode]);
+    }, [status, instanceId, qrCode, isAwaitingQr]);
 
     const StatusBadge = ({ label, value, ok }) => (
         <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
