@@ -142,12 +142,24 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
                 socketRef.current.on('wa_status', (data) => {
                     if (data.instanceId === instanceId) {
-                        if (data.status === 'READY') {
+                        const nextStatus = String(data.status || '').toUpperCase();
+                        if (nextStatus === 'READY' || nextStatus === 'CONNECTED' || nextStatus === 'ONLINE') {
                             setStatus('READY');
                             setQrCode(null);
                             addLog('WhatsApp conectado exitosamente.', 'success');
+                        } else if (nextStatus === 'QR_READY' || nextStatus === 'WAITING_SCAN') {
+                            setStatus('QR_READY');
+                            addLog('Estado QR_READY detectado. Sincronizando QR...', 'info');
+                            fetchQRFromHTTP();
+                        } else if (nextStatus === 'DISCONNECTED') {
+                            setStatus('DISCONNECTED');
+                            addLog('Estado de conexión: DISCONNECTED. Reintentando sincronización QR...', 'info');
+                            fetchQRFromHTTP();
+                        } else if (nextStatus === 'INITIALIZING' || nextStatus === 'CONNECTING') {
+                            setStatus('CONNECTING');
+                            addLog(`Estado de conexión: ${nextStatus}`, 'info');
                         } else {
-                            addLog(`Estado de conexión: ${data.status}`, 'info');
+                            addLog(`Estado de conexión: ${nextStatus || 'UNKNOWN'}`, 'info');
                         }
                     }
                 });
