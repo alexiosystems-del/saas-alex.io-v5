@@ -199,6 +199,18 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         credentials_encrypted: payload.credentials_encrypted
     });
 
+    // Realtime event bridge for dashboard clients
+    if (ioInstance) {
+        ioInstance.emit('wa_status', {
+            instanceId,
+            status: String(status || '').toUpperCase()
+        });
+
+        if (payload.qr_code && (status === 'qr_ready' || status === 'waiting_scan')) {
+            ioInstance.emit('wa_qr', { instanceId, qr: payload.qr_code });
+        }
+    }
+
     if (!isSupabaseEnabled) return;
 
     // Phase 3: Add explicit tenant info to sessions if available in memory
@@ -793,13 +805,6 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
 
       // Guardar en memoria y Supabase como base64
       await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qrImageBase64 });
-
-      // Emitir al frontend vía WebSocket
-      if (ioInstance) {
-        ioInstance.emit('wa_qr', { instanceId, qr: qrImageBase64 });
-      } else {
-        console.warn(`[WA] ⚠️ Socket.IO no disponible para emitir wa_qr (${instanceId}).`);
-      }
 
       // Responder HTTP si hay res pendiente
       if (res && !res.headersSent) {
