@@ -840,6 +840,12 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
 
         console.warn(`[WA] ⚠️ Credential conflict (${statusCode}). Purging auth state for ${instanceId} (attempt ${purgeCount})...`);
         try {
+          // 🛡️ ANTI-GRAVITY: Prevent race condition where dying socket re-saves corrupted creds AFTER our purge
+          try {
+              sock.ev.removeAllListeners('creds.update');
+              sock.ws.close();
+          } catch (_) {}
+
           if (isSupabaseEnabled && supabaseAdmin) {
             await supabaseAdmin.from('whatsapp_auth_state').delete().eq('instance_id', instanceId);
             await supabaseAdmin.from(sessionsTable).delete().eq('instance_id', instanceId);
@@ -927,6 +933,7 @@ router.post('/connect', async (req, res) => {
     // Reset state to allow fresh connection attempt
     connectionStates.delete(instanceId);
     reconnectAttempts.delete(instanceId);
+    purge405Attempts.delete(instanceId);
     console.log(`🧹 [${instanceId}] State reset for new connection request.`);
 
     // 1. Prepare credentials object for encryption
