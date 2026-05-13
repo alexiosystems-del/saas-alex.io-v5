@@ -820,7 +820,12 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
 
       // 🛡️ ANTI-GRAVITY: Code 405 = stale/conflicting credentials rejected by WhatsApp.
       // Clear auth state and restart ONCE. If 405 persists after purge, kill permanently.
-      if (statusCode === 405 || statusCode === 401 || statusCode === DisconnectReason.badSession) {
+      if (
+        statusCode === 405 ||
+        statusCode === 401 ||
+        statusCode === DisconnectReason.badSession ||
+        statusCode === DisconnectReason.loggedOut
+      ) {
         const purgeCount = (purge405Attempts.get(instanceId) || 0) + 1;
         purge405Attempts.set(instanceId, purgeCount);
 
