@@ -44,6 +44,7 @@ const sessionsTable = process.env.WHATSAPP_SESSIONS_TABLE || 'whatsapp_sessions'
 const usageTable = 'tenant_usage_metrics';
 const whatsappSockets = new Map(); // Shared map for Baileys sockets
 const connectionStates = new Map(); // State machine: 'idle', 'connecting', 'online', 'failed'
+const purge405Attempts = new Map(); // Track 405 purge retries per instance (max 1)
 const maxReconnectAttempts = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 5);
 let ioInstance = null;
 
@@ -812,15 +813,27 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
       console.warn(`[WA] Session ${instanceId} closed. Code: ${statusCode}`);
 
       // 🛡️ ANTI-GRAVITY: Code 405 = stale/conflicting credentials rejected by WhatsApp.
-      // Clear auth state and RESTART from scratch so Baileys generates a fresh QR.
+      // Clear auth state and restart ONCE. If 405 persists after purge, kill permanently.
       if (statusCode === 405 || statusCode === 401 || statusCode === DisconnectReason.badSession) {
-        console.warn(`[WA] ⚠️ Credential conflict detected (${statusCode}). Purging auth state for ${instanceId}...`);
+        const purgeCount = (purge405Attempts.get(instanceId) || 0) + 1;
+        purge405Attempts.set(instanceId, purgeCount);
+
+        if (purgeCount > 1) {
+          // Already tried purge+restart once — 405 is persistent, stop looping
+          console.error(`[WA] ❌ Instance ${instanceId} still getting 405 after purge. Killing permanently.`);
+          purge405Attempts.delete(instanceId);
+          activeSessions.delete(instanceId);
+          await updateSessionStatus(instanceId, 'disconnected');
+          return;
+        }
+
+        console.warn(`[WA] ⚠️ Credential conflict (${statusCode}). Purging auth state for ${instanceId} (attempt ${purgeCount})...`);
         try {
           if (isSupabaseEnabled && supabaseAdmin) {
             await supabaseAdmin.from('whatsapp_auth_state').delete().eq('instance_id', instanceId);
-            console.log(`[WA] ✅ Auth state purged for ${instanceId}.`);
+            await supabaseAdmin.from(sessionsTable).delete().eq('instance_id', instanceId);
+            console.log(`[WA] ✅ Auth state + session purged for ${instanceId}.`);
           }
-          // Also clear in-memory fallback
           if (global.__waAuthStateFallback?.has(instanceId)) {
             global.__waAuthStateFallback.delete(instanceId);
           }
@@ -828,12 +841,11 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
           console.error(`[WA] ❌ Could not purge auth state:`, purgeErr.message);
         }
 
-        // 🔥 KEY FIX: Restart session from scratch (attempt 1) after purge.
-        // Do NOT fall through to normal reconnect — it reuses stale in-memory creds.
-        console.log(`[WA] 🔄 Restarting session ${instanceId} from scratch after credential purge...`);
+        // Restart ONCE from scratch after 5s cooldown
+        console.log(`[WA] 🔄 Restarting session ${instanceId} from scratch (one-time retry)...`);
         await updateSessionStatus(instanceId, 'initializing');
-        setTimeout(() => connectToWhatsApp(instanceId, config, null, 1), 3000);
-        return; // Skip normal reconnect logic below
+        setTimeout(() => connectToWhatsApp(instanceId, config, null, 1), 5000);
+        return;
       }
 
       await updateSessionStatus(instanceId, 'disconnected');
