@@ -74,9 +74,9 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
-// Inject Socket.io into services
-const whatsappService = require('./services/whatsappClient');
-whatsappService.setSocket(io);
+// Legacy whatsappClient disabled to prevent conflict with whatsappSaas
+// const whatsappService = require('./services/whatsappClient');
+// whatsappService.setSocket(io);
 
 const { setSocket: setSaasSocket } = require('./services/whatsappSaas');
 setSaasSocket(io);
