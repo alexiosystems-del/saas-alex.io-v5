@@ -795,9 +795,10 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
       await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qrImageBase64 });
 
       // Emitir al frontend vía WebSocket
-      const io = require('../index').io;
-      if (io) {
-        io.emit('wa_qr', { instanceId, qr: qrImageBase64 });
+      if (ioInstance) {
+        ioInstance.emit('wa_qr', { instanceId, qr: qrImageBase64 });
+      } else {
+        console.warn(`[WA] ⚠️ Socket.IO no disponible para emitir wa_qr (${instanceId}).`);
       }
 
       // Responder HTTP si hay res pendiente

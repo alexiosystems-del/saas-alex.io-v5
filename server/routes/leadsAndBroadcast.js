@@ -200,7 +200,6 @@ router.put('/bots/:id', async (req, res) => {
         // Update bot_configs (best-effort)
         try {
             const configUpdate = {};
-            if (updates.name) configUpdate.name = updates.name;
             if (updates.prompt !== undefined) configUpdate.custom_prompt = updates.prompt;
             if (updates.voice_enabled !== undefined) configUpdate.voice_enabled = updates.voice_enabled;
             if (updates.voice) configUpdate.voice_provider = updates.voice;
@@ -211,12 +210,31 @@ router.put('/bots/:id', async (req, res) => {
             if (updates.manychatToken) configUpdate.manychat_token = updates.manychatToken;
             
             if (Object.keys(configUpdate).length > 0) {
-                const { error: cfgErr } = await supabase
-                    .from('bot_configs')
-                    .update(configUpdate)
-                    .eq('instance_id', botId);
-                if (cfgErr) console.warn('[BOTS] bot_configs update failed:', cfgErr.message);
-                else console.log(`[BOTS] bot_configs ${botId} updated successfully.`);
+                let payload = { ...configUpdate };
+                let attempt = 0;
+
+                while (Object.keys(payload).length > 0 && attempt < 2) {
+                    const { error: cfgErr } = await supabase
+                        .from('bot_configs')
+                        .update(payload)
+                        .eq('instance_id', botId);
+
+                    if (!cfgErr) {
+                        console.log(`[BOTS] bot_configs ${botId} updated successfully.`);
+                        break;
+                    }
+
+                    const missingColumn = cfgErr.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+                    if (missingColumn && payload[missingColumn] !== undefined) {
+                        console.warn(`[BOTS] bot_configs schema drift detected. Retrying without column: ${missingColumn}`);
+                        delete payload[missingColumn];
+                        attempt += 1;
+                        continue;
+                    }
+
+                    console.warn('[BOTS] bot_configs update failed:', cfgErr.message);
+                    break;
+                }
             }
         } catch (e) {
             console.warn('[BOTS] bot_configs update failed:', e.message);
