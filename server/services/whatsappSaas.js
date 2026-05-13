@@ -959,6 +959,12 @@ router.post('/connect', async (req, res) => {
             });
         }
 
+        // Set initial state so polling doesn't see old 'disconnected' state from DB
+        await updateSessionStatus(instanceId, 'initializing', {
+            companyName: cleanName,
+            provider
+        });
+
         // Start connection in background (Asynchronous)
         startBotInstance(instanceId, config).catch(e => {
             console.error(`❌ [${instanceId}] Background start failed:`, e.message);

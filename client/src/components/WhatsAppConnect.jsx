@@ -347,35 +347,14 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
 
                                                 const apiBase = import.meta.env.VITE_API_URL || '';
                                                 addLog('Solicitando QR al servidor...');
-                                                const res = await fetch(`${apiBase}/api/saas/connect`, {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        'Authorization': `Bearer ${authToken}`
-                                                    },
-                                                    body: JSON.stringify({
-                                                        instanceId: instanceId,
-                                                        companyName: initialCompanyName || 'Alex Bot'
-                                                    })
+                                                
+                                                // ✅ Standardized axios call
+                                                const response = await api.post('/api/saas/connect', {
+                                                    instanceId: instanceId,
+                                                    companyName: initialCompanyName || 'Alex Bot'
                                                 });
 
-                                                let data;
-                                                const contentType = res.headers.get("content-type");
-                                                if (contentType && contentType.indexOf("application/json") !== -1) {
-                                                    data = await res.json();
-                                                } else {
-                                                    const text = await res.text();
-                                                    console.error('Non-JSON response:', text);
-                                                    throw new Error(`Servidor respondió con formato inválido (${res.status})`);
-                                                }
-
-                                                if (!res.ok) {
-                                                    addLog(`Error del servidor: ${data.error || 'Desconocido'}`, 'error');
-                                                    setStatus('DISCONNECTED');
-                                                    alert(`Error: ${data.error || 'No se pudo conectar'}`);
-                                                    return;
-                                                }
-
+                                                const data = response.data;
                                                 addLog('Petición aceptada. Motor inicializado en background.', 'success');
 
                                                 if (data.qr_code) {
