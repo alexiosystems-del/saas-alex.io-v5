@@ -187,11 +187,21 @@ const tenantLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
     limit: (req) => {
         const plan = req.tenant?.plan || 'FREE';
-        if (plan === 'ENTERPRISE') return 5000;
-        if (plan === 'PRO') return 1000;
-        return 100; // FREE/STARTER default
+        if (plan === 'ENTERPRISE') return 12000;
+        if (plan === 'PRO') return 6000;
+        return 1500; // FREE/STARTER default (absorbe polling del dashboard sin bloquear operaciones)
     },
     keyGenerator: (req) => req.tenant?.id || req.ip,
+    skip: (req) => {
+        // Skip high-frequency observability/polling routes to avoid burning tenant quota
+        const p = req.path || '';
+        return req.method === 'GET' && (
+            p === '/status' ||
+            p.startsWith('/status/') ||
+            p === '/bots' ||
+            p.startsWith('/bots/')
+        );
+    },
     message: { error: 'Límite de cuota de API excedido para tu plan.', code: 'TENANT_QUOTA_EXCEEDED' }
 });
 
