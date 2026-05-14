@@ -207,7 +207,12 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         });
 
         if (payload.qr_code && (status === 'qr_ready' || status === 'waiting_scan')) {
-            ioInstance.emit('wa_qr', { instanceId, qr: payload.qr_code });
+            ioInstance.emit('wa_qr', {
+                instanceId,
+                qr: payload.qr_code,
+                qr_raw: extra.qr_raw || null,
+                format: 'data_url'
+            });
         }
     }
 
@@ -787,8 +792,12 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      // 🛡️ ANTI-GRAVITY: Convertir QR string de Baileys a imagen base64
-      // El string raw no es una URL — necesita conversión para mostrarse en <img>
+      // Compat mode (minimal bot style): emit raw QR immediately for fast realtime delivery.
+      if (ioInstance) {
+        ioInstance.emit('wa_qr', { instanceId, qr, qr_raw: qr, format: 'raw' });
+      }
+
+      // Convertir QR string de Baileys a imagen base64 para persistencia/UI directa en <img>.
       let qrImageBase64 = null;
       try {
         const QRCode = require('qrcode');
@@ -803,8 +812,8 @@ const connectToWhatsApp = async (instanceId, config, res = null, attempt = 1) =>
         qrImageBase64 = qr; // fallback al string crudo
       }
 
-      // Guardar en memoria y Supabase como base64
-      await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qrImageBase64 });
+      // Guardar en memoria/Supabase (base64) y mantener raw para compatibilidad realtime.
+      await updateSessionStatus(instanceId, 'qr_ready', { qr_code: qrImageBase64, qr_raw: qr });
 
       // Responder HTTP si hay res pendiente
       if (res && !res.headersSent) {
