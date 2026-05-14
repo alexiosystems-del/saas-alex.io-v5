@@ -32,12 +32,39 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     const [isAwaitingQr, setIsAwaitingQr] = useState(false);
     const socketRef = useRef(null);
     const pollIntervalRef = useRef(null);
+    const hardSyncTimeoutRef = useRef(null);
     // 🛡️ ANTI-GRAVITY: ref para evitar doble-fetch en reconexiones rápidas
     const qrFetchingRef = useRef(false);
 
-    const addLog = (message, level = 'info') => {
+    const addLog = useCallback((message, level = 'info') => {
         setLogs(prev => [{ timestamp: new Date().toISOString(), message, level }, ...prev].slice(0, 50));
-    };
+    }, []);
+
+    const stopHardSync = useCallback(() => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+        if (hardSyncTimeoutRef.current) {
+            clearTimeout(hardSyncTimeoutRef.current);
+            hardSyncTimeoutRef.current = null;
+        }
+    }, []);
+
+    const startHardSync = useCallback(() => {
+        stopHardSync();
+        let attempts = 0;
+        pollIntervalRef.current = setInterval(async () => {
+            attempts += 1;
+            // Use the fetchQR function defined below implicitly via state variables/hooks structure
+            // Or better, we avoid calling it directly here if it causes a dependency cycle,
+            // but the original diff passed `fetchQRFromHTTP` in dependency array.
+        }, 2000);
+        hardSyncTimeoutRef.current = setTimeout(() => {
+            stopHardSync();
+            addLog('Sincronización forzada finalizada (timeout 60s).', 'info');
+        }, 60000);
+    }, [addLog, stopHardSync]);
 
     // ✅ FIX ANTI-GRAVITY: recupera el QR actual vía HTTP cuando el socket (re)conecta
     // Esto soluciona el caso donde el socket llega tarde y el evento wa_qr ya fue emitido
@@ -63,6 +90,10 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                     clearInterval(pollIntervalRef.current);
                     pollIntervalRef.current = null;
                 }
+                if (hardSyncTimeoutRef.current) {
+                    clearTimeout(hardSyncTimeoutRef.current);
+                    hardSyncTimeoutRef.current = null;
+                }
             } else if (st === 'ready' || st === 'online' || st === 'connected') {
                 setStatus('READY');
                 setQrCode(null);
@@ -80,7 +111,23 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         } finally {
             qrFetchingRef.current = false;
         }
-    }, [instanceId]);
+    }, [instanceId, addLog]);
+
+    useEffect(() => {
+        // Just to attach fetchQR to startHardSync inside the component without circular refs
+        const _startHardSync = () => {
+            stopHardSync();
+            pollIntervalRef.current = setInterval(() => {
+                fetchQRFromHTTP();
+            }, 2000);
+            hardSyncTimeoutRef.current = setTimeout(() => {
+                stopHardSync();
+                addLog('Sincronización forzada finalizada (timeout 60s).', 'info');
+            }, 60000);
+        };
+        // We attach it dynamically to avoid modifying the deps of the socket useEffect too much
+        startHardSync.current = _startHardSync;
+    }, [fetchQRFromHTTP, stopHardSync, addLog]);
 
     useEffect(() => {
         console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
@@ -121,9 +168,8 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 socketRef.current.on('connect', () => {
                     console.log("✅ Socket Connected");
                     addLog('Servidor de eventos conectado.', 'success');
-                    // 🛡️ ANTI-GRAVITY: al conectar/reconectar, recuperar el QR actual
-                    // por si el evento wa_qr ya fue emitido mientras el socket estaba caído
                     fetchQRFromHTTP();
+                    if (startHardSync.current) startHardSync.current();
                 });
 
                 socketRef.current.on('connect_error', (err) => {
@@ -135,11 +181,9 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                     if (data.instanceId === instanceId) {
                         setQrCode(data.qr);
                         setStatus('QR_READY');
+                        setIsAwaitingQr(true);
                         addLog('Código QR recibido vía WebSocket.', 'success');
-                        if (pollIntervalRef.current) {
-                            clearInterval(pollIntervalRef.current);
-                            pollIntervalRef.current = null;
-                        }
+                        stopHardSync();
                     }
                 });
 
@@ -151,6 +195,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                             setQrCode(null);
                             setIsAwaitingQr(false);
                             addLog('WhatsApp conectado exitosamente.', 'success');
+                            stopHardSync();
                         } else if (nextStatus === 'QR_READY' || nextStatus === 'WAITING_SCAN') {
                             setStatus('QR_READY');
                             setIsAwaitingQr(true);
@@ -161,6 +206,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                             setIsAwaitingQr(true);
                             addLog('Estado de conexión: DISCONNECTED. Reintentando sincronización QR...', 'info');
                             fetchQRFromHTTP();
+                            if (startHardSync.current) startHardSync.current();
                         } else if (nextStatus === 'INITIALIZING' || nextStatus === 'CONNECTING') {
                             setStatus('CONNECTING');
                             addLog(`Estado de conexión: ${nextStatus}`, 'info');
@@ -192,13 +238,15 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                 clearInterval(retryInterval);
                 clearTimeout(retryTimeout);
                 if (socketRef.current) socketRef.current.disconnect();
+                stopHardSync();
             };
         }
 
         return () => {
             if (socketRef.current) socketRef.current.disconnect();
+            stopHardSync();
         };
-    }, [fetchQRFromHTTP]);
+    }, [fetchQRFromHTTP, addLog, instanceId, stopHardSync]);
 
     const fetchDiagnostics = async () => {
         try {
