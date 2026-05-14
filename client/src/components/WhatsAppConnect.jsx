@@ -25,6 +25,7 @@ const WhatsAppConnect = () => {
     const [diagnostics, setDiagnostics] = useState(null);
     const [loading, setLoading] = useState(true);
     const socketRef = useRef(null);
+    const pollRef = useRef(null); // Fix for interval leak
 
     useEffect(() => {
         console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
@@ -43,11 +44,21 @@ const WhatsAppConnect = () => {
             socketRef.current.on('wa_qr', (data) => {
                 setQrCode(data.qr);
                 setStatus('QR_READY');
+                if (pollRef.current) {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                }
             });
 
             socketRef.current.on('wa_status', (data) => {
                 setStatus(data.status);
-                if (data.status === 'READY') setQrCode(null);
+                if (data.status === 'READY') {
+                    setQrCode(null);
+                    if (pollRef.current) {
+                        clearInterval(pollRef.current);
+                        pollRef.current = null;
+                    }
+                }
             });
 
             socketRef.current.on('wa_log', (data) => {
@@ -61,6 +72,7 @@ const WhatsAppConnect = () => {
 
         return () => {
             if (socketRef.current) socketRef.current.disconnect();
+            if (pollRef.current) clearInterval(pollRef.current);
         };
     }, []);
 
@@ -152,7 +164,11 @@ const WhatsAppConnect = () => {
                                     </div>
                                 ) : qrCode ? (
                                     <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
-                                        <QRCodeSVG value={qrCode} size={200} />
+                                        {qrCode.startsWith('data:image') ? (
+                                            <img src={qrCode} alt="WhatsApp QR Code" className="w-[200px] h-[200px] object-contain" />
+                                        ) : (
+                                            <QRCodeSVG value={qrCode} size={200} />
+                                        )}
                                     </div>
                                 ) : status === 'CONNECTING' ? (
                                     <div className="w-48 h-48 bg-slate-700/30 rounded-full flex flex-col items-center justify-center border-2 border-slate-600 border-dashed">
@@ -166,15 +182,20 @@ const WhatsAppConnect = () => {
                                             try {
                                                 const res = await api.post('/saas/connect', { companyName: 'Alex Bot' });
                                                 const instanceId = res.data.instance_id;
-                                                const poll = setInterval(async () => {
-                                                    const s = await api.get('/whatsapp/status');
-                                                    if (s.data.status === 'READY') {
-                                                        setStatus('READY');
-                                                        setQrCode(null);
-                                                        clearInterval(poll);
-                                                    } else if (s.data.qr) {
-                                                        setQrCode(s.data.qr);
-                                                        setStatus('QR_READY');
+                                                if (pollRef.current) clearInterval(pollRef.current);
+                                                pollRef.current = setInterval(async () => {
+                                                    try {
+                                                        const s = await api.get('/whatsapp/status');
+                                                        if (s.data.status === 'READY') {
+                                                            setStatus('READY');
+                                                            setQrCode(null);
+                                                            clearInterval(pollRef.current);
+                                                        } else if (s.data.qr) {
+                                                            setQrCode(s.data.qr);
+                                                            setStatus('QR_READY');
+                                                        }
+                                                    } catch (e) {
+                                                        console.warn('Poll error:', e);
                                                     }
                                                 }, 4000);
                                             } catch (e) {
