@@ -102,6 +102,11 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             } else if (st === 'initializing') {
                 // Todavía arrancando, el polling se encarga
                 addLog('Motor inicializando, esperando QR...', 'info');
+            } else if (st === 'disconnected' || st === 'error') {
+                setStatus('DISCONNECTED');
+                setIsAwaitingQr(false);
+                addLog(`Conexión detenida (${st}). Por favor, vuelve a generar el QR.`, 'error');
+                stopHardSync();
             }
         } catch (err) {
             // 404 = instancia no existe aún, silencio
