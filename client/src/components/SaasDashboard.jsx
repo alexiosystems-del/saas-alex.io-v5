@@ -248,6 +248,28 @@ function SaasDashboard() {
     }
   };
 
+  const handleSelectInstance = async (inst) => {
+    setSelected(inst);
+    // Auto-refresh status on selection to ensure it's not a stale state
+    try {
+      const { response, data } = await fetchJsonWithApiFallback(`/api/saas/status/${inst.instanceId || inst.id}`, {
+        headers: { ...getAuthHeaders() }
+      });
+      if (response.ok && data) {
+        const updated = {
+          ...inst,
+          ...data,
+          status: data.status || inst.status,
+          health_score: data.health_score || inst.health_score
+        };
+        setSelected(updated);
+        setInstances(prev => prev.map(i => ((i.instanceId || i.id) === (inst.instanceId || inst.id) ? updated : i)));
+      }
+    } catch (e) {
+      console.warn('Auto-refresh on selection failed:', e);
+    }
+  };
+
   const fetchInstances = async () => {
     setLoadingInstances(true);
     try {
@@ -833,7 +855,7 @@ function SaasDashboard() {
           <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: T.textMuted }}>{t('dashboard.myBots', 'Asesores Digitales')}</h2>
           <div className="space-y-2 flex-1 overflow-auto">
             {instances.map((inst) => (
-              <button key={inst.id} onClick={() => setSelected(inst)} className="w-full text-left p-3 rounded-xl flex items-center justify-between transition-all"
+              <button key={inst.id} onClick={() => handleSelectInstance(inst)} className="w-full text-left p-3 rounded-xl flex items-center justify-between transition-all"
                 style={{
                   background: selected?.id === inst.id ? T.accentBg : T.card,
                   border: `1px solid ${selected?.id === inst.id ? T.accent : T.border}`,

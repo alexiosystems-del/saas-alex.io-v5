@@ -126,9 +126,38 @@ function getHealthSnapshot() {
     };
 }
 
+function getBotHealthScore(instance_id) {
+    // Basic calculation: success rate + latency factor
+    let totalScore = 100;
+    let found = false;
+
+    for (const [key, metric] of metrics.entries()) {
+        if (key.startsWith(instance_id)) {
+            found = true;
+            const successRate = metric.total ? (metric.success / metric.total) : 1;
+            const errorPenalty = (1 - successRate) * 50; // up to 50 points penalty for errors
+            
+            // Latency penalty (if p95 > 5s)
+            const sorted = [...metric.latencies].sort((a, b) => a - b);
+            const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
+            const latencyPenalty = p95 > 5000 ? Math.min((p95 - 5000) / 1000, 20) : 0;
+
+            totalScore -= (errorPenalty + latencyPenalty);
+        }
+    }
+
+    if (!found) {
+        if (operationalState.isPaused(instance_id)) return 50;
+        return 100;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(totalScore)));
+}
+
 module.exports = {
     trackEvent,
     getMetrics,
     getHealthSnapshot,
+    getBotHealthScore,
     withTrace
 };

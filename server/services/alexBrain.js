@@ -11,6 +11,71 @@ const { sendPagerAlert } = require('../utils/pager');
 const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
+const { triggerAutomation } = require('./automationService');
+
+/**
+ * V8.97 GOD CORE (incremental, non-breaking):
+ * Adds layered orchestrator primitives without replacing current pipeline.
+ */
+function createRuntimeLayer() {
+    return {
+        timeout: (promise, ms, label = 'runtime') => Promise.race([
+            promise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms))
+        ]),
+        async retry(fn, { attempts = 2, delayMs = 120, label = 'task' } = {}) {
+            let lastErr;
+            for (let i = 0; i < attempts; i++) {
+                try {
+                    return await fn();
+                } catch (err) {
+                    lastErr = err;
+                    if (i < attempts - 1) {
+                        await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+                    }
+                }
+            }
+            throw new Error(`${label} failed: ${lastErr?.message || 'unknown error'}`);
+        }
+    };
+}
+
+function createExecutiveLayer(payload = {}) {
+    const msg = (payload.message || '').trim();
+    const length = msg.length;
+    const strategy = length > 350 ? 'long_context' : length > 120 ? 'balanced' : 'fast';
+    const route = payload.botConfig?.model_hint || (strategy === 'fast' ? 'gemini' : 'gpt');
+    return { strategy, route, hasHistory: Array.isArray(payload.history) && payload.history.length > 0 };
+}
+
+async function executeGodCoreIncremental(payload = {}) {
+    const runtime = createRuntimeLayer();
+    const execPlan = createExecutiveLayer(payload);
+
+    const result = await runtime.retry(
+        () => runtime.timeout(
+            generateResponse({
+                message: payload.message,
+                history: payload.history || [],
+                botConfig: { ...(payload.botConfig || {}), model_hint: execPlan.route },
+                isAudio: Boolean(payload.isAudio)
+            }),
+            13000,
+            'god-core-generateResponse'
+        ),
+        { attempts: 2, delayMs: 150, label: 'god-core-orchestration' }
+    );
+
+    return {
+        ...result,
+        trace: {
+            ...(result.trace || {}),
+            exec_strategy: execPlan.strategy,
+            exec_route: execPlan.route,
+            v897_mode: 'incremental'
+        }
+    };
+}
 
 /**
  * Get Semantic Embedding (1536d)
@@ -605,6 +670,25 @@ Devuelve SOLO JSON:
 }
 
 /**
+ * Optional wrapper for progressive migration to V8.97 orchestration.
+ * Backward compatible with existing generateResponse consumers.
+ */
+async function alexBrain(payload = {}) {
+    const featureFlag = String(process.env.ALEX_GOD_CORE_V897 || '').toLowerCase();
+    const useGodCore = featureFlag === '1' || featureFlag === 'true' || payload.forceGodCore === true;
+    if (!useGodCore) {
+        return generateResponse({
+            message: payload.message || '',
+            history: payload.history || [],
+            botConfig: payload.botConfig || {},
+            isAudio: Boolean(payload.isAudio)
+        });
+    }
+    return executeGodCoreIncremental(payload);
+}
+
+
+/**
  * Función en segundo plano para analizar si la conversación actual forma a un prospecto (Lead)
  * y extraer su temperatura y datos para el CRM.
  */
@@ -924,5 +1008,5 @@ Bot: ${botRes}`;
     }
 }
 
-module.exports = { generateResponse, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory };
+module.exports = { generateResponse, alexBrain, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory, executeGodCoreIncremental };
 
