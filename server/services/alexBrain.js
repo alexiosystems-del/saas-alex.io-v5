@@ -11,7 +11,6 @@ const { sendPagerAlert } = require('../utils/pager');
 const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
-const { triggerAutomation } = require('./automationService');
 
 /**
  * V8.97 GOD CORE (incremental, non-breaking):
