@@ -169,10 +169,6 @@ if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
 const updateSessionStatus = async (instanceId, status, extra = {}) => {
     const payload = {
         instance_id: instanceId,
-        session_id: instanceId, // SATISFIES NOT NULL CONSTRAINT
-        key_type: 'metadata',   // SATISFIES NOT NULL CONSTRAINT
-        key_id: 'status',       // SATISFIES NOT NULL CONSTRAINT
-        value: '{}',            // SATISFIES NOT NULL CONSTRAINT
         status,
         qr_code: extra.qr_code ?? null,
         company_name: extra.companyName ?? null,
@@ -181,6 +177,7 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         external_mapping_key: extra.external_mapping_key ?? null,
         updated_at: new Date().toISOString()
     };
+
 
     sessionStatus.set(instanceId, {
         status,
@@ -1417,6 +1414,61 @@ router.get('/status/:instanceId', (req, res) => {
         provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
     });
 });
+
+// Alias for /status required by some frontend components
+router.get('/bots', async (req, res) => {
+    // Re-use the logic from /status to ensure consistency
+    const tenantId = req.tenant?.id;
+    const isAdmin = req.tenant?.role === 'SUPERADMIN';
+
+    let allSessions = Array.from(sessionStatus.entries()).map(([instanceId, info]) => ({
+        instanceId,
+        ...info,
+        paused: operationalState.isPaused(instanceId),
+        tenantId: clientConfigs.get(instanceId)?.tenantId || info?.tenantId || null,
+        ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || info?.ownerEmail || null,
+        provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
+    }));
+
+    if (allSessions.length === 0 && isSupabaseEnabled) {
+        try {
+            const query = supabase.from(sessionsTable)
+                .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email')
+                .order('updated_at', { ascending: false })
+                .limit(50);
+
+            if (!isAdmin && tenantId) {
+                query.eq('tenant_id', tenantId);
+            }
+
+            const { data } = await query;
+            allSessions = (data || []).map(row => ({
+                instanceId: row.instance_id,
+                status: row.status,
+                paused: operationalState.isPaused(row.instance_id),
+                qr_code: row.qr_code,
+                updatedAt: row.updated_at,
+                companyName: row.company_name,
+                tenant_id: row.tenant_id,
+                ownerEmail: row.owner_email,
+                provider: 'baileys'
+            }));
+        } catch (e) {
+            console.warn('⚠️ Supabase fallback for /bots failed:', e.message);
+        }
+    }
+
+    const sessions = isAdmin
+        ? allSessions
+        : allSessions.filter(s => s.tenantId === tenantId);
+
+    res.json({
+        success: true,
+        sessions,
+        active_sessions: sessions.length
+    });
+});
+
 
 // --- RAG: DOCUMENT KNOWLEDGE MANAGEMENT ---
 router.get('/knowledge/:instanceId', async (req, res) => {
