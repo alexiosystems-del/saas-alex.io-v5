@@ -874,7 +874,9 @@ router.post('/connect', async (req, res) => {
         return res.status(400).json({ error: 'companyName es requerido.' });
     }
 
-    const instanceId = `alex_${Date.now()}`;
+    const requestedInstanceId = String(req.body?.instanceId || '').trim();
+    const safeRequestedId = /^[a-zA-Z0-9_-]{8,80}$/.test(requestedInstanceId) ? requestedInstanceId : null;
+    const instanceId = safeRequestedId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
 
     // 1. Prepare credentials object for encryption
@@ -919,6 +921,21 @@ router.post('/connect', async (req, res) => {
     else if (provider === 'tiktok') external_mapping_key = req.body.tiktokSellerId || tiktokAccessToken;
     else if (provider === 'discord') external_mapping_key = req.body.discordGuildId || discordToken;
     else if (provider === 'reddit') external_mapping_key = redditUsername;
+
+    if (safeRequestedId && supabase && effectiveTenantId) {
+        try {
+            const { data: existingSession } = await supabase
+                .from('whatsapp_sessions')
+                .select('instance_id,tenant_id')
+                .eq('instance_id', safeRequestedId)
+                .maybeSingle();
+            if (existingSession?.tenant_id && existingSession.tenant_id !== effectiveTenantId) {
+                return res.status(403).json({ error: 'No tienes permisos para reutilizar esta instancia.' });
+            }
+        } catch (e) {
+            console.warn('⚠️ [CONNECT] Could not validate requested instance ownership:', e.message);
+        }
+    }
 
     const config = {
         companyName: cleanName,
@@ -1438,9 +1455,60 @@ const resolveSessionInfo = async (instanceId) => {
 
 router.get('/status/:instanceId', async (req, res) => {
     const { instanceId } = req.params;
-    const info = await resolveSessionInfo(instanceId);
+    let info = sessionStatus.get(instanceId);
 
-    if (!info) return res.status(404).json({ error: 'Instancia no encontrada en el cluster ni en la base de datos.' });
+    if (!info && supabase) {
+        try {
+            const { data, error } = await supabase
+                .from('whatsapp_sessions')
+                .select('instance_id,status,qr_code,tenant_id,updated_at,provider')
+                .eq('instance_id', instanceId)
+                .maybeSingle();
+
+            if (error) {
+                console.warn(`⚠️ [STATUS] Supabase lookup failed for ${instanceId}:`, error.message);
+            }
+
+            if (data) {
+                info = {
+                    status: data.status || 'DISCONNECTED',
+                    qr_code: data.qr_code || null,
+                    tenantId: data.tenant_id || null,
+                    updated_at: data.updated_at || null,
+                    provider: data.provider || 'baileys'
+                };
+            } else if (req.tenant?.id) {
+                // Compatibility bridge: if frontend asks for bot UUID while runtime session uses alex_<timestamp>,
+                // return the most recent session for this tenant to avoid QR deadlock.
+                const { data: tenantLatest, error: latestErr } = await supabase
+                    .from('whatsapp_sessions')
+                    .select('instance_id,status,qr_code,tenant_id,updated_at,provider')
+                    .eq('tenant_id', req.tenant.id)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (latestErr) {
+                    console.warn(`⚠️ [STATUS] Tenant fallback failed for ${instanceId}:`, latestErr.message);
+                }
+
+                if (tenantLatest && tenantLatest.qr_code) {
+                    info = {
+                        status: tenantLatest.status || 'QR_READY',
+                        qr_code: tenantLatest.qr_code || null,
+                        tenantId: tenantLatest.tenant_id || null,
+                        updated_at: tenantLatest.updated_at || null,
+                        provider: tenantLatest.provider || 'baileys',
+                        resolved_from_instance: tenantLatest.instance_id
+                    };
+                }
+            }
+        } catch (e) {
+            console.warn(`⚠️ [STATUS] Supabase fallback exception for ${instanceId}:`, e.message);
+        }
+    }
+
+    if (!info) return res.status(404).json({ error: 'Instance not found' });
 
     // Ownership check
     const config = clientConfigs.get(instanceId);
@@ -1453,8 +1521,7 @@ router.get('/status/:instanceId', async (req, res) => {
         instance_id: instanceId,
         reconnect_attempts: reconnectAttempts.get(instanceId) || 0,
         ...info,
-        provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys',
-        health_score: typeof getBotHealthScore === 'function' ? getBotHealthScore(instanceId) : 100
+        provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
     });
 });
 

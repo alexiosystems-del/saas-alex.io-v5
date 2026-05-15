@@ -2,6 +2,7 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const NodeCache = require('node-cache');
 const crypto = require('crypto');
+const { franc } = require('franc-min');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -11,6 +12,13 @@ const { sendPagerAlert } = require('../utils/pager');
 const { supabase } = require('./supabaseClient');
 const circuitBreaker = require('./circuitBreaker');
 const { withTrace } = require('./observability');
+const memoryService = require('./memoryService');
+const contextAssembler = require('./contextAssembler');
+const { upsertLeadPro } = require('./crmProService');
+const { logAnalytics } = require('./analyticsService');
+const { scoreLead } = require('./scoringService');
+const { salesAgent, optimizerAgent, expansionAgent } = require('./agentService');
+const { triggerAutomation } = require('./automationService');
 
 /**
  * V8.97 GOD CORE (incremental, non-breaking):
@@ -1002,10 +1010,38 @@ Bot: ${botRes}`;
                 });
             }
         }
-    } catch (e) {
-        console.warn('⚠️ [MemoryExtraction] Error:', e.message);
+/**
+ * Optional wrapper for progressive migration to V8.97 orchestration.
+ * Backward compatible with existing generateResponse consumers.
+ */
+async function alexBrain(payload = {}) {
+    const featureFlag = String(process.env.ALEX_GOD_CORE_V897 || '').toLowerCase();
+    const useGodCore = featureFlag === '1' || featureFlag === 'true' || payload.forceGodCore === true;
+    if (!useGodCore) {
+        return generateResponse({
+            message: payload.message || '',
+            history: payload.history || [],
+            botConfig: payload.botConfig || {},
+            isAudio: Boolean(payload.isAudio)
+        });
     }
+    return executeGodCoreIncremental(payload);
 }
 
-module.exports = { generateResponse, alexBrain, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory, executeGodCoreIncremental };
+async function generateTTS(text, voice = 'nova') {
+    if (voice.startsWith('minimax-')) {
+        return await callMiniMaxTTS(text, voice);
+    }
+    // OpenAI TTS
+    if (!OPENAI_KEY) throw new Error('OpenAI key not configured for TTS');
+    const openaiClient = new OpenAI({ apiKey: OPENAI_KEY });
+    const mp3 = await openaiClient.audio.speech.create({
+        model: 'tts-1',
+        voice: voice,
+        input: text.substring(0, 4096)
+    });
+    return Buffer.from(await mp3.arrayBuffer());
+}
+
+module.exports = { generateResponse, alexBrain, generateTTS, extractLeadInfo, transcribeAudio, translateIncomingMessage, runComplianceAudit, getAiDiagnostics, extractAndSaveMemory, executeGodCoreIncremental };
 

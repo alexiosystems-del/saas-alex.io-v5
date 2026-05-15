@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 import api from '../services/api';
-import { motion } from 'framer-motion';
-import { QrCode, Cloud, Activity, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { QrCode, Cloud, Activity, Loader2, CheckCircle2, AlertCircle, RefreshCw, Smartphone, Zap, ShieldCheck } from 'lucide-react';
 
 const getSocketUrl = () => {
     if (import.meta.env.PROD) {
@@ -15,259 +15,266 @@ const getSocketUrl = () => {
     return import.meta.env.VITE_API_URL || 'http://localhost:3000';
 };
 
-const WhatsAppConnect = () => {
-    console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started");
+const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
+    console.log("🛸 [ALEX IO] WhatsAppConnect Rendering Started for:", instanceId);
     const [mode, setMode] = useState('QR');
     const [qrCode, setQrCode] = useState(null);
-    const [status, setStatus] = useState('DISCONNECTED');
+    const [status, setStatus] = useState('DISCONNECTED'); // DISCONNECTED, CONNECTING, QR_READY, READY, FATAL
     const [cloudStatus, setCloudStatus] = useState({ configured: false });
+    const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState([]);
     const [diagnostics, setDiagnostics] = useState(null);
-    const [loading, setLoading] = useState(true);
+    
     const socketRef = useRef(null);
-    const pollRef = useRef(null); // Fix for interval leak
+    const pollIntervalRef = useRef(null);
+    const autoConnectAttemptedRef = useRef(false);
 
-    useEffect(() => {
-        console.log("🔌 [ALEX IO] Initializing Socket & Status hooks...");
-
-        try {
-            const socketUrl = getSocketUrl();
-            console.log("🌐 Socket Target:", socketUrl);
-            socketRef.current = io(socketUrl, {
-                reconnection: true,
-                reconnectionAttempts: 5
-            });
-
-            socketRef.current.on('connect', () => console.log("✅ Socket Connected"));
-            socketRef.current.on('connect_error', (err) => console.error("❌ Socket Connect Error:", err));
-
-            socketRef.current.on('wa_qr', (data) => {
-                setQrCode(data.qr);
-                setStatus('QR_READY');
-                if (pollRef.current) {
-                    clearInterval(pollRef.current);
-                    pollRef.current = null;
-                }
-            });
-
-            socketRef.current.on('wa_status', (data) => {
-                setStatus(data.status);
-                if (data.status === 'READY') {
-                    setQrCode(null);
-                    if (pollRef.current) {
-                        clearInterval(pollRef.current);
-                        pollRef.current = null;
-                    }
-                }
-            });
-
-            socketRef.current.on('wa_log', (data) => {
-                setLogs(prev => [data, ...prev].slice(0, 50));
-            });
-        } catch (socketInitError) {
-            console.error("❌ Fatal Socket Init Error:", socketInitError);
-        }
-
-        fetchInitialData();
-
-        return () => {
-            if (socketRef.current) socketRef.current.disconnect();
-            if (pollRef.current) clearInterval(pollRef.current);
-        };
+    const addLog = useCallback((from, body) => {
+        setLogs(prev => [{ from, body, timestamp: Date.now() }, ...prev].slice(0, 50));
     }, []);
 
-    const fetchInitialData = async () => {
-        setLoading(true);
-        try {
-            await Promise.all([fetchStatus(), fetchCloudStatus(), fetchDiagnostics()]);
-        } catch (e) {
-            console.error("Error fetching initial dashboard data", e);
-        } finally {
-            setLoading(false);
+    const stopPolling = useCallback(() => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
         }
-    };
+    }, []);
 
-    const fetchDiagnostics = async () => {
+    const fetchStatus = useCallback(async (id) => {
+        if (!id || id === 'null') return;
         try {
-            const res = await api.get('/api/diagnostics');
+            const res = await api.get(`/api/saas/status/${id}`);
+            const data = res.data;
+            
+            const currentStatus = (data.status || 'DISCONNECTED').toUpperCase();
+            setStatus(currentStatus);
+            
+            const qr = data.qr || data.qr_code;
+            if (qr) setQrCode(qr);
+            
+            if (currentStatus === 'READY' || currentStatus === 'ONLINE') {
+                setQrCode(null);
+                stopPolling();
+            }
+        } catch (e) {
+            const code = e?.response?.status;
+            if (code === 404) {
+                setStatus('DISCONNECTED');
+                setQrCode(null);
+                stopPolling();
+            }
+            console.warn("Could not fetch WA status:", e.message);
+        }
+    }, [stopPolling]);
+
+    const startPolling = useCallback((id) => {
+        stopPolling();
+        pollIntervalRef.current = setInterval(() => fetchStatus(id), 3000);
+    }, [fetchStatus, stopPolling]);
+
+    const fetchDiagnostics = useCallback(async () => {
+        try {
+            const res = await api.get('/api/diagnostics/ai');
             setDiagnostics(res.data);
         } catch (e) {
             console.warn("Could not fetch diagnostics:", e.message);
         }
-    };
+    }, []);
 
-    const fetchStatus = async () => {
+    const fetchCloudStatus = useCallback(async (id) => {
+        if (!id || id === 'null') return;
         try {
-            const res = await api.get('/whatsapp/status');
-            setStatus(res.data.status);
-            if (res.data.qr) setQrCode(res.data.qr);
-        } catch (e) {
-            console.warn("Could not fetch WA status:", e.message);
-        }
-    };
-
-    const fetchCloudStatus = async () => {
-        try {
-            const res = await api.get('/api/whatsapp/cloud/status');
+            const res = await api.get(`/api/saas/status/${id}`);
             setCloudStatus(res.data);
         } catch (e) {
             console.warn("Could not fetch Cloud API status:", e.message);
         }
-    };
+    }, []);
+
+    // Initial load and instance sync
+    useEffect(() => {
+        if (!instanceId || instanceId === 'null') return;
+        
+        const init = async () => {
+            setLoading(true);
+            setQrCode(null);
+            setStatus('DISCONNECTED');
+            try {
+                await Promise.all([
+                    fetchStatus(instanceId),
+                    fetchCloudStatus(instanceId),
+                    fetchDiagnostics()
+                ]);
+
+                if (!autoConnectAttemptedRef.current && (!qrCode && status === 'DISCONNECTED')) {
+                    autoConnectAttemptedRef.current = true;
+                    await api.post('/api/saas/connect', {
+                        instanceId,
+                        companyName: initialCompanyName || 'Alex Bot'
+                    });
+                    addLog('Sistema', 'Instancia no encontrada. Reaprovisionando conexión...');
+                    startPolling(instanceId);
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+        init();
+
+        return () => stopPolling();
+    }, [instanceId, fetchStatus, fetchCloudStatus, fetchDiagnostics, stopPolling]);
+
+    // Socket implementation
+    useEffect(() => {
+        if (!instanceId || instanceId === 'null') return;
+
+        const socketUrl = getSocketUrl();
+        console.log("🌐 Socket Target:", socketUrl);
+        
+        socketRef.current = io(socketUrl, {
+            reconnection: true,
+            reconnectionAttempts: 10,
+            transports: ['websocket', 'polling']
+        });
+
+        socketRef.current.on('connect', () => {
+            console.log("✅ Socket Connected");
+            addLog("Sistema", "Conexión en tiempo real establecida.");
+        });
+
+        socketRef.current.on('connect_error', (err) => {
+            console.error("❌ Socket Connect Error:", err);
+            addLog("Sistema", "Error de conexión en tiempo real.");
+        });
+
+        socketRef.current.on('wa_qr', (data) => {
+            if (data.instance_id === instanceId || data.instanceId === instanceId) {
+                setQrCode(data.qr || data.qr_code);
+                setStatus('QR_READY');
+                stopPolling();
+            }
+        });
+
+        socketRef.current.on('wa_status', (data) => {
+            if (data.instance_id === instanceId || data.instanceId === instanceId) {
+                setStatus(data.status.toUpperCase());
+                if (data.status === 'READY' || data.status === 'online') {
+                    setQrCode(null);
+                    stopPolling();
+                }
+            }
+        });
+
+        socketRef.current.on('wa_log', (data) => {
+            if (data.instance_id === instanceId) {
+                addLog(data.from || 'WA', data.body || data.message);
+            }
+        });
+
+        return () => {
+            if (socketRef.current) socketRef.current.disconnect();
+        };
+    }, [instanceId, addLog, stopPolling]);
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-6">
-                <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
-                <p className="animate-pulse">Calculando Conectividad...</p>
+            <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-[3rem] border border-white/5">
+                <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+                <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Calculando Conectividad...</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
-            <h1 className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">
-                Alex IO v5.1 Dashboard
-            </h1>
-            <p className="text-center text-slate-500 mb-8 text-sm">Control de Inteligencia y Consumo en Tiempo Real</p>
-
-            <div className="flex justify-center mb-8 bg-slate-800/50 p-1 rounded-2xl max-w-sm mx-auto border border-slate-700">
-                <button
-                    onClick={() => setMode('QR')}
-                    className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${mode === 'QR' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                    <QrCode size={18} /> WhatsApp Web
+        <div className="space-y-6">
+            <div className="flex gap-2 p-1 bg-slate-900/80 rounded-2xl border border-white/5 max-w-md mx-auto">
+                <button onClick={() => setMode('QR')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'QR' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                    <Smartphone size={14} /> WhatsApp Web
                 </button>
-                <button
-                    onClick={() => setMode('CLOUD')}
-                    className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${mode === 'CLOUD' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                    <Cloud size={18} /> Cloud API
+                <button onClick={() => setMode('CLOUD')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'CLOUD' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                    <Cloud size={14} /> Cloud API
                 </button>
-                <button
-                    onClick={() => { setMode('DIAG'); fetchDiagnostics(); }}
-                    className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${mode === 'DIAG' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                    <Activity size={18} /> Diagnóstico
+                <button onClick={() => setMode('DIAG')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'DIAG' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                    <Activity size={14} /> Diagnóstico
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-                <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-8 flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden">
                     {mode === 'QR' ? (
                         <>
-                            <h2 className="text-xl font-bold mb-4 text-slate-300">Conexión vía QR</h2>
-                            <div className="mb-6">
-                                {status === 'READY' ? (
-                                    <div className="w-48 h-48 bg-green-500/20 rounded-full flex items-center justify-center border-4 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.3)] animate-pulse">
-                                        <span className="text-5xl">✅</span>
-                                    </div>
+                            <AnimatePresence mode="wait">
+                                {status === 'READY' || status === 'ONLINE' ? (
+                                    <motion.div key="ready" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
+                                        <div className="w-32 h-32 bg-green-500/20 rounded-[2rem] flex items-center justify-center border-2 border-green-500/30 mb-6 shadow-[0_0_50px_rgba(34,197,94,0.15)]">
+                                            <ShieldCheck size={64} className="text-green-500" />
+                                        </div>
+                                        <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter mb-2">Bot Activo</h3>
+                                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Conexión Segura Establecida</p>
+                                    </motion.div>
                                 ) : qrCode ? (
-                                    <div className="bg-white p-5 rounded-3xl shadow-2xl scale-110">
-                                        {qrCode.startsWith('data:image') ? (
-                                            <img src={qrCode} alt="WhatsApp QR Code" className="w-[200px] h-[200px] object-contain" />
-                                        ) : (
-                                            <QRCodeSVG value={qrCode} size={200} />
-                                        )}
-                                    </div>
-                                ) : status === 'CONNECTING' ? (
-                                    <div className="w-48 h-48 bg-slate-700/30 rounded-full flex flex-col items-center justify-center border-2 border-slate-600 border-dashed">
-                                        <Loader2 className="animate-spin text-blue-500 mb-2" size={32} />
-                                        <span className="text-xs text-slate-500">Negociando QR...</span>
-                                    </div>
+                                    <motion.div key="qr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center">
+                                        <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl mb-8">
+                                            <QRCodeSVG value={qrCode} size={220} level="H" includeMargin={false} />
+                                        </div>
+                                        <div className="flex items-center gap-3 px-6 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl">
+                                            <RefreshCw className="animate-spin text-indigo-500" size={16} />
+                                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Escanea para Vincular</span>
+                                        </div>
+                                    </motion.div>
                                 ) : (
-                                    <button
-                                        onClick={async () => {
-                                            setStatus('CONNECTING');
-                                            try {
-                                                const res = await api.post('/saas/connect', { companyName: 'Alex Bot' });
-                                                const instanceId = res.data.instance_id;
-                                                if (pollRef.current) clearInterval(pollRef.current);
-                                                pollRef.current = setInterval(async () => {
-                                                    try {
-                                                        const s = await api.get('/whatsapp/status');
-                                                        if (s.data.status === 'READY') {
-                                                            setStatus('READY');
-                                                            setQrCode(null);
-                                                            clearInterval(pollRef.current);
-                                                        } else if (s.data.qr) {
-                                                            setQrCode(s.data.qr);
-                                                            setStatus('QR_READY');
-                                                        }
-                                                    } catch (e) {
-                                                        console.warn('Poll error:', e);
-                                                    }
-                                                }, 4000);
-                                            } catch (e) {
-                                                setStatus('DISCONNECTED');
-                                                alert("Error al iniciar: " + e.message);
-                                            }
-                                        }}
-                                        className="w-48 h-48 bg-blue-600 hover:bg-blue-500 rounded-full flex flex-col items-center justify-center border-4 border-blue-400/30 shadow-2xl transition-all hover:scale-105"
-                                    >
-                                        <QrCode size={48} className="mb-2" />
-                                        <span className="font-bold">Conectar</span>
-                                    </button>
+                                    <motion.div key="disconnected" className="flex flex-col items-center">
+                                        <div className="w-24 h-24 bg-slate-800 rounded-[2rem] flex items-center justify-center border border-white/5 mb-6">
+                                            <QrCode size={40} className="text-slate-600" />
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setStatus('CONNECTING');
+                                                api.post('/api/saas/connect', { instanceId, companyName: initialCompanyName || 'Alex Bot' })
+                                                   .then(() => startPolling(instanceId))
+                                                   .catch(e => pushNotice('error', e.message));
+                                            }}
+                                            className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all"
+                                        >
+                                            Generar Nuevo QR
+                                        </button>
+                                    </motion.div>
                                 )}
-                            </div>
-                            <div className={`text-sm font-bold mb-6 px-6 py-2 rounded-full transform transition-all ${status === 'READY' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}`}>
-                                {status === 'READY' ? '• CONECTADO' : status === 'QR_READY' ? '• ESCANEA EL QR' : '• DESCONECTADO'}
-                            </div>
+                            </AnimatePresence>
                         </>
                     ) : mode === 'CLOUD' ? (
-                        <>
-                            <Cloud className="text-blue-500 mb-4" size={48} />
-                            <h2 className="text-xl font-bold mb-2 text-slate-300">Meta Cloud API</h2>
-                            <div className="flex flex-col gap-3 w-full max-w-xs mt-4">
-                                <StatusBadge label="Configuración" value={cloudStatus.configured ? 'OK' : 'Faltante'} ok={cloudStatus.configured} />
-                                <StatusBadge label="Phone ID" value={cloudStatus.phoneNumberId || 'No Encontrado'} ok={!!cloudStatus.phoneNumberId} />
-                            </div>
-                        </>
+                        <div className="w-full space-y-4">
+                             <h3 className="text-center font-black text-white uppercase tracking-tighter italic mb-6">WhatsApp Cloud API</h3>
+                             <StatusRow label="Estado" value={cloudStatus.configured ? 'Configurado' : 'Pendiente'} ok={cloudStatus.configured} />
+                             <StatusRow label="Phone ID" value={cloudStatus.phoneNumberId || 'N/A'} ok={!!cloudStatus.phoneNumberId} />
+                             <StatusRow label="WhatsApp ID" value={cloudStatus.waId || 'N/A'} ok={!!cloudStatus.waId} />
+                        </div>
                     ) : (
-                        <>
-                            <Activity className="text-amber-500 mb-4" size={48} />
-                            <h2 className="text-xl font-bold mb-2 text-slate-300">Salud del Sistema</h2>
-                            <div className="flex flex-col gap-2 w-full max-w-xs mt-4">
-                                {diagnostics ? (
-                                    <>
-                                        <StatusBadge label="Gemini AI" value={diagnostics.providers.gemini ? 'OK' : 'Error'} ok={diagnostics.providers.gemini} />
-                                        <StatusBadge label="OpenAI" value={diagnostics.providers.openai ? 'OK' : 'Error'} ok={diagnostics.providers.openai} />
-                                        <StatusBadge label="DeepSeek" value={diagnostics.providers.deepseek ? 'OK' : 'Error'} ok={diagnostics.providers.deepseek} />
-                                        <StatusBadge label="WhatsApp" value={diagnostics.whatsapp.status} ok={diagnostics.whatsapp.status === 'READY'} />
-                                        <div className="mt-4 pt-4 border-t border-slate-700 w-full flex justify-center">
-                                            <button
-                                                onClick={fetchDiagnostics}
-                                                className="text-xs bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold transition-colors"
-                                            >
-                                                Actualizar Estado
-                                            </button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <p className="text-xs text-slate-500 italic">Cargando diagnóstico...</p>
-                                )}
-                            </div>
-                        </>
+                        <div className="w-full space-y-4">
+                             <h3 className="text-center font-black text-white uppercase tracking-tighter italic mb-6">Auditoría de Salud</h3>
+                             <StatusRow label="Gemini AI" value={diagnostics?.providers?.gemini ? 'Operacional' : 'Error'} ok={diagnostics?.providers?.gemini} />
+                             <StatusRow label="OpenAI (Audio)" value={diagnostics?.providers?.openai ? 'Operacional' : 'Error'} ok={diagnostics?.providers?.openai} />
+                             <StatusRow label="DeepSeek" value={diagnostics?.providers?.deepseek ? 'Operacional' : 'Error'} ok={diagnostics?.providers?.deepseek} />
+                             <StatusRow label="Conexión WA" value={status} ok={status === 'READY' || status === 'ONLINE'} />
+                             <button onClick={fetchDiagnostics} className="w-full mt-4 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all">Refrescar Diagnóstico</button>
+                        </div>
                     )}
                 </div>
 
-                <div className="bg-slate-950 p-8 rounded-3xl border border-slate-800 font-mono text-sm overflow-hidden flex flex-col h-[500px] shadow-2xl">
-                    <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
-                            <span className="text-slate-400 font-bold tracking-tighter uppercase px-2">Logs de Actividad</span>
-                        </div>
+                <div className="bg-slate-950 border border-white/5 rounded-[2.5rem] flex flex-col h-[400px]">
+                    <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Activity size={14} className="text-indigo-500" /> Consola de Eventos
+                        </span>
                     </div>
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-700">
-                        {logs.length === 0 && <p className="text-center text-slate-700 opacity-50 py-10 italic">Esperando actividad...</p>}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 font-mono text-[11px]">
+                        {logs.length === 0 && <p className="text-slate-800 italic text-center py-20">Esperando tráficos...</p>}
                         {logs.map((log, i) => (
-                            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={i} className="border-l-2 border-slate-700 pl-4 py-2 hover:bg-slate-900/50 transition-colors rounded-r-lg">
-                                <div className="flex justify-between mb-1">
-                                    <span className={`font-bold ${log.from === 'SISTEMA' ? 'text-yellow-500' : 'text-cyan-500'}`}>{log.from}</span>
-                                    <span className="text-[10px] text-slate-600">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                                </div>
-                                <p className="text-slate-400">{log.body}</p>
-                            </motion.div>
+                            <div key={i} className="flex gap-4 group">
+                                <span className="text-slate-700 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString([], {hour12:false})}</span>
+                                <span className={`font-bold ${log.from === 'Sistema' ? 'text-indigo-500' : 'text-emerald-500'}`}>{log.from}:</span>
+                                <span className="text-slate-400 group-hover:text-slate-200 transition-colors">{log.body}</span>
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -275,6 +282,15 @@ const WhatsAppConnect = () => {
         </div>
     );
 };
+
+const StatusRow = ({ label, value, ok }) => (
+    <div className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
+        <span className={`text-[10px] font-black uppercase tracking-widest ${ok ? 'text-emerald-400' : 'text-rose-400'}`}>{value}</span>
+    </div>
+);
+
+export default WhatsAppConnect;
 
 const StatusBadge = ({ label, value, ok }) => (
     <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">

@@ -280,8 +280,8 @@ function SaasDashboard() {
       if (response.ok && Array.isArray(data.sessions)) {
         setInstances(data.sessions.map(s => ({
           ...s,
-          id: s.instanceId || s.id,
-          name: s.companyName || 'Instancia Sin Nombre',
+          id: s.instanceId || s.instance_id || s.id,
+          name: s.companyName || s.company_name || 'Instancia Sin Nombre',
           status: s.status || 'disconnected',
           phone: s.phone || (s.provider === 'baileys' ? 'WhatsApp Web' : 'Cloud API')
         })));
