@@ -20,6 +20,31 @@ const { scoreLead } = require('./scoringService');
 const { salesAgent, optimizerAgent, expansionAgent } = require('./agentService');
 const { triggerAutomation } = require('./automationService');
 
+// --- CORE CONSTANTS (Moved to top to prevent ReferenceErrors) ---
+const OPENAI_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
+let GEMINI_KEY = (process.env.GEMINI_API_KEY || process.env.GENAI_API_KEY || process.env.GOOGLE_API_KEY || '').replace(/['"]/g, '').trim();
+if (!GEMINI_KEY.startsWith('AIza')) {
+    GEMINI_KEY = 'AIzaSyBMvWhsffeudV9aHI2mR_I-D4RmWKXWobw'; // Override: La key en Render estaba mal configurada (era de Anthropic)
+}
+const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
+const MINIMAX_KEY = (process.env.MINIMAX_API_KEY || '').trim();
+const MINIMAX_GROUP_ID = (process.env.MINIMAX_GROUP_ID || '').trim();
+const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim(); // Para Shadow Audit
+const AI_BUDGETS = {
+    gemini: Number.parseFloat(process.env.GEMINI_BUDGET_USD || ''),
+    openai: Number.parseFloat(process.env.OPENAI_BUDGET_USD || ''),
+    deepseek: Number.parseFloat(process.env.DEEPSEEK_BUDGET_USD || ''),
+    anthropic: Number.parseFloat(process.env.ANTHROPIC_BUDGET_USD || ''),
+    minimax: Number.parseFloat(process.env.MINIMAX_BUDGET_USD || '')
+};
+const MODEL_COST_PER_1K = {
+    'gemini-2.0-flash': 0.000075,
+    'minimax-abab6.5s-chat': 0.00010,
+    'deepseek-chat': 0.00014,
+    'gpt-4o-mini': 0.00015,
+};
+const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
+
 /**
  * V8.97 GOD CORE (incremental, non-breaking):
  * Adds layered orchestrator primitives without replacing current pipeline.
@@ -154,32 +179,6 @@ function markProviderDead(provider, reason) {
     }, KEY_COOLDOWN_MS);
 }
 
-// --- CONSTANTS ---
-const OPENAI_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
-let GEMINI_KEY = (process.env.GEMINI_API_KEY || process.env.GENAI_API_KEY || process.env.GOOGLE_API_KEY || '').replace(/['"]/g, '').trim();
-if (!GEMINI_KEY.startsWith('AIza')) {
-    GEMINI_KEY = 'AIzaSyBMvWhsffeudV9aHI2mR_I-D4RmWKXWobw'; // Override: La key en Render estaba mal configurada (era de Anthropic)
-}
-const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
-const MINIMAX_KEY = (process.env.MINIMAX_API_KEY || '').trim();
-const MINIMAX_GROUP_ID = (process.env.MINIMAX_GROUP_ID || '').trim();
-const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim(); // Para Shadow Audit
-const AI_BUDGETS = {
-    gemini: Number.parseFloat(process.env.GEMINI_BUDGET_USD || ''),
-    openai: Number.parseFloat(process.env.OPENAI_BUDGET_USD || ''),
-    deepseek: Number.parseFloat(process.env.DEEPSEEK_BUDGET_USD || ''),
-    anthropic: Number.parseFloat(process.env.ANTHROPIC_BUDGET_USD || ''),
-    minimax: Number.parseFloat(process.env.MINIMAX_BUDGET_USD || '')
-};
-
-// --- SMART ROUTER V6 CONFIG ---
-const MODEL_COST_PER_1K = {
-    'gemini-2.0-flash': 0.000075,
-    'minimax-abab6.5s-chat': 0.00010,
-    'deepseek-chat': 0.00014,
-    'gpt-4o-mini': 0.00015,
-};
-const BUDGET_PER_REQUEST = 0.02; // USD cap per interaction
 
 async function classifyMessage(message, history) {
     const lower = String(message || '').toLowerCase();
