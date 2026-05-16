@@ -185,7 +185,9 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         updatedAt: payload.updated_at,
         companyName: payload.company_name,
         provider: payload.provider,
-        credentials_encrypted: payload.credentials_encrypted
+        credentials_encrypted: payload.credentials_encrypted,
+        tenantId: clientConfigs.get(instanceId)?.tenantId || extra.tenantId || null,
+        ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || null
     });
 
     if (!isSupabaseEnabled) return;
@@ -1462,7 +1464,8 @@ router.get('/status/:instanceId', async (req, res) => {
     if (!info && tenantId) {
         for (const [sid, sinfo] of sessionStatus.entries()) {
             const cfg = clientConfigs.get(sid);
-            if (cfg?.tenantId === tenantId && sinfo) {
+            const ownerTenant = cfg?.tenantId || sinfo?.tenantId || null;
+            if (ownerTenant === tenantId && sinfo) {
                 info = {
                     ...sinfo,
                     tenantId,
