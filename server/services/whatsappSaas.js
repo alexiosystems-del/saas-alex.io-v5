@@ -1456,6 +1456,22 @@ const resolveSessionInfo = async (instanceId) => {
 router.get('/status/:instanceId', async (req, res) => {
     const { instanceId } = req.params;
     let info = sessionStatus.get(instanceId);
+    const tenantId = req.tenant?.id;
+
+    // 1) Fast in-memory tenant fallback to avoid UUID(alex_) drift deadlocks.
+    if (!info && tenantId) {
+        for (const [sid, sinfo] of sessionStatus.entries()) {
+            const cfg = clientConfigs.get(sid);
+            if (cfg?.tenantId === tenantId && sinfo) {
+                info = {
+                    ...sinfo,
+                    tenantId,
+                    resolved_from_instance: sid
+                };
+                break;
+            }
+        }
+    }
 
     if (!info && supabase) {
         try {
@@ -1477,13 +1493,13 @@ router.get('/status/:instanceId', async (req, res) => {
                     updated_at: data.updated_at || null,
                     provider: data.provider || 'baileys'
                 };
-            } else if (req.tenant?.id) {
+            } else if (tenantId) {
                 // Compatibility bridge: if frontend asks for bot UUID while runtime session uses alex_<timestamp>,
                 // return the most recent session for this tenant to avoid QR deadlock.
                 const { data: tenantLatest, error: latestErr } = await supabase
                     .from('whatsapp_sessions')
                     .select('instance_id,status,qr_code,tenant_id,updated_at,provider')
-                    .eq('tenant_id', req.tenant.id)
+                    .eq('tenant_id', tenantId)
                     .order('updated_at', { ascending: false })
                     .limit(1)
                     .maybeSingle();
@@ -1492,9 +1508,9 @@ router.get('/status/:instanceId', async (req, res) => {
                     console.warn(`⚠️ [STATUS] Tenant fallback failed for ${instanceId}:`, latestErr.message);
                 }
 
-                if (tenantLatest && tenantLatest.qr_code) {
+                if (tenantLatest) {
                     info = {
-                        status: tenantLatest.status || 'QR_READY',
+                        status: tenantLatest.status || (tenantLatest.qr_code ? 'QR_READY' : 'DISCONNECTED'),
                         qr_code: tenantLatest.qr_code || null,
                         tenantId: tenantLatest.tenant_id || null,
                         updated_at: tenantLatest.updated_at || null,
