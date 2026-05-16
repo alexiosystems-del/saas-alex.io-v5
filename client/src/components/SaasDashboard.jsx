@@ -496,18 +496,27 @@ function SaasDashboard() {
         throw new Error(data.error || `Error de conexión (HTTP ${res.status})`);
       }
 
+      const resolvedInstanceId = data.instance_id
+          || data.instanceId
+          || data.id
+          || clientGeneratedId;
+
+      if (!data.instance_id && !data.instanceId) {
+          console.warn('[ALEX IO] /connect no retornó instance_id. Usando clientGeneratedId:', clientGeneratedId);
+      }
+
       const instance = {
-        id: Date.now(),
-        instanceId: data.instance_id,
-        name,
-        provider,
-        customPrompt: `Eres un asistente virtual de ${name}`,
-        voice: 'nova',
-        maxWords: 50,
-        maxMessages: 10,
-        super_prompt_json: null,
-        metaApiUrl: '',
-        metaPhoneNumberId: '',
+          id: resolvedInstanceId,
+          instanceId: resolvedInstanceId,
+          name,
+          provider,
+          customPrompt: `Eres un asistente virtual de ${name}`,
+          voice: 'nova',
+          maxWords: 50,
+          maxMessages: 10,
+          super_prompt_json: null,
+          metaApiUrl: '',
+          metaPhoneNumberId: '',
         metaAccessToken: '',
         manychatToken: '',
         tiktokAccessToken: '',
