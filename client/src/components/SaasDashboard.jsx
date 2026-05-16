@@ -472,12 +472,16 @@ function SaasDashboard() {
     setConnecting(true);
     setNotice(null);
 
+    // Generar UUID determinista para evitar drift en el backend
+    const clientGeneratedId = crypto.randomUUID();
+
     try {
       const { response: res, data } = await fetchJsonWithApiFallback('/api/saas/connect', {
         timeoutMs: 120000,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
+          instanceId: clientGeneratedId,
           companyName: name,
           customPrompt: `Eres un asistente virtual de ${name}`,
           provider,
