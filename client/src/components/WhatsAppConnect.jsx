@@ -28,6 +28,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
     const socketRef = useRef(null);
     const pollIntervalRef = useRef(null);
     const autoConnectAttemptedRef = useRef(false);
+    const status404CountRef = useRef(0);
 
     const addLog = useCallback((from, body) => {
         setLogs(prev => [{ from, body, timestamp: Date.now() }, ...prev].slice(0, 50));
@@ -45,6 +46,7 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         try {
             const res = await api.get(`/api/saas/status/${id}`);
             const data = res.data;
+            status404CountRef.current = 0;
             
             const currentStatus = (data.status || 'DISCONNECTED').toUpperCase();
             setStatus(currentStatus);
@@ -52,18 +54,24 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
             const qr = data.qr || data.qr_code;
             if (qr) setQrCode(qr);
             
-            if (currentStatus === 'READY' || currentStatus === 'ONLINE') {
+            if (currentStatus === 'QR_READY' || currentStatus === 'CONNECTING' || currentStatus === 'WAITING_SCAN') {
+                // Polling needed
+            } else if (currentStatus === 'READY' || currentStatus === 'ONLINE') {
                 setQrCode(null);
                 stopPolling();
             }
+            return { ok: true, data };
         } catch (e) {
             const code = e?.response?.status;
             if (code === 404) {
+                status404CountRef.current += 1;
                 setStatus('DISCONNECTED');
                 setQrCode(null);
                 stopPolling();
+                return { ok: false, notFound: true };
             }
             console.warn("Could not fetch WA status:", e.message);
+            return { ok: false, notFound: false };
         }
     }, [stopPolling]);
 
@@ -96,23 +104,26 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
         if (!instanceId || instanceId === 'null') return;
         
         const init = async () => {
+            autoConnectAttemptedRef.current = false;
+            status404CountRef.current = 0;
             setLoading(true);
             setQrCode(null);
             setStatus('DISCONNECTED');
             try {
-                await Promise.all([
+                const [waStatusResult] = await Promise.all([
                     fetchStatus(instanceId),
                     fetchCloudStatus(instanceId),
                     fetchDiagnostics()
                 ]);
 
-                if (!autoConnectAttemptedRef.current && (!qrCode && status === 'DISCONNECTED')) {
+                if (!autoConnectAttemptedRef.current && waStatusResult?.notFound) {
                     autoConnectAttemptedRef.current = true;
                     await api.post('/api/saas/connect', {
                         instanceId,
                         companyName: initialCompanyName || 'Alex Bot'
                     });
                     addLog('Sistema', 'Instancia no encontrada. Reaprovisionando conexión...');
+                    setStatus('CONNECTING');
                     startPolling(instanceId);
                 }
             } finally {
