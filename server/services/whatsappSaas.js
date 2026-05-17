@@ -217,9 +217,16 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
 
     const { provider, ...dbPayload } = payload;
     try {
+        const finalPayload = {
+            ...dbPayload,
+            session_id: dbPayload.session_id || instanceId,
+            key_type: dbPayload.key_type || 'status',
+            key_id: dbPayload.key_id || 'status_state',
+            value: dbPayload.value || 'status_active'
+        };
         const { error } = await supabase
             .from(sessionsTable)
-            .upsert(dbPayload, { onConflict: 'instance_id' });
+            .upsert(finalPayload, { onConflict: 'instance_id' });
 
         if (error) {
             console.warn(`⚠️ Supabase session sync failed for ${instanceId} (schema issue?):`, error.message);

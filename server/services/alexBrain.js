@@ -145,17 +145,22 @@ async function checkQuota(tenantId) {
             .from('tenant_usage_metrics')
             .select('messages_sent, plan_limit, tokens_consumed')
             .eq('tenant_id', tenantId)
-            .single();
+            .limit(1);
 
         if (error) {
             console.error('⚠️ [QuotaCheck] DB Error:', error.message);
             return { allowed: true }; // Permissive fallback
         }
 
-        if (data.plan_limit && data.messages_sent >= data.plan_limit) {
-            return { allowed: false, reason: 'QUOTA_EXCEEDED', limit: data.plan_limit };
+        const metrics = data?.[0];
+        if (!metrics) {
+            return { allowed: true };
         }
-        return { allowed: true, data };
+
+        if (metrics.plan_limit && metrics.messages_sent >= metrics.plan_limit) {
+            return { allowed: false, reason: 'QUOTA_EXCEEDED', limit: metrics.plan_limit };
+        }
+        return { allowed: true, data: metrics };
     } catch (e) {
         return { allowed: true };
     }
@@ -250,6 +255,9 @@ console.log(`   - Anthropic/Claude: ${mask(ANTHROPIC_KEY)} (AUDITORÍA DE COMPLI
 async function generateResponse({ message, history = [], botConfig = {}, isAudio = false }) {
   try {
     const botName = botConfig.personality?.botName || botConfig.bot_name || 'ALEX IO';
+    const customerId = botConfig.customerId || botConfig.remoteJid || 'unknown';
+    const normalizedUserMsg = String(message || "").trim();
+    const cacheKey = `${botConfig.instanceId || 'default'}:${customerId}:${normalizedUserMsg.substring(0, 50)}`;
     
     // --- LAYER 1: SYSTEM CORE (Identity) ---
     let systemCore = `Actúa como ALEX IO, un agente de cierre de ventas por chat altamente efectivo.`;
@@ -306,7 +314,6 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     }
 
     // --- LAYER 6: LONG-TERM MEMORY (Customer Facts) ---
-    const customerId = botConfig.customerId || botConfig.remoteJid || 'unknown';
     if (botConfig.tenantId && customerId !== 'unknown') {
         try {
             const queryVector = await withTrace('brain.embedding', { customerId }, () => getEmbedding(normalizedUserMsg));
@@ -368,7 +375,6 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
     let responseText = '';
     let usedModel = '';
     let tokensUsed = 0;
-    const normalizedUserMsg = String(message || "").trim();
 
     // --- POLICY ENGINE (Deterministic Security) ---
     const policyViolations = [];
