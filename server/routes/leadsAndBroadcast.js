@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../services/supabaseClient');
+const crypto = require('crypto');
+const { supabaseAdmin: supabase } = require('../services/supabaseClient');
 const { clientConfigs } = require('../services/whatsappSaas');
 const fs = require('fs');
 const path = require('path');
@@ -10,21 +11,23 @@ const axios = require('axios');
 async function getInstanceConfig(instanceId, tenantId) {
     let config = clientConfigs.get(instanceId);
     if (!config) {
+        // Hydrate from bot_configs
         const { data: session } = await supabase
-            .from('whatsapp_sessions')
-            .select('*')
+            .from('bot_configs')
+            .select(`
+                *,
+                bots (name, prompt, tone, industry, objective)
+            `)
             .eq('instance_id', instanceId)
-            .eq('tenant_id', tenantId)
             .single();
         
         if (session) {
             config = {
                 instanceId: session.instance_id,
-                provider: session.provider || 'baileys',
-                tenantId: session.tenant_id,
-                metaAccessToken: session.meta_access_token,
-                metaPhoneNumberId: session.meta_phone_number_id,
-                dialogApiKey: session.dialog_api_key
+                provider: session.channel || 'baileys',
+                tenantId: tenantId, // bot_configs doesn't have tenant_id in some versions, using param
+                companyName: session.bots?.name || 'ALEX IO Agent',
+                settings: session.settings || {}
             };
         }
     }
@@ -37,15 +40,285 @@ router.get('/bots', async (req, res) => {
         const tenantId = req.tenant.id;
         const { data: sessions, error } = await supabase
             .from('whatsapp_sessions')
-            .select('instance_id, company_name, status, provider')
-            .eq('tenant_id', tenantId);
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
-        res.json({ bots: sessions.map(s => ({ id: s.instance_id, name: s.company_name, status: s.status, provider: s.provider })) });
+        res.json({ bots: (sessions || []).map(s => ({ 
+            id: s.instance_id, 
+            instance_id: s.instance_id,
+            name: s.company_name, 
+            status: s.status, 
+            provider: s.provider,
+            voice_enabled: s.voice_enabled,
+            industry: s.industry,
+            objective: s.objective,
+            total_messages: s.total_messages || 0,
+            company_name: s.company_name,
+            customPrompt: s.custom_prompt,
+            target_language: s.target_language
+        })) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
+// --- POST /api/saas/bots ---
+router.post('/bots', async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const { name, prompt, tone, industry, objective, voice_enabled, channel, identity, strategy, target_language } = req.body;
+        const instanceId = 'v5_' + crypto.randomUUID();
+
+        // Insert into whatsapp_sessions
+        const { data: session, error: sessErr } = await supabase
+            .from('whatsapp_sessions')
+            .insert({
+                session_id: instanceId,
+                instance_id: instanceId,
+                key_type: 'metadata',
+                key_id: 'status',
+                value: '{}',
+                tenant_id: tenantId,
+                company_name: name || 'Nuevo Bot',
+                provider: channel || 'baileys',
+                status: 'pending',
+                voice_enabled: voice_enabled || false,
+                target_language: target_language || 'es',
+                meta_access_token: req.body.accessToken,
+                meta_phone_number_id: req.body.metaPhoneNumberId,
+                dialog_api_key: req.body.d360ApiKey,
+                custom_prompt: prompt || null,
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (sessErr) throw sessErr;
+
+        // Insert into bot_configs (best-effort)
+        try {
+            await supabase.from('bot_configs').insert({
+                instance_id: instanceId,
+                tenant_id: tenantId,
+                name: name || 'Nuevo Bot',
+                custom_prompt: prompt,
+                voice_enabled: voice_enabled || false,
+                voice_provider: req.body.voice || 'nova',
+                provider: channel || 'baileys',
+                discord_token: req.body.discordToken,
+                tiktok_token: req.body.tiktokAccessToken,
+                tiktok_seller_id: req.body.tiktokSellerId,
+                manychat_token: req.body.manychatToken
+            });
+        } catch (cfgErr) {
+            console.warn('[BOTS] bot_configs insert failed (non-critical):', cfgErr.message);
+        }
+
+        // Insert into bots table (best-effort)
+        try {
+            await supabase.from('bots').insert({
+                name: name || 'Nuevo Bot',
+                prompt: prompt,
+                tone: tone,
+                industry: industry,
+                objective: objective,
+                voice_enabled: voice_enabled || false,
+                tenant_id: tenantId
+            });
+        } catch (botErr) {
+            console.warn('[BOTS] bots insert failed (non-critical):', botErr.message);
+        }
+
+        res.json({ 
+            success: true, 
+            bot: { 
+                id: instanceId, 
+                instance_id: instanceId, 
+                name: name || 'Nuevo Bot', 
+                status: 'pending' 
+            } 
+        });
+    } catch (err) {
+        console.error('❌ [BOTS_CREATE_FATAL] Error detailed:', {
+            message: err.message,
+            code: err.code,
+            details: err.details,
+            hint: err.hint,
+            stack: err.stack
+        });
+        res.status(500).json({ 
+            error: err.message,
+            code: err.code,
+            details: err.details 
+        });
+    }
+});
+
+// --- PUT /api/saas/bots/:id ---
+router.put('/bots/:id', async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const botId = req.params.id;
+        const updates = req.body;
+
+        // Update whatsapp_sessions
+        const sessionUpdate = {};
+        if (updates.name) sessionUpdate.company_name = updates.name;
+        if (updates.provider) sessionUpdate.provider = updates.provider;
+            if (updates.voice_enabled !== undefined) sessionUpdate.voice_enabled = updates.voice_enabled;
+            if (updates.accessToken) sessionUpdate.meta_access_token = updates.accessToken;
+            if (updates.metaPhoneNumberId) sessionUpdate.meta_phone_number_id = updates.metaPhoneNumberId;
+            // Handle both camelCase and snake_case for keys
+        const d360Key = updates.d360ApiKey || updates.d360_api_key;
+        if (d360Key) sessionUpdate.dialog_api_key = d360Key;
+        
+        const metaToken = updates.meta_access_token || updates.access_token || updates.accessToken;
+        if (metaToken) sessionUpdate.meta_access_token = metaToken;
+
+        const metaPhoneId = updates.meta_phone_number_id || updates.phone_number_id || updates.metaPhoneNumberId;
+        if (metaPhoneId) sessionUpdate.meta_phone_number_id = metaPhoneId;
+            if (updates.target_language) sessionUpdate.target_language = updates.target_language;
+            if (updates.prompt !== undefined) sessionUpdate.custom_prompt = updates.prompt;
+
+            console.log(`[BOTS] Attempting to update session ${botId} for tenant ${tenantId}`, sessionUpdate);
+
+            if (Object.keys(sessionUpdate).length > 0) {
+                let sessionPayload = { ...sessionUpdate };
+                let sessionAttempt = 0;
+
+                while (Object.keys(sessionPayload).length > 0 && sessionAttempt < 3) {
+                    const { error } = await supabase
+                        .from('whatsapp_sessions')
+                        .update(sessionPayload)
+                        .eq('instance_id', botId)
+                        .eq('tenant_id', tenantId);
+                    
+                    if (!error) {
+                        console.log(`[BOTS] Session ${botId} updated successfully.`);
+                        break;
+                    }
+
+                    const missingCol = error.message?.match(/column "([^"]+)" of relation "whatsapp_sessions" does not exist/i)?.[1] ||
+                                     error.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+                    
+                    if (missingCol && sessionPayload[missingCol] !== undefined) {
+                        console.warn(`[BOTS] whatsapp_sessions schema drift: missing ${missingCol}. Retrying...`);
+                        delete sessionPayload[missingCol];
+                        sessionAttempt++;
+                    } else {
+                        console.error(`[BOTS] Supabase session update fatal error:`, error);
+                        throw error;
+                    }
+                }
+            }
+
+        // Update bot_configs (best-effort)
+        try {
+            const configUpdate = {};
+            if (updates.prompt !== undefined) configUpdate.custom_prompt = updates.prompt;
+            if (updates.voice_enabled !== undefined) configUpdate.voice_enabled = updates.voice_enabled;
+            if (updates.voice) configUpdate.voice_provider = updates.voice;
+            if (updates.provider) configUpdate.provider = updates.provider;
+            if (updates.discordToken) configUpdate.discord_token = updates.discordToken;
+            if (updates.tiktokAccessToken) configUpdate.tiktok_token = updates.tiktokAccessToken;
+            if (updates.tiktokSellerId) configUpdate.tiktok_seller_id = updates.tiktokSellerId;
+            if (updates.manychatToken) configUpdate.manychat_token = updates.manychatToken;
+            
+            if (Object.keys(configUpdate).length > 0) {
+                let payload = { ...configUpdate };
+                let attempt = 0;
+
+                while (Object.keys(payload).length > 0 && attempt < 2) {
+                    const { error: cfgErr } = await supabase
+                        .from('bot_configs')
+                        .update(payload)
+                        .eq('instance_id', botId);
+
+                    if (!cfgErr) {
+                        console.log(`[BOTS] bot_configs ${botId} updated successfully.`);
+                        break;
+                    }
+
+                    const missingColumn = cfgErr.message?.match(/Could not find the '([^']+)' column/i)?.[1];
+                    if (missingColumn && payload[missingColumn] !== undefined) {
+                        console.warn(`[BOTS] bot_configs schema drift detected. Retrying without column: ${missingColumn}`);
+                        delete payload[missingColumn];
+                        attempt += 1;
+                        continue;
+                    }
+
+                    console.warn('[BOTS] bot_configs update failed:', cfgErr.message);
+                    break;
+                }
+            }
+        } catch (e) {
+            console.warn('[BOTS] bot_configs update failed:', e.message);
+        }
+
+        // Update core bots table (best-effort)
+        try {
+            const botUpdate = {};
+            if (updates.name) botUpdate.name = updates.name;
+            if (updates.prompt) botUpdate.prompt = updates.prompt;
+            if (updates.industry) botUpdate.industry = updates.industry;
+            if (updates.objective) botUpdate.objective = updates.objective;
+            
+            if (Object.keys(botUpdate).length > 0) {
+                await supabase.from('bots').update(botUpdate).eq('instance_id', botId);
+            }
+        } catch (e) {
+            console.warn('[BOTS] bots table update failed:', e.message);
+        }
+
+        // 🔱 Real-time Memory Sync (SRE-style)
+        const currentLive = clientConfigs.get(botId);
+        if (currentLive) {
+            clientConfigs.set(botId, {
+                ...currentLive,
+                companyName: updates.name || currentLive.companyName,
+                customPrompt: updates.prompt || currentLive.customPrompt,
+                voiceEnabled: updates.voice_enabled !== undefined ? updates.voice_enabled : currentLive.voiceEnabled,
+                voice: updates.voice || currentLive.voice,
+                provider: updates.provider || currentLive.provider
+            });
+            console.log(`⚡ [LIVE SYNC] Configuración actualizada en memoria para ${botId}`);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[BOTS] Update error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- DELETE /api/saas/bots/:id ---
+router.delete('/bots/:id', async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const botId = req.params.id;
+
+        const { error } = await supabase
+            .from('whatsapp_sessions')
+            .delete()
+            .eq('instance_id', botId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        // Cleanup bot_configs (best-effort)
+        try {
+            await supabase.from('bot_configs').delete().eq('instance_id', botId);
+        } catch (e) { /* non-critical */ }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[BOTS] Delete error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // --- GET /api/saas/leads/tags ---
 router.get('/leads/tags', async (req, res) => {
@@ -155,7 +428,8 @@ router.post('/broadcast', async (req, res) => {
                     .replace(/{temperatura}/gi, lead.temp || '');
 
                 try {
-                    const adapter = getAdapter(config, global.whatsappSessions);
+                    const { whatsappSockets } = require('../services/whatsappSaas');
+                    const adapter = getAdapter(config, whatsappSockets);
                     if (!adapter) throw new Error('No se pudo inicializar el conector');
 
                     await adapter.sendMessage(rawPhone, personalizedMsg, { mediaUrl, mediaType });
@@ -185,8 +459,43 @@ router.get('/broadcast/status/:id', (req, res) => {
     const job = broadcastJobs.get(req.params.id);
     if (!job) return res.status(404).json({ error: 'Campaña no encontrada' });
     
-    const progress = Math.round(((job.sent + job.failed) / job.total) * 100);
-    res.json({ ...job, progress });
+    res.json({
+        ...job,
+        progress: job.total > 0 ? Math.round((job.sent + job.failed) / job.total * 100) : 0
+    });
+});
+
+// --- POST /api/saas/leads/bulk (Import External Base) ---
+router.post('/leads/bulk', async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const { leads } = req.body;
+
+        if (!Array.isArray(leads) || leads.length === 0) {
+            return res.status(400).json({ error: 'Formato de leads inválido' });
+        }
+
+        // Sanitizar y preparar para inserción
+        const toInsert = leads.map(l => ({
+            tenant_id: tenantId,
+            phone: String(l.phone).replace(/\D/g, ''),
+            name: l.name || 'Importado',
+            temperature: l.temperature || 'COLD',
+            tags: l.tags || ['Importado_Externo'],
+            instance_id: l.instanceId || null,
+            created_at: new Date().toISOString()
+        })).filter(l => l.phone.length >= 8);
+
+        const { data, error } = await supabase
+            .from('leads')
+            .upsert(toInsert, { onConflict: 'tenant_id,phone' });
+
+        if (error) throw error;
+
+        res.json({ success: true, count: toInsert.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;

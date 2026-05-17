@@ -2,25 +2,29 @@ import axios from 'axios';
 
 const getBaseUrl = () => {
     if (import.meta.env.PROD) {
-        // 1. Prioritize Environment Variable
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-
-        // 2. Intelligent Detection for Render
-        if (typeof window !== 'undefined') {
-            return window.location.origin;
-        }
-        return 'https://saas-whatsapp-zhsu.onrender.com';
+        // Use relative path — frontend and backend share the same Render service
+        return import.meta.env.VITE_API_URL || '';
     }
-
     return 'http://localhost:3000';
 };
 
 const api = axios.create({
     baseURL: getBaseUrl(),
-    timeout: 60000, // 60 seconds timeout
+    timeout: 60000,
     headers: {
         'Content-Type': 'application/json',
     },
+});
+
+// AUTH INTERCEPTOR: Inject ALEX IO JWT from localStorage
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
 });
 
 // Get available scenarios

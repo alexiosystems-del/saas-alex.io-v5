@@ -134,8 +134,14 @@ function App() {
       // no-op
     }
 
+    const handleAuthExpired = () => {
+      setSession(null);
+    };
+    window.addEventListener('auth_expired', handleAuthExpired);
+
     return () => {
       didCancel = true;
+      window.removeEventListener('auth_expired', handleAuthExpired);
       try {
         subscription?.unsubscribe();
       } catch {

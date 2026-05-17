@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe, Smartphone } from 'lucide-react';
+import { Send, User, Bot, Clock, ShieldAlert, ZapOff, Zap, MessageCircle, Facebook, Instagram, Globe as GlobeIcon, Smartphone } from 'lucide-react';
+import apiClient from '../api/apiClient';
 import { supabase } from '../supabaseClient';
 import { fetchJsonWithApiFallback, getAuthHeaders } from '../api';
 
@@ -7,7 +8,7 @@ const getPlatformIcon = (content, size = 14) => {
     if (!content) return <MessageCircle size={size} />;
     if (content.startsWith('[messenger]')) return <Facebook size={size} />;
     if (content.startsWith('[instagram]')) return <Instagram size={size} />;
-    if (content.startsWith('[web]')) return <Globe size={size} />;
+    if (content.startsWith('[web]')) return <GlobeIcon size={size} />;
     if (content.startsWith('[tiktok]')) return <Smartphone size={size} />;
     return <MessageCircle size={size} />; // Default WhatsApp
 };
@@ -28,25 +29,80 @@ export default function LiveChat({ instanceId, tenantId }) {
     const [input, setInput] = useState('');
     const [isPaused, setIsPaused] = useState(false);
     const [sending, setSending] = useState(false);
+    const [translations, setTranslations] = useState({});
     const messagesEndRef = useRef(null);
+
+    // Detect if text looks non-Spanish
+    const looksNonSpanish = (text) => {
+        if (!text || text.length < 5) return false;
+        const clean = text.replace(/\[.*?\]\s*/g, '').trim().toLowerCase();
+        const spanishWords = /\b(hola|gracias|por favor|necesito|quiero|precio|buenas|buenos|qué|cómo|cuánto|puedo|ayuda|información|negocio|empresa)\b/i;
+        if (spanishWords.test(clean)) return false;
+        // Check for non-ASCII characters (Chinese, Arabic, Hindi, etc.)
+        if (/[\u4e00-\u9fff\u0600-\u06ff\u0900-\u097f]/.test(clean)) return true;
+        // Check for French/German/Portuguese signals
+        const foreignSignals = /\b(bonjour|merci|je|vous|avec|hello|thanks|please|need|want|price|hallo|danke|ich|olá|obrigado|você)\b/i;
+        return foreignSignals.test(clean);
+    };
+
+    // Auto-translate incoming messages
+    const autoTranslate = async (msgId, text) => {
+        if (!msgId || !text || translations[msgId]) return;
+        const clean = cleanContent(text);
+        if (!looksNonSpanish(clean)) return;
+
+        setTranslations(prev => ({ ...prev, [msgId]: { loading: true } }));
+        try {
+            const { data } = await apiClient.post('/api/saas/translate', { 
+                text: clean, 
+                targetLang: 'es' 
+            });
+            if (data.translated) {
+                setTranslations(prev => ({ ...prev, [msgId]: { translated: data.translated, model: data.model } }));
+            } else {
+                setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
+            }
+        } catch (e) {
+            console.error('[AutoTranslate] Error:', e);
+            setTranslations(prev => { const n = { ...prev }; delete n[msgId]; return n; });
+        }
+    };
+
+    // Manual translate handler
+    const handleTranslate = async (msgId, text) => {
+        setTranslations(prev => ({ ...prev, [msgId]: { loading: true } }));
+        try {
+            const res = await fetch('/api/saas/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ text, targetLang: 'es' })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setTranslations(prev => ({
+                    ...prev,
+                    [msgId]: data.translated
+                        ? { translated: data.translated, model: data.model }
+                        : { translated: '(Ya está en español)', model: 'skip' }
+                }));
+            }
+        } catch (e) {
+            setTranslations(prev => ({ ...prev, [msgId]: { translated: '(Error al traducir)', model: 'error' } }));
+        }
+    };
 
     // Initial Data Load
     useEffect(() => {
         if (!instanceId || !supabase) return;
 
         const loadRecentLeads = async () => {
-            // Because Supabase doesn't have native SELECT DISTINCT out of the box for client,
-            // we'll fetch recent messages and group in memory to find active chats
-            const { data, error } = await supabase
-                .from('messages')
-                .select('remote_jid, created_at, content')
-                .eq('instance_id', instanceId)
-                .order('created_at', { ascending: false })
-                .limit(500);
-
-            if (data && !error) {
+            try {
+                const res = await fetch(`/api/saas/messages?instance_id=${instanceId}&limit=500`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                
                 const uniqueLeads = new Map();
-                data.forEach(msg => {
+                (data.messages || []).forEach(msg => {
                     if (!uniqueLeads.has(msg.remote_jid)) {
                         uniqueLeads.set(msg.remote_jid, {
                             jid: msg.remote_jid,
@@ -56,14 +112,22 @@ export default function LiveChat({ instanceId, tenantId }) {
                     }
                 });
                 setLeads(Array.from(uniqueLeads.values()));
+            } catch (e) {
+                console.error('Error loading recent leads:', e);
             }
 
-            // Fetch AI intent metadata
-            const { data: metaData } = await supabase.from('leads').select('*').eq('instance_id', instanceId);
-            if (metaData) {
-                const metaMap = {};
-                metaData.forEach(m => metaMap[m.remote_jid] = m);
-                setLeadsMeta(metaMap);
+            // Fetch AI intent metadata via API
+            try {
+                const res = await fetch(`/api/saas/leads?instance_id=${instanceId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const metaData = data.leads || [];
+                    const metaMap = {};
+                    metaData.forEach(m => metaMap[m.remote_jid] = m);
+                    setLeadsMeta(metaMap);
+                }
+            } catch (e) {
+                console.error('Error fetching leads meta:', e);
             }
         };
 
@@ -106,27 +170,40 @@ export default function LiveChat({ instanceId, tenantId }) {
 
     // Fetch conversation when a lead is selected
     useEffect(() => {
-        if (!selectedLead || !supabase) return;
+        if (!selectedLead) return;
 
         const loadConversation = async () => {
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('instance_id', instanceId)
-                .eq('remote_jid', selectedLead)
-                .order('created_at', { ascending: true })
-                .limit(100);
-
-            if (!error && Array.isArray(data)) setMessages(data);
-            else if (!error) setMessages([]);
-
-            // At this point we assume AI is active (not paused). 
-            // In a deeper implementation, we'd fetch this from the backend or DB.
-            setIsPaused(false);
+            try {
+                const res = await fetch(`/api/saas/messages?instance_id=${instanceId}&remote_jid=${selectedLead}&limit=100`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                setMessages(data.messages || []);
+                setIsPaused(false);
+                
+                // Auto-translate non-Spanish inbound messages
+                (data.messages || []).forEach(msg => {
+                    if (msg.direction === 'INBOUND' && msg.id) {
+                        autoTranslate(msg.id, msg.content);
+                    }
+                });
+            } catch (e) {
+                console.error('Error loading conversation:', e);
+                setMessages([]);
+            }
         };
 
+        setTranslations({}); // Clear translations when switching chats
         loadConversation();
     }, [selectedLead, instanceId]);
+
+    // Auto-translate new real-time messages
+    useEffect(() => {
+        if (messages.length === 0) return;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.direction === 'INBOUND' && lastMsg?.id && !translations[lastMsg.id]) {
+            autoTranslate(lastMsg.id, lastMsg.content);
+        }
+    }, [messages.length]);
 
     useEffect(() => {
         if (messagesEndRef.current) {
@@ -231,38 +308,78 @@ export default function LiveChat({ instanceId, tenantId }) {
                 ) : (
                     <>
                         <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center">
-                            <span className="font-mono font-bold text-slate-200 flex items-center gap-2">
-                                {getPlatformIcon(messages[0]?.content || '', 18)}
-                                {leadsMeta[selectedLead]?.name !== 'desconocido' && leadsMeta[selectedLead]?.name 
-                                    ? leadsMeta[selectedLead].name 
-                                    : selectedLead.split('@')[0]}
-                            </span>
-
-                            {leadsMeta[selectedLead]?.summary && (
-                                <div className="hidden lg:flex text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 max-w-[200px] truncate" title={leadsMeta[selectedLead].summary}>
-                                    🤖 IA: {leadsMeta[selectedLead].summary}
+                            <div className="flex items-center gap-4">
+                                <span className="font-mono font-bold text-slate-200 flex items-center gap-2">
+                                    {getPlatformIcon(messages[0]?.content || '', 18)}
+                                    {leadsMeta[selectedLead]?.name !== 'desconocido' && leadsMeta[selectedLead]?.name 
+                                        ? leadsMeta[selectedLead].name 
+                                        : selectedLead.split('@')[0]}
+                                </span>
+                                <div className="flex items-center gap-2 bg-black/40 rounded-full px-3 py-1 border border-white/5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Live Translation Active</span>
                                 </div>
-                            )}
+                            </div>
 
-                            <button
-                                onClick={togglePauseBot}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${isPaused ? 'bg-red-900/40 text-red-400 border border-red-800' : 'bg-emerald-900/40 text-emerald-400 border border-emerald-800'}`}
-                            >
-                                {isPaused ? <ZapOff size={14} /> : <Zap size={14} />}
-                                {isPaused ? 'Bot Pausado' : 'IA Activa'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {leadsMeta[selectedLead]?.summary && (
+                                    <div className="hidden lg:flex text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 max-w-[200px] truncate" title={leadsMeta[selectedLead].summary}>
+                                        🤖 IA: {leadsMeta[selectedLead].summary}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={togglePauseBot}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPaused ? 'bg-red-900/40 text-red-400 border border-red-500/30' : 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/30'}`}
+                                >
+                                    {isPaused ? <ZapOff size={14} /> : <Zap size={14} />}
+                                    {isPaused ? 'Halt IA' : 'IA Listening'}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {messages.map((msg, idx) => {
                                 const isUser = msg.direction === 'INBOUND';
+                                const content = cleanContent(msg.content);
+                                const translation = translations[msg.id];
+                                
                                 return (
                                     <div key={msg.id || idx} className={`flex ${isUser ? 'justify-start' : 'justify-end'}`}>
                                         <div className={`max-w-[70%] rounded-xl p-3 text-sm flex flex-col ${isUser ? 'bg-slate-800 text-slate-200 rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'}`}>
-                                            <span>{cleanContent(msg.content)}</span>
+                                            <span>{content}</span>
+                                            
+                                            {/* Translation Display */}
+                                            {translation && translation.translated && (
+                                                <div className={`mt-2 pt-2 border-t ${isUser ? 'border-slate-700' : 'border-blue-500'}`}>
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">🇪🇸 Traducción</span>
+                                                    </div>
+                                                    <span className={`text-xs italic ${isUser ? 'text-slate-400' : 'text-blue-200'}`}>
+                                                        {translation.translated}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Translate button for untranslated messages */}
+                                            {isUser && !translation && content.length > 3 && (
+                                                <button 
+                                                    onClick={() => handleTranslate(msg.id, content)}
+                                                    className="mt-1.5 text-[9px] text-slate-500 hover:text-blue-400 transition-colors self-start flex items-center gap-1"
+                                                >
+                                                    🌐 Traducir
+                                                </button>
+                                            )}
+                                            
+                                            {/* Loading indicator */}
+                                            {translation && translation.loading && (
+                                                <span className="text-[9px] text-slate-500 mt-1 animate-pulse">Traduciendo...</span>
+                                            )}
+
                                             <span className={`text-[9px] mt-1 text-right ${isUser ? 'text-slate-500' : 'text-blue-300'}`}>
                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 {!isUser && msg.translation_model === 'none' && ' (Manual)'}
+                                                {translation?.model && ` · ${translation.model}`}
                                             </span>
                                         </div>
                                     </div>

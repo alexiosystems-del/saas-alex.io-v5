@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, diagnostics } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, ArrowLeft, Globe, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Globe as GlobeIcon, Mail } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Login() {
@@ -41,10 +41,9 @@ export default function Login() {
     const handleAuth = async (e) => {
         e.preventDefault();
         if (!supabase) {
-            const hasUrl = !!import.meta.env.VITE_SUPABASE_URL;
-            const keyRaw = import.meta.env.VITE_SUPABASE_ANON_KEY || 'MISSING';
-            const keyValid = keyRaw.startsWith('eyJ');
-            showMsg(`Supabase no configurado. URL: ${hasUrl ? 'OK' : 'FAIL'}, KEY: ${keyValid ? 'JWT' : 'INVALID/MISSING'}. Ver: 2.0.4.21`);
+            const diagStr = JSON.stringify(diagnostics);
+            showMsg(`Error de Configuración: El servicio de autenticación no está disponible. Detalles: ${diagStr}. Ver: ${diagnostics.version}`);
+            console.error('Supabase client is null. Diagnostics:', diagnostics);
             return;
         }
         setLoading(true);
@@ -165,7 +164,7 @@ export default function Login() {
                 {/* Logo */}
                 <div className="flex justify-center mb-7">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center shimmer-border" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.15), rgba(139,92,246,0.15))' }}>
-                        <Globe className="text-cyan-400 w-8 h-8" />
+                        <GlobeIcon className="text-cyan-400 w-8 h-8" />
                     </div>
                 </div>
 
@@ -272,6 +271,20 @@ export default function Login() {
                         className="ml-2 text-cyan-400 font-bold hover:text-cyan-300 transition-colors"
                     >
                         {isSignUp ? 'Ingresá aquí' : 'Registrate gratis'}
+                    </button>
+                </div>
+
+                {/* Diagnostic Footer */}
+                <div className="mt-8 pt-6 border-t border-white/5">
+                    <button 
+                        onClick={() => {
+                            const info = `ALEX IO DIAGNOSTIC\nVersion: ${diagnostics.version}\nEnv URL: ${diagnostics.envUrl}\nEnv Key: ${diagnostics.envKey}\nFallback: ${diagnostics.usingFallback}\nURL Valid: ${diagnostics.urlValid}\nKey Valid: ${diagnostics.keyValid}`;
+                            navigator.clipboard.writeText(info);
+                            showMsg('✅ Diagnóstico copiado al portapapeles', 'success');
+                        }}
+                        className="w-full py-2 rounded-lg bg-white/5 text-[10px] text-white/20 hover:text-white/50 transition-colors uppercase tracking-widest font-bold"
+                    >
+                        Copiar Diagnóstico de Sistema
                     </button>
                 </div>
             </motion.div>

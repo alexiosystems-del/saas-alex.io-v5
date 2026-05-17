@@ -14,9 +14,12 @@ const getApiBases = () => {
     envBase = null;
   }
   
-  // Como el dashboard ahora es fullstack continuo, el backend siempre es el mismo origin que el frontend.
   const originBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const primaryBase = envBase || originBase || 'https://whatsapp-fullstack-1-yjao.onrender.com';
+  
+  // En Render (producción), el frontend estático NO es el backend. 
+  // Forzamos la URL del Web Service real para evitar el loop del index.html.
+  const isRenderStatic = typeof window !== 'undefined' && window.location.origin.includes('onrender.com');
+  const primaryBase = envBase || (isRenderStatic ? 'https://whatsapp-fullstack-ylsx.onrender.com' : originBase) || 'https://whatsapp-fullstack-ylsx.onrender.com';
 
   return [primaryBase];
 };

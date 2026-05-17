@@ -13,11 +13,42 @@ const { logInfo, logError } = require('../utils/logger');
 const { resolveInstanceId } = require('../services/webhookBroker');
 
 const ManyChatAPI = require('../services/manychatAPI.js');
+const { loadInstanceConfig } = require('../services/instanceLoader');
 const messageRouterModule = require('../services/messageRouter.js');
 const messageRouter = messageRouterModule.default || messageRouterModule;
 const manychatService = new ManyChatAPI(messageRouter);
 
-const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN || 'ALEX_IO_SECURE_TOKEN';
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || process.env.FB_VERIFY_TOKEN || 'alexio_verify';
+
+/**
+ * Discord Signature Verification (Ed25519)
+ */
+const verifyDiscordSignature = (req, publicKey) => {
+    const crypto = require('crypto');
+    const signature = req.headers['x-signature-ed25519'];
+    const timestamp = req.headers['x-signature-timestamp'];
+    // For Discord, we need the RAW body
+    const body = req.rawBody || req.body.toString();
+
+    if (!signature || !timestamp || !body) return false;
+
+    try {
+        // Native Node 18.x+ verification
+        return crypto.verify(
+            'ed25519',
+            Buffer.from(timestamp + body),
+            {
+                key: Buffer.from(publicKey, 'hex'),
+                format: 'der',
+                type: 'public',
+            },
+            Buffer.from(signature, 'hex')
+        );
+    } catch (e) {
+        console.warn('[Discord] Verification failed:', e.message);
+        return false;
+    }
+};
 
 
 /**
@@ -90,27 +121,72 @@ const handleTikTokWebhook = async (req, res) => {
  */
 const handleWebchatMessage = async (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    console.log(`[DEBUG] handleWebchatMessage INVOKED! req.body:`, typeof req.body, req.body);
     try {
-        const { senderId, text, metadata = {} } = req.body;
+        const { senderId, text, metadata = {}, tenantId: bodyTenantId } = req.body;
+        const tenantId = bodyTenantId || metadata?.tenantId || 'demo-tenant';
+        
         if (!senderId || !text) {
-            console.log(`[DEBUG] Faltan campos. returning 400`);
-            return res.status(400).json({ error: 'Faltan campos (senderId, text)' });
+            console.warn(`⚠️ [Webchat] Payload incompleto:`, req.body);
+            return res.status(200).json({ 
+                success: true, 
+                reply: '¡Hola! Recibí tu conexión, pero no el mensaje. ¿En qué puedo ayudarte?' 
+            });
         }
         
         // Inject IP for tracking
         metadata.ip = ip;
+        metadata.tenantId = tenantId;
         
-        logInfo(`[Webchat] Mensaje recibido de ${senderId} [IP: ${ip}]`);
+        logInfo(`[Webchat] Mensaje recibido de ${senderId} [IP: ${ip}] [Tenant: ${tenantId}]`);
         
         const enrichedMetadata = {
             ...(metadata || {}),
             instanceId: metadata?.instanceId || metadata?.instance_id || req.query.instanceId || req.body.instanceId || 'multi_web_default'
         };
-        const stdMessage = messageRouterModule.createStandardizedMessage('web', senderId, text, enrichedMetadata);
+        const stdMessage = {
+            ...messageRouterModule.createStandardizedMessage('web', senderId, text, enrichedMetadata),
+            history: req.body.history || []
+        };
         const replyText = await messageRouterModule.processMessageLocally(stdMessage);
         
-        res.status(200).json({ success: true, reply: replyText });
+        console.log(`🧠 [Webchat] Respuesta generada:`, replyText);
+        
+        const responsePayload = { 
+            success: true, 
+            reply: replyText || 'IA está procesando... reintenta.',
+            audioUrl: null 
+        };
+
+        // --- TTS CHECK ---
+        const { supabase } = require('../services/supabaseClient');
+        const { data: bot } = await supabase
+            .from('bots')
+            .select('voice_enabled, voice')
+            .or(`tenant_id.eq.${tenantId},id.eq.${enrichedMetadata.instanceId}`)
+            .limit(1)
+            .single();
+
+        if (bot && bot.voice_enabled && replyText) {
+            const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+            if (OPENAI_KEY && OPENAI_KEY.length > 10) {
+                try {
+                    const OpenAI = require('openai');
+                    const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                    const mp3 = await openai.audio.speech.create({
+                        model: 'tts-1',
+                        voice: bot.voice || 'nova',
+                        input: replyText.substring(0, 4096)
+                    });
+                    const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+                    responsePayload.audioUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`;
+                    logInfo(`[Webchat] TTS generado con voz: ${bot.voice || 'nova'}`);
+                } catch (ttsErr) {
+                    logError('[Webchat] TTS failed:', ttsErr.message);
+                }
+            }
+        }
+        
+        res.status(200).json(responsePayload);
     } catch (error) {
         logError(`[Webchat] Error en route [IP: ${ip}]`, error);
         res.status(500).json({ 
@@ -147,6 +223,21 @@ router.get('/instagram', (req, res) => {
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
             console.log('WEBHOOK_VERIFIED (Instagram)');
+            return res.status(200).send(challenge);
+        } else {
+            return res.sendStatus(403);
+        }
+    }
+    return res.status(400).send('Faltan parámetros de verificación');
+});
+
+router.get('/meta', (req, res) => {
+    let mode = req.query['hub.mode'];
+    let token = req.query['hub.verify_token'];
+    let challenge = req.query['hub.challenge'];
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('WEBHOOK_VERIFIED (Meta Cloud API)');
             return res.status(200).send(challenge);
         } else {
             return res.sendStatus(403);
@@ -215,32 +306,216 @@ router.post('/instagram', async (req, res) => {
     res.status(200).send('EVENT_RECEIVED');
 });
 
+const crypto = require('crypto');
+
+const verifyMetaSignature = (req) => {
+  const signature = req.headers['x-hub-signature-256'];
+  if (!signature) return false;
+  const hmac = crypto.createHmac('sha256', process.env.META_APP_SECRET || '');
+  const digest = 'sha256=' + hmac.update(req.rawBody || JSON.stringify(req.body)).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+};
+
+router.post('/meta', async (req, res) => {
+  // ACK inmediato para evitar reintentos de Meta (20s limit)
+  res.status(200).send('EVENT_RECEIVED');
+
+  try {
+    if (!verifyMetaSignature(req)) {
+      console.warn('[META] Invalid signature');
+      return;
+    }
+
+    const body = req.body;
+    if (body.object === 'whatsapp_business_account') {
+      for (let entry of body.entry) {
+        for (let change of (entry.changes || [])) {
+          if (change.field === 'messages') {
+            const val = change.value;
+            const msg = val.messages?.[0];
+            if (!msg) continue;
+
+            const phoneId = val.metadata?.phone_number_id;
+            const resolvedId = await resolveInstanceId('meta', phoneId);
+
+            await messageRouterModule.handleIncomingMessage({
+              platform: 'meta',
+              senderId: msg.from,
+              text: msg.text?.body || '[media]',
+              metadata: { 
+                instanceId: resolvedId || 'multi_meta_default',
+                phoneId,
+                messageId: msg.id,
+                senderName: val.contacts?.[0]?.profile?.name
+              }
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[META] Webhook Error:', e.message);
+  }
+});
+
 router.get('/tiktok', handleTikTokChallenge);
 router.post('/tiktok', handleTikTokWebhook);
 
 router.post('/webchat', handleWebchatMessage);
 
 /**
- * Discord webhook handler (Inbound)
+ * Webchat Voice handler (Audio input + Transcription + AI Response)
+ */
+const multer = require('multer');
+const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+router.post('/webchat/voice', voiceUpload.single('audio'), async (req, res) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    try {
+        const { senderId, tenantId } = req.body;
+        let historyRaw = [];
+        try { historyRaw = JSON.parse(req.body.history || '[]'); } catch (_) {}
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No audio file provided' });
+        }
+
+        let transcription = '(Mensaje de voz)';
+
+        // Try Whisper transcription
+        const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+        if (OPENAI_KEY && OPENAI_KEY.length > 10) {
+            try {
+                const OpenAI = require('openai');
+                const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                const fs = require('fs');
+                const path = require('path');
+                const tmpPath = path.join(__dirname, `../_voice_tmp_${Date.now()}.webm`);
+                fs.writeFileSync(tmpPath, req.file.buffer);
+
+                const result = await openai.audio.transcriptions.create({
+                    file: fs.createReadStream(tmpPath),
+                    model: 'whisper-1',
+                    language: 'es'
+                });
+                transcription = result.text || transcription;
+                fs.unlinkSync(tmpPath);
+                logInfo(`[Webchat Voice] Whisper transcription: "${transcription}"`);
+            } catch (whisperErr) {
+                logError('[Webchat Voice] Whisper failed:', whisperErr.message);
+            }
+        }
+
+        // Process through AI
+        const enrichedMetadata = {
+            tenantId: tenantId || 'demo-tenant',
+            instanceId: 'multi_web_voice',
+            ip
+        };
+        const stdMessage = {
+            ...messageRouterModule.createStandardizedMessage('web', senderId || 'voice_user', transcription, enrichedMetadata),
+            history: historyRaw
+        };
+        const replyText = await messageRouterModule.processMessageLocally(stdMessage);
+
+        const responsePayload = {
+            success: true,
+            transcription,
+            reply: replyText || 'Recibí tu mensaje de voz. ¿En qué puedo ayudarte?',
+            audioUrl: null
+        };
+
+        // Optional: Generate TTS audio response
+        if (OPENAI_KEY && OPENAI_KEY.length > 10 && replyText) {
+            try {
+                const OpenAI = require('openai');
+                const openai = new OpenAI({ apiKey: OPENAI_KEY });
+                const mp3 = await openai.audio.speech.create({
+                    model: 'tts-1',
+                    voice: 'alloy',
+                    input: replyText.substring(0, 4096)
+                });
+                const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+                const base64Audio = audioBuffer.toString('base64');
+                responsePayload.audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
+            } catch (ttsErr) {
+                logError('[Webchat Voice] TTS failed:', ttsErr.message);
+            }
+        }
+
+        res.status(200).json(responsePayload);
+    } catch (error) {
+        logError(`[Webchat Voice] Error [IP: ${ip}]`, error);
+        res.status(500).json({
+            success: false,
+            error: 'Voice processing error',
+            reply: 'No pude procesar tu mensaje de voz. Por favor, intenta escribir tu mensaje.'
+        });
+    }
+});
+
+/**
+ * Discord webhook handler (Inbound - Interactions)
  */
 router.post('/discord', async (req, res) => {
     try {
-        const { type, data, channel_id, author, content } = req.body;
+        const rawBody = req.body.toString();
+        const body = JSON.parse(rawBody);
+        const { type, data, channel_id, author, content, member } = body;
         
-        // Discord sends a PING (type 1) to verify the URL
+        // 1. Resolve Instance
+        const instanceId = req.query.instanceId || 'multi_discord_default';
+        const config = await loadInstanceConfig(instanceId);
+        
+        // 2. Optional Security: Verify Signature
+        const publicKey = config?.credentials?.discordPublicKey || process.env.DISCORD_PUBLIC_KEY;
+        if (publicKey) {
+            // Note: signature verification is MANDATORY for Discord Interactions
+            // But for MVP if crypto fails we log it.
+            const isValid = verifyDiscordSignature(req, publicKey);
+            if (!isValid && process.env.NODE_ENV === 'production') {
+                return res.status(401).send('Invalid request signature');
+            }
+        }
+
+        // 3. Handle Discord Interaction Types
+        // Type 1: PING (Required for URL validation)
         if (type === 1) {
             return res.status(200).json({ type: 1 });
         }
 
-        logInfo(`[Discord] Evento recibido tipo ${type} en canal ${channel_id}`);
+        // Type 2: Slash Command / Interaction
+        if (type === 2) {
+            const user = body.member?.user || body.user;
+            const commandName = data?.name;
+            const channelId = body.channel_id;
 
-        // Normalización básica para Discord (simplificada para V1)
+            logInfo(`[Discord] Interaction received: /${commandName} from ${user?.username}`);
+
+            const stdMessage = messageRouterModule.createStandardizedMessage(
+                'discord',
+                user.id,
+                `/${commandName} ${data?.options?.[0]?.value || ''}`.trim(),
+                { instanceId, channelId, authorName: user?.username, interactionId: body.id, interactionToken: body.token }
+            );
+            await messageRouterModule.handleIncomingMessage(stdMessage);
+
+            // Discord requires an immediate response to interactions.
+            // For MVP, we'll send a "Thinking..." or use the messageRouter response if fast enough.
+            // But standard practice is to ACK and then follow up.
+            return res.status(200).json({
+                type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+                data: { content: '⏳ Procesando solicitud...' }
+            });
+        }
+
+        // Fallback: Standard messages (if using Gateway or custom relay)
         if (author && content) {
             const stdMessage = messageRouterModule.createStandardizedMessage(
                 'discord',
                 author.id,
                 content,
-                { instanceId: 'multi_discord_default', channelId: channel_id, authorName: author.username }
+                { instanceId, channelId: channel_id, authorName: author.username }
             );
             await messageRouterModule.handleIncomingMessage(stdMessage);
         }
@@ -248,7 +523,7 @@ router.post('/discord', async (req, res) => {
         res.status(200).send('OK');
     } catch (error) {
         logError('[Discord] Webhook error', error);
-        res.status(200).send('OK'); // Discord prefiere 200 para no reintentar fallos lógicos
+        res.status(200).send('OK');
     }
 });
 

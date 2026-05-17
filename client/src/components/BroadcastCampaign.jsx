@@ -61,8 +61,12 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
   const [preflightMsg, setPreflightMsg] = useState("");
   const [sending, setSending]           = useState(false);
   const [progress, setProgress]         = useState(null); // { sent, total, nextDelay, failed }
+  const [showImport, setShowImport]     = useState(false);
+  const [isTemplate, setIsTemplate]     = useState(false);
+  const [warning, setWarning]           = useState("");
   const pollRef                         = useRef(null);
   const campaignIdRef                   = useRef(null);
+  const fileInputRef                    = useRef(null);
 
   // --- Cargar datos iniciales ---
   useEffect(() => {
@@ -77,6 +81,15 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
     };
     loadInit();
   }, []);
+
+  useEffect(() => {
+    const currentBot = bots.find(b => b.id === selectedBot);
+    if (currentBot?.provider === 'meta' && !isTemplate) {
+      setWarning("Meta requiere Templates aprobados para iniciar conversaciones.");
+    } else {
+      setWarning("");
+    }
+  }, [selectedBot, isTemplate, bots]);
 
   // --- Buscar leads con filtros ---
   const fetchLeads = useCallback(async () => {
@@ -177,8 +190,17 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body:    JSON.stringify({
           instanceId: selectedBot === "all" ? instanceId : selectedBot,
-          phones: selectedPhones,
+          recipients: selectedPhones.map(p => {
+            const lead = leads.find(l => l.phone === p);
+            return {
+              phone: p,
+              name: lead?.name || 'cliente',
+              temp: lead?.temp || 'COLD',
+              tag: lead?.tag || ''
+            };
+          }),
           message,
+          isTemplate,
           mediaType:  mediaUrl ? mediaType : null,
           mediaUrl:   mediaUrl || null,
         }),
@@ -195,6 +217,47 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
       console.error("Error al lanzar campaña:", err);
       setSending(false);
     }
+  };
+
+  // --- Polling de status ---
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n').filter(l => l.trim());
+      const importedLeads = lines.slice(1).map(line => {
+        const [phone, name, tag] = line.split(',').map(s => s?.trim());
+        return { phone, name, tags: tag ? [tag] : ['Importado_CSV'] };
+      }).filter(l => l.phone);
+
+      if (importedLeads.length === 0) {
+        alert("No se encontraron datos válidos. El formato debe ser: telefono,nombre,etiqueta");
+        return;
+      }
+
+      if (window.confirm(`¿Importar ${importedLeads.length} leads a la base de datos?`)) {
+        try {
+          const { response, data } = await fetchJsonWithApiFallback('/api/saas/leads/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ leads: importedLeads })
+          });
+          if (response.ok) {
+            alert(`Éxito: ${data.count} leads importados.`);
+            fetchLeads();
+          } else {
+            alert(`Error: ${data.error}`);
+          }
+        } catch (err) {
+          alert("Fallo de conexión al importar.");
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // Reset
   };
 
   // --- Polling de status ---
@@ -256,7 +319,13 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
                 <Filter size={16} className="text-fuchsia-400" />
                 <span className="text-sm font-bold text-slate-200">Filtrar Base de Datos</span>
             </div>
-            <button onClick={fetchLeads} className="text-[10px] font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors uppercase tracking-widest">Refrescar</button>
+            <div className="flex items-center gap-4">
+                <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+                <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+                    <Plus size={12} /> Importar Base (CSV)
+                </button>
+                <button onClick={fetchLeads} className="text-[10px] font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors uppercase tracking-widest">Refrescar</button>
+            </div>
         </div>
         
         <div className="p-5 space-y-4">
@@ -377,6 +446,13 @@ export default function BroadcastCampaign({ instanceId, instanceName }) {
                     </select>
                     <input type="text" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="Pegar URL pública del archivo..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-fuchsia-500" />
                 </div>
+            </div>
+            <div className="flex items-center gap-4 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={isTemplate} onChange={e => setIsTemplate(e.target.checked)} className="accent-fuchsia-500" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">¿Es un Template oficial?</span>
+                </label>
+                {warning && <span className="text-[9px] font-bold text-amber-500 animate-pulse">{warning}</span>}
             </div>
         </div>
 

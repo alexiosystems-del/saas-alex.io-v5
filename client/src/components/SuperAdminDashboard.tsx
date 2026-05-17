@@ -15,6 +15,8 @@ if (typeof document !== 'undefined' && !document.getElementById('inter-font-sa')
     document.head.appendChild(link);
 }
 
+import { translations, getTranslation } from '../i18n/translations';
+
 // --- DESIGN TOKENS: Soft Mode + Deep Ocean Blue ---
 const T = {
     bg: '#1a2744',
@@ -63,6 +65,7 @@ const SuperAdminDashboard = () => {
     const [stats, setStats] = useState<GlobalStats>({ total_users: 0, active_bots: 0, total_revenue: 0, total_messages: 0, bots_with_errors: 0, estimated_daily_cost: 0 });
     const [clients, setClients] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedBot, setExpandedBot] = useState<string | null>(null);
     const [botDetails, setBotDetails] = useState<any>(null);
@@ -70,25 +73,50 @@ const SuperAdminDashboard = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [healthData, setHealthData] = useState<SreHealthSnapshot | null>(null);
     const [aiDiag, setAiDiag] = useState<any>(null);
+    const [systemLogs, setSystemLogs] = useState<any[]>([]);
 
-    useEffect(() => { fetchGlobalData(); const iv = setInterval(fetchGlobalData, 30000); return () => clearInterval(iv); }, []);
+    useEffect(() => { 
+        const headers = getAuthHeaders();
+        if (!headers['Authorization']) {
+            console.error('🔒 [SuperAdmin] No Authorization token found in localStorage.');
+            setAuthError(true);
+            setLoading(false);
+            return;
+        }
+        fetchGlobalData(); 
+        const iv = setInterval(fetchGlobalData, 30000); 
+        return () => clearInterval(iv); 
+    }, []);
 
     const fetchGlobalData = async () => {
         try {
             setLoading(true);
-            const { response, data } = await fetchJsonWithApiFallback('/api/saas/superadmin/clients', { headers: { ...getAuthHeaders() } });
+            const headers = getAuthHeaders();
+            if (!headers['Authorization']) {
+                setAuthError(true);
+                return;
+            }
+
+            const { response, data } = await fetchJsonWithApiFallback('/api/saas/superadmin/clients', { headers });
+            
+            if (response.status === 401 || response.status === 403) {
+                setAuthError(true);
+                return;
+            }
+
             if (response.ok && data.clients) {
                 const totalMsgs = data.clients.reduce((acc: number, c: any) => acc + (c.usage?.messages_sent || 0), 0);
                 const allBots = data.clients.flatMap((c: any) => c.bots || []);
-                const revMap: Record<string, number> = { 'PRO': 29.99, 'ENTERPRISE': 99.99, 'FREE': 0 };
+                const revMap: Record<string, number> = { 'STARTER': 9.99, 'PRO': 29.99, 'SCALE': 99.99, 'ENTERPRISE': 99.99, 'FREE': 0 };
                 const revenue = data.clients.reduce((acc: number, c: any) => acc + (revMap[c.plan?.toUpperCase()] || 0), 0);
                 let totalCost = 0;
                 allBots.forEach((b: any) => { if (b.ai_usage) { totalCost += (b.ai_usage.openai?.tokens || 0) / 1e6 * 0.60; totalCost += (b.ai_usage.deepseek?.tokens || 0) / 1e6 * 0.28; } });
                 setClients(data.clients);
                 setStats({ total_users: data.clients.length, active_bots: allBots.length, total_revenue: revenue, total_messages: totalMsgs, bots_with_errors: allBots.filter((b: any) => b.last_error).length, estimated_daily_cost: totalCost });
+                setAuthError(false);
             }
             try {
-                const healthRes = await fetchJsonWithApiFallback('/api/sre/health', { headers: { ...getAuthHeaders() } });
+                const healthRes = await fetchJsonWithApiFallback('/api/sre/health', { headers });
                 if (healthRes.response.ok && healthRes.data) {
                     const raw = healthRes.data.health || healthRes.data || {};
                     setHealthData({
@@ -100,12 +128,20 @@ const SuperAdminDashboard = () => {
                     });
                 }
             } catch (e: any) { console.warn('SRE Health fetch failed:', e.message); }
-            // Fetch AI Diagnostics
+            
             try {
                 const diagRes = await fetchJsonWithApiFallback('/api/diagnostics/ai', {});
                 if (diagRes.response.ok && diagRes.data) setAiDiag(diagRes.data);
             } catch (e: any) { console.warn('AI Diag fetch failed:', e.message); }
-        } catch (err: any) { console.error("SuperAdmin Error:", err.message); }
+
+            try {
+                const logsRes = await fetchJsonWithApiFallback('/api/sre/logs', { headers });
+                if (logsRes.response.ok && logsRes.data) setSystemLogs(logsRes.data.logs || []);
+            } catch (e: any) { console.warn('System logs fetch failed:', e.message); }
+
+        } catch (err: any) { 
+            console.error("SuperAdmin Global Fetch Error:", err.message);
+        }
         finally { setLoading(false); }
     };
 
@@ -130,7 +166,18 @@ const SuperAdminDashboard = () => {
         finally { setActionLoading(null); }
     };
 
-    const filteredClients = clients.filter(c => c.email?.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (authError) return (
+        <div style={{ minHeight: '100vh', background: T.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font, padding: 20 }}>
+            <div style={glassCard({ padding: 40, textAlign: 'center', maxWidth: 400 })}>
+                <ShieldAlert size={48} style={{ color: T.danger, marginBottom: 20 }} />
+                <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 12 }}>Sesión Requerida</h2>
+                <p style={{ color: T.textMuted, fontSize: 14, marginBottom: 24 }}>Tu sesión de SuperAdmin ha expirado o no es válida para producción. Por favor, re-identifícate.</p>
+                <button onClick={() => window.location.href = '#/superadmin-login'} style={{ background: T.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                    IR A LOGIN SEGURO
+                </button>
+            </div>
+        </div>
+    );
 
     if (loading && clients.length === 0) return (
         <div style={{ minHeight: '100vh', background: T.bgGradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font }}>
@@ -140,6 +187,8 @@ const SuperAdminDashboard = () => {
             </div>
         </div>
     );
+
+    const filteredClients = clients.filter(c => c.email?.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
         <div style={{ minHeight: '100vh', background: T.bgGradient, color: T.text, padding: '32px 40px', fontFamily: T.font }}>
@@ -154,16 +203,28 @@ const SuperAdminDashboard = () => {
                         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3 }}>SaaS SuperAdmin</span>
                     </div>
                     <h1 style={{ fontSize: 36, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
-                        Consola Global <span style={{ color: T.accentLight }}>ALEX IO</span>
+                        {t('dashboard.title')} <span style={{ color: T.accentLight }}>ALEX IO</span>
                     </h1>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    {/* Language Selector */}
+                    <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 12 }}>
+                        {['es', 'en', 'fr', 'de', 'zh'].map(l => (
+                            <button key={l} onClick={() => setLang(l)} style={{ 
+                                background: lang === l ? T.accent : 'transparent',
+                                color: lang === l ? 'white' : T.textMuted,
+                                border: 'none', borderRadius: 8, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase'
+                            }}>
+                                {l}
+                            </button>
+                        ))}
+                    </div>
                     <button onClick={fetchGlobalData} style={{ ...glassCard({ borderRadius: 12, padding: '8px 16px', cursor: 'pointer', color: T.textMuted, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' })}}>
-                        <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> Actualizar
+                        <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> {t('common.refresh')}
                     </button>
                     <div style={{ position: 'relative' }}>
                         <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.textDim }} size={16} />
-                        <input type="text" placeholder="Buscar por email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                        <input type="text" placeholder={t('common.search')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ ...glassCard({ borderRadius: 12, padding: '8px 12px 8px 38px', fontSize: 13, color: T.text, outline: 'none', width: 240 })} as any} />
                     </div>
                 </div>
@@ -219,7 +280,7 @@ const SuperAdminDashboard = () => {
                             { name: 'Gemini', key: 'gemini', color: '#4285F4', icon: '🔷' },
                             { name: 'OpenAI', key: 'openai', color: '#10a37f', icon: '🟢' },
                             { name: 'DeepSeek', key: 'deepseek', color: T.purple, icon: '🟣' },
-                            { name: 'Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
+                            { name: 'Claude / Anthropic', key: 'anthropic', color: '#d97706', icon: '🟠' },
                         ].map(provider => {
                             const info = aiDiag[provider.key];
                             if (!info) return null;
@@ -283,6 +344,35 @@ const SuperAdminDashboard = () => {
                 </div>
             )}
 
+            {/* System Logs Dashboard */}
+            <section style={{ ...glassCard({ padding: 24, marginBottom: 40 }), position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Activity size={16} style={{ color: T.accentLight }} />
+                    <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, margin: 0, color: T.text }}>Central Logs (Real-time)</h3>
+                </div>
+                <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 10 }}>
+                    {systemLogs.length > 0 ? systemLogs.map((log, idx) => (
+                        <div key={log.id || idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: `1px solid ${T.glassBorder}` }}>
+                            <div style={{ padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, textTransform: 'uppercase', background: log.level === 'error' ? 'rgba(239,68,68,0.15)' : log.level === 'warn' ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', color: log.level === 'error' ? T.danger : log.level === 'warn' ? T.warning : T.success }}>
+                                {log.level}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: T.textDim }}>[{log.source}]</span>
+                                    <span style={{ fontSize: 10, color: T.textMuted, fontFamily: 'monospace' }}>{new Date(log.created_at).toLocaleString()}</span>
+                                </div>
+                                <span style={{ fontSize: 12, color: T.text, lineHeight: 1.4 }}>{log.message}</span>
+                                {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                    <pre style={{ margin: '4px 0 0', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 6, fontSize: 10, color: T.textDim, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                        {JSON.stringify(log.metadata, null, 2)}
+                                    </pre>
+                                )}
+                            </div>
+                        </div>
+                    )) : <p style={{ color: T.textDim, fontSize: 12, textAlign: 'center', fontStyle: 'italic', padding: 20 }}>No hay logs del sistema en este momento.</p>}
+                </div>
+            </section>
+
             {/* Clients Table */}
             <section style={{ ...glassCard({ overflow: 'hidden', boxShadow: `0 8px 32px rgba(0,0,0,0.2)` }), position: 'relative', zIndex: 1 }}>
                 <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.glassBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -318,11 +408,22 @@ const SuperAdminDashboard = () => {
                                             </div>
                                         </td>
                                         <td style={{ padding: '14px 24px' }}>
-                                            <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-                                                background: client.plan === 'ENTERPRISE' ? 'rgba(167,139,250,0.15)' : client.plan === 'PRO' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)',
-                                                color: client.plan === 'ENTERPRISE' ? T.purple : client.plan === 'PRO' ? T.warning : T.textDim,
-                                                border: `1px solid ${client.plan === 'ENTERPRISE' ? 'rgba(167,139,250,0.3)' : client.plan === 'PRO' ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                                            }}>{client.plan || 'FREE'}</span>
+                                            {(() => {
+                                                const rawPlan = (client.plan || 'FREE').toUpperCase();
+                                                const planName = rawPlan === 'ENTERPRISE' ? 'SCALE' : rawPlan;
+                                                const planStyles: Record<string, { bg: string; color: string; border: string }> = {
+                                                    SCALE: { bg: 'rgba(167,139,250,0.15)', color: T.purple, border: 'rgba(167,139,250,0.3)' },
+                                                    PRO: { bg: 'rgba(245,158,11,0.15)', color: T.warning, border: 'rgba(245,158,11,0.3)' },
+                                                    STARTER: { bg: 'rgba(34,197,94,0.15)', color: T.success, border: 'rgba(34,197,94,0.3)' },
+                                                    FREE: { bg: 'rgba(255,255,255,0.06)', color: T.textDim, border: 'rgba(255,255,255,0.1)' },
+                                                };
+                                                const s = planStyles[planName] || planStyles.FREE;
+                                                return (
+                                                    <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
+                                                        background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+                                                    }}>{planName}</span>
+                                                );
+                                            })()}
                                         </td>
                                         <td style={{ padding: '14px 24px' }}>
                                             <div style={{ width: 90 }}>
@@ -382,6 +483,41 @@ const SuperAdminDashboard = () => {
                                                                     ))}
                                                                 </div>
                                                             </div>
+                                                            {/* BIC Strategy Editor */}
+                                                            <div style={{ marginTop: 24, padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 16, border: `1px solid ${T.glassBorder}` }}>
+                                                                <h5 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: T.accentLight, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <ShieldAlert size={14} /> {t('bot_config.initiator')}
+                                                                </h5>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                                                                    <div>
+                                                                        <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>{t('bot_config.business_type')}</label>
+                                                                        <input type="text" placeholder="Ej: Real Estate, E-commerce..." 
+                                                                            defaultValue={botDetails.bic?.business_type}
+                                                                            style={{ ...glassCard({ padding: '10px 12px', width: '100%', fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}` })} as any} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>{t('bot_config.objective')}</label>
+                                                                        <select style={{ ...glassCard({ padding: '10px 12px', width: '100%', fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}` })} as any}>
+                                                                            <option value="sales">Ventas / Cierre</option>
+                                                                            <option value="leads">Captación de Leads</option>
+                                                                            <option value="support">Soporte / FAQ</option>
+                                                                            <option value="booking">Agendamiento</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ marginBottom: 16 }}>
+                                                                    <label style={{ fontSize: 11, color: T.textMuted, display: 'block', marginBottom: 6 }}>Oferta Estrella / Propuesta de Valor</label>
+                                                                    <textarea placeholder="Describe qué hace única a esta oferta..." 
+                                                                        defaultValue={botDetails.bic?.value_prop}
+                                                                        style={{ ...glassCard({ padding: '10px 12px', width: '100%', height: 80, fontSize: 13, color: T.text, border: `1px solid ${T.glassBorder}`, resize: 'none' })} as any} />
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                    <button style={{ background: T.accent, color: 'white', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                                                                        {t('bot_config.save')}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
                                                             {/* AI Usage */}
                                                             <div>
                                                                 <h5 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: T.textDim, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Cpu size={13} /> Consumo por Modelo</h5>
@@ -390,6 +526,7 @@ const SuperAdminDashboard = () => {
                                                                         { name: 'Gemini', color: T.accentLight, data: botDetails.ai_usage?.gemini, cost: botDetails.estimated_costs?.gemini },
                                                                         { name: 'OpenAI', color: T.success, data: botDetails.ai_usage?.openai, cost: botDetails.estimated_costs?.openai },
                                                                         { name: 'DeepSeek', color: T.purple, data: botDetails.ai_usage?.deepseek, cost: botDetails.estimated_costs?.deepseek },
+                                                                        { name: 'Claude', color: T.warning, data: botDetails.ai_usage?.anthropic || botDetails.ai_usage?.claude, cost: botDetails.estimated_costs?.anthropic || botDetails.estimated_costs?.claude },
                                                                     ].map(m => (
                                                                         <div key={m.name} style={glassCard({ padding: 14 })}>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}><Zap size={13} style={{ color: m.color }} /><span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{m.name}</span></div>

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { X, MessageSquare, Loader2, Send } from 'lucide-react';
-import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const FeedbackModal = ({ isOpen, onClose, userId }) => {
@@ -15,11 +14,13 @@ const FeedbackModal = ({ isOpen, onClose, userId }) => {
 
         setIsSubmitting(true);
         try {
-            const { error } = await supabase
-                .from('feedback')
-                .insert([{ user_id: userId, message, category }]);
+            const res = await fetch('/api/saas/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, category })
+            });
 
-            if (error) throw error;
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             setSuccess(true);
             setTimeout(() => {

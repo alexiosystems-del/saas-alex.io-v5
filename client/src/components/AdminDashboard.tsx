@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Shield, Layout, MessageSquare, Activity } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { supabase } from '../supabaseClient';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('alex_io_token') || sessionStorage.getItem('alex_io_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+};
 
 interface WhatsAppAccount {
     account_name: string;
@@ -44,14 +51,12 @@ const AdminDashboard = () => {
     }, [user]);
 
     const fetchConfigs = async () => {
-        if (!user || !supabase) return;
+        if (!user) return;
         try {
-            const { data, error } = await supabase
-                .from('bot_configs')
-                .select('*, whatsapp_accounts(account_name, phone_number)')
-                .eq('user_id', user.id);
-
-            if (error) throw error;
+            const res = await fetch('/api/saas/bots', { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const data = json.bots || json || [];
             if (data) setConfigs(data as BotConfig[]);
         } catch (err: any) {
             console.error("❌ Error fetching configs:", err.message);
@@ -61,37 +66,29 @@ const AdminDashboard = () => {
     };
 
     const fetchLogs = async (configId: string) => {
-        if (!supabase) return;
         try {
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', configId)
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
-            if (data) setLogs(data as MessageLog[]);
+            const res = await fetch(`/api/saas/messages?instance_id=${configId}`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            if (json.messages) setLogs(json.messages as MessageLog[]);
         } catch (err: any) {
             console.error("❌ Error fetching logs:", err.message);
         }
     };
 
     const handleSave = async () => {
-        if (!selectedConfig || !user || !supabase) return;
+        if (!selectedConfig || !user) return;
         try {
-            const { error } = await supabase
-                .from('bot_configs')
-                .update({
+            const res = await fetch(`/api/saas/bots/${selectedConfig.id}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
                     constitution: selectedConfig.constitution,
                     conversation_structure: selectedConfig.conversation_structure,
-                    system_prompt: selectedConfig.system_prompt,
-                    user_id: user.id
+                    system_prompt: selectedConfig.system_prompt
                 })
-                .eq('id', selectedConfig.id)
-                .eq('user_id', user.id);
-
-            if (error) throw error;
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             alert('Configuración guardada en ALEX IO 🚀');
         } catch (err: any) {
             console.error("❌ Save failed:", err.message);

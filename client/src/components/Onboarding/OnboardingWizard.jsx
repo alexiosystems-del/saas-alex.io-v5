@@ -93,8 +93,6 @@ const StepWorkProbe = ({ value, onChange }) => (
 
 // --- MAIN WIZARD COMPONENT ---
 
-import { supabase } from '../../supabaseClient';
-
 export default function OnboardingWizard({ session, onComplete }) {
     const [step, setStep] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -143,40 +141,14 @@ export default function OnboardingWizard({ session, onComplete }) {
                     updated_at: new Date()
                 };
 
-                // 1. Explicit Check: Does profile exist?
-                const { data: existingProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('id', session.user.id)
-                    .maybeSingle(); // safer than single() if 0 rows
+                // 1. Explicit Check: Use API to handle profiles
+                const res = await fetch('/api/saas/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(profilePayload)
+                });
 
-                let opError = null;
-
-                if (existingProfile) {
-                    // UPDATE
-                    const { error } = await supabase
-                        .from('profiles')
-                        .update({
-                            ...profilePayload,
-                            updated_at: new Date()
-                        })
-                        .eq('id', session.user.id);
-                    opError = error;
-                } else {
-                    // INSERT
-                    const { error } = await supabase
-                        .from('profiles')
-                        .insert({
-                            id: session.user.id,
-                            email: session.user.email,
-                            ...profilePayload,
-                            created_at: new Date(),
-                            updated_at: new Date()
-                        });
-                    opError = error;
-                }
-
-                if (opError) throw opError;
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                 // 2. (Optional) CV handling
                 if (formData.cv?.file) {

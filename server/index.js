@@ -1,16 +1,86 @@
 require('dotenv').config();
 require('./utils/envValidator').validateEnv(); // FASE 0: Asegura que haya secrets
 const express = require('express');
+// ALEX IO HEARTBEAT - 2026-04-30 02:00
+const BOOT_TIME = new Date().toISOString();
 const cors = require('cors');
 const pino = require('pino');
 const helmet = require('helmet');
+const path = require('path');
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('./middleware/auth');
 
 // --- CONFIGURATION ---
+// --- GLOBAL FEATURE FLAGS (BIC Architecture) ---
+global.FLAGS = {
+    FEATURE_INITIATOR_V2: process.env.FEATURE_INITIATOR_V2 === 'true' || false,
+    FEATURE_CONTEXT_ASSEMBLER: process.env.FEATURE_CONTEXT_ASSEMBLER === 'true' || false,
+    FEATURE_MEMORY_DUAL: process.env.FEATURE_MEMORY_DUAL === 'true' || false,
+};
+console.log('🚩 Feature Flags:', global.FLAGS);
+
 const app = express();
-app.set('trust proxy', 1); // Trust Render's load balancer (1 hop)
+const http = require('http');
+const { Server } = require('socket.io');
+
+// --- SECURE CORS CONFIG ---
+const productionOrigins = [
+    'https://whatsapp-fullstack-1-yjao.onrender.com',
+    process.env.RENDER_EXTERNAL_URL // Dynamic from Render
+].filter(Boolean);
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : [];
+
+// Always include production defaults
+productionOrigins.forEach(o => {
+    if (!allowedOrigins.includes(o)) allowedOrigins.push(o);
+});
+
+// Localhost only in non-production
+if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+}
+
+console.log(`🔒 [SECURITY] Allowed Origins: ${allowedOrigins.join(', ')}`);
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'https://whatsapp-fullstack-1-yjao.onrender.com',
+            'https://www.whatsapp-fullstack-1-yjao.onrender.com',
+            'https://whatsapp-fullstack-ylsx.onrender.com',
+            'https://whatsapp-fullstack-y1sx.onrender.com',
+            process.env.RENDER_EXTERNAL_URL
+        ].filter(Boolean),
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    },
+    allowEIO3: true,
+    transports: ['websocket', 'polling'],
+    path: '/socket.io',
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    cookie: false
+});
+
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
+// Legacy whatsappClient disabled to prevent conflict with whatsappSaas
+// const whatsappService = require('./services/whatsappClient');
+// whatsappService.setSocket(io);
+
+const { setSocket: setSaasSocket } = require('./services/whatsappSaas');
+setSaasSocket(io);
+
 logger.info('✅ Express trust proxy enabled');
 
 // --- SECURITY MIDDLEWARES ---
@@ -19,9 +89,74 @@ const RedisStore = require('rate-limit-redis').default;
 const { authenticateTenant } = require('./middleware/auth');
 const { getHealthSnapshot, getMetrics } = require('./services/observability');
 const { requestLogger } = require('./middleware/requestLogger');
+const botPool = require('./services/botPoolRouter');
 
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
+
+// Socket.io Auth Middleware (Supports ALEX IO JWT and Supabase Tokens)
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication error: Token missing'));
+    try {
+        // 1. Try ALEX IO Local JWT
+        try {
+            const decoded = jwt.verify(token, getJwtSecret());
+            socket.tenant = {
+                id: decoded.tenantId,
+                role: decoded.role || 'OWNER'
+            };
+            return next();
+        } catch (e) {
+            // Not a local JWT or invalid secret, try Supabase
+        }
+
+        // 2. Try Supabase Token
+        if (isSupabaseEnabled) {
+            const { data: { user }, error } = await supabase.auth.getUser(token);
+            if (!error && user) {
+                const isAdmin = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'].includes(user.email.toLowerCase());
+                socket.tenant = {
+                    id: isAdmin ? 'tenant_superadmin' : user.id,
+                    role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER'),
+                    plan: user.user_metadata?.plan || (isAdmin ? 'ENTERPRISE' : 'PRO')
+                };
+                return next();
+            }
+        }
+
+        next(new Error('Authentication error: Invalid token'));
+    } catch (err) {
+        next(new Error('Authentication error: ' + err.message));
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log('✅ Socket connected:', {
+        socketId: socket.id,
+        tenantId: socket.tenant?.id,
+        transport: socket.conn.transport.name
+    });
+    
+    socket.conn.on('upgrade', () => {
+        console.log('🚀 Socket upgraded to WebSocket:', socket.id);
+    });
+    
+    socket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', {
+            socketId: socket.id,
+            reason
+        });
+    });
+    
+    socket.on('error', (error) => {
+        console.error('❌ Socket error:', {
+            socketId: socket.id,
+            error: error.message
+        });
+    });
+});
+
 let limiterStore = undefined;
 
 if (isRedisEnabled) {
@@ -34,7 +169,7 @@ if (isRedisEnabled) {
 const globalLimiter = rateLimit({
     store: limiterStore,
     windowMs: 15 * 60 * 1000, // 15 minutos
-    limit: 100, // Máximo 100 peticiones por ventana
+    limit: 2000, // Incremented from 100 to 2000 to allow legitimate UI polling
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Demasiadas peticiones. Por favor, intenta más tarde.', code: 'RATE_LIMIT_EXCEEDED' }
@@ -52,11 +187,21 @@ const tenantLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
     limit: (req) => {
         const plan = req.tenant?.plan || 'FREE';
-        if (plan === 'ENTERPRISE') return 5000;
-        if (plan === 'PRO') return 1000;
-        return 100; // FREE/STARTER default
+        if (plan === 'ENTERPRISE') return 12000;
+        if (plan === 'PRO') return 6000;
+        return 1500; // FREE/STARTER default (absorbe polling del dashboard sin bloquear operaciones)
     },
     keyGenerator: (req) => req.tenant?.id || req.ip,
+    skip: (req) => {
+        // Skip high-frequency observability/polling routes to avoid burning tenant quota
+        const p = req.path || '';
+        return req.method === 'GET' && (
+            p === '/status' ||
+            p.startsWith('/status/') ||
+            p === '/bots' ||
+            p.startsWith('/bots/')
+        );
+    },
     message: { error: 'Límite de cuota de API excedido para tu plan.', code: 'TENANT_QUOTA_EXCEEDED' }
 });
 
@@ -64,64 +209,108 @@ const tenantLimiter = rateLimit({
 app.use(globalLimiter);
 app.use(requestLogger);
 
-// --- SECURE CORS (PHASE 0) ---
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : [];
-
-// Auto-include common Render URLs if not explicitly set
-if (allowedOrigins.length === 0) {
-    allowedOrigins.push(
-        'https://whatsapp-fullstack-ylsx.onrender.com',
-        'https://whatsapp-fullstack-1-yjao.onrender.com',
+// --- CORS CONFIGURATION (STRICT) ---
+// --- DYNAMIC CORS SYSTEM (Hardened) ---
+const getAllowedOrigins = () => {
+    const list = [
         'http://localhost:5173',
-        'http://localhost:3000'
-    );
-}
+        'http://localhost:3000',
+        'https://whatsapp-fullstack-1-yjao.onrender.com',
+        'https://www.whatsapp-fullstack-1-yjao.onrender.com',
+        'https://whatsapp-fullstack-ylsx.onrender.com',
+        'https://whatsapp-fullstack-y1sx.onrender.com'
+    ];
+    if (process.env.RENDER_EXTERNAL_URL) list.push(process.env.RENDER_EXTERNAL_URL);
+    if (process.env.ALLOWED_ORIGINS) {
+        process.env.ALLOWED_ORIGINS.split(',').forEach(o => list.push(o.trim()));
+    }
+    return [...new Set(list)].filter(Boolean);
+};
 
-// --- CORS CONFIGURATION (PERMISSIVE UNTIL STRICT LIST VALIDATED) ---
-app.use(cors({
-    origin: true,
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        const allowed = getAllowedOrigins();
+        if (allowed.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+            callback(null, true);
+        } else {
+            console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
+};
+app.use(cors(corsOptions));
 
-// --- SECURITY HEADERS ---
+// --- SECURITY HEADERS (Hardened) ---
+const isProd = process.env.NODE_ENV === 'production';
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "img-src": ["'self'", "data:", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com"],
-            "connect-src": ["'self'", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com", "https://*.openai.com"]
+            "img-src": ["'self'", "data:", "https://*.supabase.co", "https://*.onrender.com", "https://*.google.com", "https://images.unsplash.com"],
+            "connect-src": [
+                "'self'", 
+                "https://*.supabase.co", 
+                "wss://*.supabase.co", 
+                "https://*.onrender.com", 
+                "wss://*.onrender.com", 
+                "https://*.google.com", 
+                "https://*.openai.com",
+                !isProd ? "ws://localhost:*" : ""
+            ].filter(Boolean)
         }
     }
 }));
 
-// Middleware
-const jsonParser = express.json();
+// Unified JSON parser with rawBody capture for HMAC verification (Meta, Stripe, TikTok)
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
-// Stripe y TikTok requieren body crudo para validar firma de webhook (HMAC).
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 app.use((req, res, next) => {
-    if (req.path === '/api/payments/stripe/webhook') return next();
-    if (req.path === '/api/webhooks/tiktok') {
-        // TikTok HMAC necesita raw body — parseamos manualmente después
-        return express.raw({ type: '*/*' })(req, res, next);
-    }
-    return jsonParser(req, res, next);
+  res.setHeader("Cache-Control", "no-store");
+  next();
 });
+
+// Legacy mock generate-prompt removed. Handled by saasRouter.
 
 // In-Memory Cache Fallback
 const NodeCache = require('node-cache');
 global.responseCache = global.responseCache || new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hour TTL
 
 // --- AUTH ROUTES (Public) ---
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'];
+const TENANT_ID = '11111111-1111-1111-1111-111111111111';
+
+function generatePrompt(data) {
+  return `
+Eres un asistente experto en ${data.industry}.
+
+OBJETIVO: ${data.objective}
+TONO: ${data.tone}
+
+REGLAS:
+- Responde claro y corto
+- Cierra ventas
+- Usa lenguaje natural
+- Si no sabes algo, deriva a humano
+
+CONTEXTO:
+${data.extra || ''}
+`;
+}
 
 const buildToken = (user) => {
     const email = user.email;
@@ -154,7 +343,7 @@ const sessionExchangeLimiter = rateLimit({
 
 // POST /api/auth/session-exchange
 // Exchange a Supabase access_token for a backend JWT
-app.post('/api/auth/session-exchange', sessionExchangeLimiter, jsonParser, async (req, res) => {
+app.post('/api/auth/session-exchange', sessionExchangeLimiter, async (req, res) => {
     const { access_token } = req.body;
     if (!access_token) return res.status(400).json({ error: 'Supabase access_token is required' });
 
@@ -217,90 +406,121 @@ app.post('/api/auth/login', (req, res) => {
     });
 });
 
-// --- SERVE FRONTEND (Static files from client build) ---
-const path = require('path');
-const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
-const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
-const fs = require('fs');
-const getFrontendPath = () => {
-    const candidates = [clientBuildPath, clientDistPath];
-    for (const candidate of candidates) {
-        if (fs.existsSync(path.join(candidate, 'index.html'))) {
-            return candidate;
-        }
-    }
-    return null;
-};
-const frontendPath = getFrontendPath();
+// --- FRONTEND CONFIGURATION (Vite dist support) ---
+const clientPath = path.resolve(__dirname, '../client/dist');
+if (fs.existsSync(clientPath)) {
+    logger.info(`✅ Frontend build found at ${clientPath}. Preparing static serving...`);
+    
+    // Static assets first (JS, CSS, Images)
+    app.use('/assets', express.static(path.join(clientPath, 'assets'), {
+        maxAge: 0,
+        mustRevalidate: true,
+        fallthrough: false // If not found in assets folder, return 404, don't fall through to SPA
+    }));
 
-if (frontendPath) {
-    // index.html: never cache (ensures fresh version after deploy)
-    app.get('/', (req, res) => {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-
-    // Hashed assets (JS/CSS): cache aggressively (filename changes on rebuild)
-    app.use(express.static(frontendPath, {
-        maxAge: '1y',
-        immutable: true,
+    app.use(express.static(clientPath, {
+        maxAge: '1d',
         setHeaders: (res, filePath) => {
             if (filePath.endsWith('.html')) {
                 res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
             }
         }
     }));
-
-    // If an asset hash is stale/missing, return 404 (never fallback to index for JS/CSS assets)
-    app.get(/^\/assets\/.*$/, (req, res) => {
-        res.status(404).type('text/plain').send('Asset not found');
-    });
-
-    logger.info(`📦 Frontend served from ${frontendPath} (cache-hardened)`);
+} else {
+    logger.warn(`⚠️ Frontend build NOT found at ${clientPath}. Checking alternate paths...`);
+    const altPath = path.resolve(__dirname, '../client/dist');
+    if (fs.existsSync(altPath)) {
+        logger.info(`✅ Found frontend at alternate path: ${altPath}`);
+        app.use(express.static(altPath));
+    }
 }
 
-// --- ROUTES ---
+// --- BOT INITIATOR CORE (BIC) ROUTES ---
+const initiatorService = require('./services/initiatorProfileService');
+
+app.post('/api/saas/bot-initiator', authenticateTenant, async (req, res) => {
+    try {
+        const tenantId = req.tenant.id;
+        const profile = req.body;
+        const saved = await initiatorService.saveProfile(profile.instance_id || profile.botId, {
+            ...profile,
+            tenant_id: tenantId
+        });
+        res.json({ success: true, profile: saved });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/saas/bot-initiator/:botId', authenticateTenant, async (req, res) => {
+    try {
+        const profile = await initiatorService.getProfile(req.params.botId);
+        res.json({ success: true, profile });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- API ROUTES ---
 app.get('/api/status', (req, res) => {
     res.json({
         status: 'online',
-        version: 'v2.1.7',
+        version: 'v2.1.0',
         platform: 'ALEX IO SAAS',
-        features: ['V6 Protocol Hardening', 'V8 Multi-Tenancy', 'TTS Voice', 'Sales Engine V5', 'GOD CORE V8.97'],
+        features: ['V6 Protocol Hardening', 'V8 Multi-Tenancy', 'TTS Voice', 'Sales Engine V5'],
         users: 'Optimized for scale'
     });
 });
 
 // AI Diagnostics Endpoint (shows which keys are configured/dead)
 app.get('/api/diagnostics/ai', (req, res) => {
-    try {
-        const { getAiDiagnostics } = require('./services/alexBrain');
-        const aiDiag = typeof getAiDiagnostics === 'function' ? getAiDiagnostics() : {};
-        res.json({
-            providers: {
-                gemini: aiDiag?.gemini?.configured || false,
-                openai: aiDiag?.openai?.configured || false,
-                deepseek: aiDiag?.deepseek?.configured || false
-            },
-            whatsapp: {
-                status: 'READY'
-            }
-        });
-    } catch (error) {
-        console.error('❌ [AI DIAGNOSTICS] Error:', error.message);
-        res.status(200).json({
-            providers: {
-                gemini: false,
-                openai: false,
-                deepseek: false
-            },
-            whatsapp: {
-                status: 'UNKNOWN'
-            },
-            warning: 'Diagnostics fallback response'
-        });
-    }
+    const { getAiDiagnostics } = require('./services/alexBrain');
+    const aiDiag = getAiDiagnostics();
+    res.json({
+        providers: {
+            gemini: aiDiag.gemini?.configured || false,
+            openai: aiDiag.openai?.configured || false,
+            deepseek: aiDiag.deepseek?.configured || false
+        },
+        whatsapp: {
+            status: "READY"
+        }
+    });
+});
+
+// ENDPOINT DE DIAGNÓSTICO DE SOCKETS
+app.get('/socket-test', (req, res) => {
+    res.json({ 
+        status: 'Express is alive', 
+        io_mounted: !!io,
+        engine_clients: io?.engine?.clientsCount || 0,
+        path_expected: '/socket.io'
+    });
+});
+
+
+
+// WIZARD + CREACIÓN DE BOT (LEGACY/FALLBACK)
+app.post("/save-bot", async (req, res) => {
+  const { config, prompt } = req.body;
+  const { data, error } = await supabase
+    .from("bots")
+    .insert({ name: config.botName || 'Nuevo Bot', prompt })
+    .select();
+
+  if (error) return res.status(500).json(error);
+  res.json(data);
+});
+
+// GLOBAL CONTROL SYSTEM
+app.get("/system-status", async (req, res) => {
+  const bots = await supabase.from("bots").select("*");
+  res.json({
+    ai: "ok",
+    db: "ok",
+    bots: bots.data ? bots.data.length : 0,
+    whatsapp: "ready"
+  });
 });
 
 app.get('/api/sre/health', authenticateTenant, (req, res) => {
@@ -310,34 +530,384 @@ app.get('/api/sre/health', authenticateTenant, (req, res) => {
     return res.json({ success: true, health: getHealthSnapshot() });
 });
 
+app.get('/api/sre/logs', authenticateTenant, async (req, res) => {
+    if (req.tenant?.role !== 'SUPERADMIN') {
+        return res.status(403).json({ error: 'Acceso denegado: solo SuperAdmin' });
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('system_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+        return res.json({ success: true, logs: data || [] });
+    } catch (error) {
+        console.error('Error fetching logs:', error.message);
+        return res.status(500).json({ error: 'Error fetching logs' });
+    }
+});
+
 // Multi-Platform Webhooks (Public endpoints for providers)
 const webhooksMulti = require('./routes/webhooks-multi');
 app.use('/api/webhooks', webhooksMulti);
 
-// WhatsApp Routes (Protected & Rate Limited by Tenant)
-const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
-app.post('/api/saas/connect', authenticateTenant, sensitiveLimiter); // Extra rate limit on connect
-app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappSaas);
+// ============================================
+// ENTERPRISE SAAS API - CONSOLIDATED (V5)
+// ============================================
+
+// 1. Unified SaaS Management Router
+const saasRouter = require('./routes/saas');
+const enterpriseRouter = require('./routes/leadsAndBroadcast');
+const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
+
+app.use('/api/saas', authenticateTenant, tenantLimiter, saasRouter);
+app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
+app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
+
+// 3. SYSTEM STATUS (NEURAL HEALTH)
+app.get('/api/status', (req, res) => res.json({ status: 'online', timestamp: new Date().toISOString() }));
+
+// GET MESSAGES (For Compliance/Audit)
+app.get('/api/saas/messages', async (req, res) => {
+  try {
+    const { instance_id, limit = 50 } = req.query;
+    
+    let query = supabase
+      .from('messages')
+      .select(`
+        id,
+        remote_jid,
+        direction,
+        content,
+        message_hash,
+        previous_hash,
+        audit_flag,
+        audit_reason,
+        created_at
+      `)
+      .order('created_at', { ascending: false })
+      .limit(Number(limit));
+
+    if (instance_id) query = query.eq('instance_id', instance_id);
+    if (req.query.remote_jid) query = query.eq('remote_jid', req.query.remote_jid);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ success: true, messages: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST FEEDBACK
+app.get('/api/saas/feedback', async (req, res) => {
+    // Only superadmin or internal audit should see this
+    res.status(403).json({ error: 'Unauthorized' });
+});
+
+app.post('/api/saas/feedback', async (req, res) => {
+  try {
+    const { message, category } = req.body;
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert([{ user_id: req.user?.id, message, category }]);
+    
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST PROFILE
+app.post('/api/saas/profile', async (req, res) => {
+  try {
+    const profile = req.body;
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: req.user?.id,
+        ...profile,
+        updated_at: new Date()
+      });
+    
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET SUBSCRIPTION USAGE
+app.get('/api/saas/subscription/usage', async (req, res) => {
+  try {
+    // In a real multi-tenant app, we'd get user_id from JWT
+    // For now, we'll fetch global or first user for demo
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*, plans(*)')
+      .limit(1)
+      .single();
+
+    const { count: botCount } = await supabase
+      .from('bots')
+      .select('*', { count: 'exact', head: true });
+
+    res.json({
+      plan: profile?.plans || { name: 'Free', max_bots: 3, max_messages_monthly: 1000 },
+      usage: {
+        messages_sent: 0, // Need to implement message logging
+        bot_count: botCount || 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// UPDATE BOT
+app.put('/api/saas/bots/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+        name, prompt, voice_enabled, industry, objective, voice, provider, target_language,
+        access_token, phone_number_id, d360_api_key, discord_token, tiktok_access_token, tiktok_seller_id, manychat_token
+    } = req.body;
+
+    const { data: bot, error } = await supabase
+      .from('bots')
+      .update({
+        name,
+        prompt,
+        voice_enabled: voice_enabled === true || voice_enabled === 'true',
+        industry,
+        objective,
+        voice,
+        provider,
+        target_language,
+        access_token,
+        phone_number_id,
+        d360_api_key,
+        discord_token,
+        tiktok_access_token,
+        tiktok_seller_id,
+        manychat_token
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, bot });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE BOT
+app.delete('/api/saas/bots/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete config first (cascade should handle it, but let's be explicit if needed)
+    await supabase.from('bot_configs').delete().eq('bot_id', id);
+    
+    const { error } = await supabase
+      .from('bots')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET LEADS
+app.get('/api/saas/leads', async (req, res) => {
+  try {
+    const { temp, status, instance_id } = req.query;
+    let query = supabase.from('leads').select('*, lead_tags(tag)');
+    if (temp && temp !== 'all') query = query.eq('temperature', temp.toUpperCase());
+    if (status && status !== 'all') query = query.eq('status', status.toUpperCase());
+    if (instance_id) query = query.eq('instance_id', instance_id);
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ leads: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET TAGS
+app.get('/api/saas/leads/tags', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('lead_tags').select('tag');
+    if (error) throw error;
+    const unique = [...new Set(data.map(t => t.tag))];
+    res.json({ tags: unique });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// MEMORIES
+app.get('/api/memories', async (req, res) => {
+  try {
+    const { customer_id } = req.query;
+    const { data, error } = await supabase
+      .from('customer_memories')
+      .select('*')
+      .eq('customer_id', customer_id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/memories', async (req, res) => {
+  try {
+    const { customer_id, memory, bot_id } = req.body;
+    const { data, error } = await supabase
+      .from('customer_memories')
+      .insert([{ customer_id, memory, bot_id }])
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DEBUG
+app.get('/api/debug/system', async (req, res) => {
+  try {
+    const { data: bots } = await supabase.from('bots').select('*');
+    const { data: configs } = await supabase.from('bot_configs').select('*');
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      v: 'V5-INLINE',
+      bots: bots?.length || 0,
+      configs: configs?.length || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+console.log('✅ SAAS API Routes registered inline (V5)');
+
+// Payment Routes (Protected & Rate Limited by Tenant)
 
 // Payment Routes (Protected & Rate Limited by Tenant)
 const paymentsRouter = require('./routes/payments');
 app.use('/api/payments', authenticateTenant, tenantLimiter, paymentsRouter);
 
-// Long-Term Memory Routes
-const memoriesRouter = require('./routes/memories');
-app.use('/api/memories', authenticateTenant, tenantLimiter, memoriesRouter);
+// Live Chat Routes
+const livechatRouter = require('./routes/livechat');
+app.use('/api/livechat', authenticateTenant, tenantLimiter, livechatRouter);
 
-// Leads and Advanced Broadcast Routes
-const leadsAndBroadcastRouter = require('./routes/leadsAndBroadcast');
-app.use('/api/saas', authenticateTenant, tenantLimiter, leadsAndBroadcastRouter);
+// CHAT INTELIGENTE (FIX CORE)
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, bot_id } = req.body;
+    const { data: bot } = await supabase
+      .from('bots')
+      .select('*')
+      .eq('id', bot_id)
+      .single();
+
+    if (!bot) return res.json({ reply: "Bot no encontrado" });
+
+    const finalPrompt = `${bot.prompt}\n\nUSER: ${message}\nAI:`;
+
+    const { OpenAI } = require('openai');
+    const openai = new OpenAI();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: finalPrompt }]
+    });
+
+    res.json({ reply: response.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// RAG (FUNCIONAL REAL)
+app.post('/api/rag/upload', async (req, res) => {
+  const { name, content } = req.body;
+  const { data, error } = await supabase
+    .from('rag_sources')
+    .insert([{ name, content, type: 'text' }]);
+
+  if (error) return res.status(500).json({ error });
+  res.json({ success: true });
+});
+
+// CRM PRO Enterprise Routes
+const crmRouter = require('./routes/crm');
+app.use('/api/crm', authenticateTenant, tenantLimiter, crmRouter);
+
+// SaaS & WhatsApp routes already mounted in ENTERPRISE SAAS API block (lines 560-567)
+
+// Voice Preview Endpoint (for bot voice selection)
+app.post('/api/voice/preview', authenticateTenant, async (req, res) => {
+    try {
+        const { text = 'Hola, soy ALEX IO.', voice = 'nova' } = req.body;
+        const OPENAI_KEY = (process.env.OPENAI_API_KEY || '').trim();
+
+        if (voice.startsWith('minimax-')) {
+            // MiniMax TTS
+            const alexBrain = require('./services/alexBrain');
+            const audioBuffer = await alexBrain.generateTTS(text, voice);
+            const base64Audio = audioBuffer.toString('base64');
+            return res.json({ audioUrl: `data:audio/mpeg;base64,${base64Audio}` });
+        }
+
+        if (!OPENAI_KEY) {
+            return res.status(400).json({ error: 'OpenAI key not configured for TTS' });
+        }
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: OPENAI_KEY });
+        const mp3 = await openai.audio.speech.create({
+            model: 'tts-1',
+            voice: voice,
+            input: text.substring(0, 500)
+        });
+        const audioBuffer = Buffer.from(await mp3.arrayBuffer());
+        const base64Audio = audioBuffer.toString('base64');
+        res.json({ audioUrl: `data:audio/mpeg;base64,${base64Audio}` });
+    } catch (err) {
+        console.error('[Voice Preview] Error:', err.message);
+        res.status(500).json({ error: 'Voice preview failed: ' + err.message });
+    }
+});
 
 // Health Check (Public or Internal)
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         redis: redis ? 'connected' : 'disabled',
-        cache: global.responseCache.getStats()
+        cache: global.responseCache.getStats(),
+        botPool: { size: botPool.getPoolStatus().length }
     });
+});
+
+// Enterprise Bot Pool Status API
+app.get('/api/pool/status', authenticateTenant, (req, res) => {
+    res.json({ success: true, bots: botPool.getPoolStatus() });
 });
 
 // Observability Metrics Endpoint (Phase 5)
@@ -348,36 +918,61 @@ app.get('/api/metrics/:instance_id/:channel', authenticateTenant, (req, res) => 
     res.json(data);
 });
 
-// --- SPA CATCH-ALL (must be AFTER all API routes) ---
-if (frontendPath) {
-    app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/assets/')) {
-            return res.status(404).type('text/plain').send('Asset not found');
-        }
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        return res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
-            if (err) return next(err);
-        });
-    });
-}
-
-
-app.use((err, req, res, next) => {
-    console.error('❌ Express unhandled error:', err.message, 'path:', req.path);
-    if (req.path.startsWith('/assets/')) {
-        return res.status(404).type('text/plain').send('Asset not found');
+// --- SPA CATCH-ALL (CONSOLIDATED) ---
+// This must be the VERY LAST route
+app.get('*', (req, res) => {
+    // 1. Exclude API and Socket.io from catch-all
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io')) {
+        return res.status(404).json({ error: 'Endpoint not found on ALEX IO Server' });
     }
-    return res.status(500).json({ error: 'Internal server error' });
+    
+    // 2. Handle assets with 404 to prevent index.html being served for missing scripts
+    const isAsset = req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|json)$/);
+    if (isAsset) {
+        return res.status(404).send('Asset not found');
+    }
+
+    // 3. Serve Frontend SPA
+    const distPath = path.join(__dirname, '../client/dist');
+    const indexPath = path.join(distPath, 'index.html');
+    
+    if (fs.existsSync(indexPath)) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.sendFile(indexPath);
+    } else {
+        return res.status(404).send('ALEX IO: Frontend not built. Run npm run build.');
+    }
 });
 
-// --- START SERVER ---
-app.listen(PORT, () => {
-    logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN ${HOST}:${PORT}`);
-    logger.info(`📡 WhatsApp Handler Listo...`);
-    logger.info(`🧠 AI Brain Listo...`);
-
-    // Auto-restore previous sessions
-    restoreSessions().catch(e => logger.error(`❌ Session restoration failed: ${e.message}`));
+// --- GLOBAL ERROR HANDLER (Last defense) ---
+app.use((err, req, res, next) => {
+    console.error('💥 [CRITICAL_ERROR]:', err.stack);
+    res.status(err.status || 500).json({
+        error: err.message || 'Internal Server Error',
+        code: err.code || 'INTERNAL_ERROR'
+    });
 });
+
+const startServer = async () => {
+    try {
+        server.listen(PORT, HOST, async () => {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`✅ [ALEX IO v5] System Online on http://${HOST}:${PORT}`);
+            console.log(`✅ Socket.IO mounted at /socket.io/`);
+            console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            
+            // Restore sessions in background
+            restoreSessions().catch(e => console.error(`❌ Session restoration failed: ${e.message}`));
+
+            // Hydrate Bot Pool
+            await botPool.hydratePool().catch(e => console.error(`❌ Bot Pool hydration failed: ${e.message}`));
+            botPool.startHealthMonitor(60000);
+        });
+    } catch (err) {
+        console.error('❌ [BOOT_FATAL]:', err.message);
+        process.exit(1);
+    }
+};
+
+startServer();

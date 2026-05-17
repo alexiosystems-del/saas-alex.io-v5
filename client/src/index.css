@@ -7,44 +7,77 @@
    ═══════════════════════════════════════════════════════ */
 
 :root {
-  font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.92);
-  background-color: #050510;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* GLOBAL TOKENS */
+  --transition-speed: 700ms;
+  --font-title: 'Playfair Display', serif;
+  --font-body: 'Instrument Sans', sans-serif;
+  --accent-gold: #C5A028;
+  --accent-gold-glow: rgba(197, 160, 40, 0.4);
 
-  /* Glass tokens */
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-bg-hover: rgba(255, 255, 255, 0.07);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
-  --glass-blur: 20px;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --glass-shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.5);
+  /* DEFAULT THEME: SILVER LUXURY */
+  --bg-primary: #E2E8F0;
+  --bg-secondary: #CBD5E1;
+  --bg-card: rgba(255, 255, 255, 0.7);
+  --border: rgba(0, 0, 0, 0.1);
+  --text-primary: #080808;
+  --text-secondary: #475569;
+  --glass-bg: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.5);
+}
 
-  /* Accent palette */
-  --accent-cyan: #06b6d4;
-  --accent-blue: #3b82f6;
-  --accent-purple: #8b5cf6;
-  --accent-pink: #ec4899;
-  --accent-green: #10b981;
+/* ONYX BLACK THEME */
+[data-theme="onyx"] {
+  --bg-primary: #080808;
+  --bg-secondary: #121212;
+  --bg-card: rgba(20, 20, 20, 0.8);
+  --border: rgba(255, 255, 255, 0.05);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --glass-bg: rgba(20, 20, 20, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
 
-  /* Gradients */
-  --gradient-main: linear-gradient(135deg, #0c0c1d 0%, #0a0a1a 30%, #0d0b1e 60%, #050510 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple));
-  --gradient-glow: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(99, 102, 241, 0.06), transparent 40%);
+body {
+  font-family: var(--font-body);
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: var(--dark-bg);
+    --bg-secondary: #1E293B;
+    --bg-card: var(--dark-card);
+    --border: #334155;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --accent: var(--dark-gold);
+    --accent-hover: #FACC15;
+  }
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--gradient-main);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+input, textarea, select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 
 /* ─── SCROLLBAR ─── */

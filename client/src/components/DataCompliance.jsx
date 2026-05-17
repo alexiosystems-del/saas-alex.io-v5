@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Lock, Search, RefreshCw, AlertTriangle, FileText, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Ensure supabase instance is imported directly for client-side fetches
 
 export default function DataCompliance({ instanceId, tenantId }) {
     const [messages, setMessages] = useState([]);
@@ -10,30 +9,10 @@ export default function DataCompliance({ instanceId, tenantId }) {
     const fetchAuditLogs = async () => {
         setLoading(true);
         try {
-            // Fetch latest 50 messages for this instance, including hash and audit status
-            const { data, error } = await supabase
-                .from('messages')
-                .select(`
-                    id,
-                    remote_jid,
-                    direction,
-                    content,
-                    message_hash,
-                    previous_hash,
-                    audit_flag,
-                    audit_reason,
-                    created_at,
-                    shadow_audit_logs (
-                        is_compliant,
-                        claude_analysis
-                    )
-                `)
-                .eq('instance_id', instanceId)
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (error) throw error;
-            setMessages(data || []);
+            const res = await fetch(`/api/saas/messages?instance_id=${instanceId}&limit=50`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setMessages(data.messages || []);
         } catch (err) {
             console.error('Error fetching compliance logs:', err);
         } finally {

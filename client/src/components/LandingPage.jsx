@@ -1,495 +1,235 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const G = '#D4A843';
-const GH = '#E0BC6A';
-const GD = '#D4A84318';
-const GB = '#D4A84338';
-
-const plans = [
-  {
-    name: 'Starter',
-    price: 97,
-    annual: 77,
-    desc: 'Para empezar a convertir',
-    features: ['1 Bot IA activo', '1.000 mensajes/mes', '1 canal conectado', 'Respuestas automáticas', 'Soporte por email'],
-    cta: 'Comenzar gratis',
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    price: 197,
-    annual: 157,
-    desc: 'El más elegido por pymes',
-    features: ['5 Bots IA activos', '10.000 mensajes/mes', '3 canales conectados', 'CRM + extracción de leads', 'Auto-healing incluido', 'Soporte prioritario 24h'],
-    cta: 'Activar Pro',
-    highlight: true,
-  },
-  {
-    name: 'Scale',
-    price: 397,
-    annual: 317,
-    desc: 'Infraestructura enterprise',
-    features: ['Bots ilimitados', 'Mensajes ilimitados', 'Todos los canales', 'Multi-agente cognitivo', 'RAG / base de conocimiento', 'Onboarding dedicado + SLA'],
-    cta: 'Hablar con ventas',
-    highlight: false,
-  },
-];
-
-const channels = [
-  { label: 'WhatsApp', color: '#25D366' },
-  { label: 'TikTok', color: '#ff2d55' },
-  { label: 'Discord', color: '#5865F2' },
-  { label: 'Reddit', color: '#FF4500' },
-  { label: 'Instagram', color: '#E1306C' },
-  { label: 'Facebook', color: '#1877F2' },
-];
-
-const metrics = [
-  { value: '+40%', label: 'Más conversiones' },
-  { value: '+30%', label: 'Ventas cerradas' },
-  { value: '99.9%', label: 'Uptime garantizado' },
-  { value: '24/7', label: 'Sin interrupciones' },
-];
-
-const steps = [
-  { icon: '01', title: 'Mensaje entra', desc: 'El cliente escribe en su idioma, en cualquier canal.' },
-  { icon: '02', title: 'IA analiza', desc: 'Detecta intención, contexto y urgencia al instante.' },
-  { icon: '03', title: 'Responde', desc: 'Respuesta personalizada en milisegundos.' },
-  { icon: '04', title: 'Convierte', desc: 'Guía al cliente hasta el cierre sin fricción.' },
-  { icon: '05', title: 'Auto-sana', desc: 'Si algo falla, se recupera solo. Sin intervención.' },
-];
-
-const languages = [
-  { flag: '🇦🇷', lang: 'Español', reply: '¡Hola! Soy ALEX, tu asistente cognitivo. ¿En qué puedo ayudarte hoy?' },
-  { flag: '🇺🇸', lang: 'English', reply: "Hi! I'm ALEX, your cognitive assistant. How can I help you today?" },
-  { flag: '🇧🇷', lang: 'Português', reply: 'Olá! Sou ALEX, seu assistente cognitivo. Como posso ajudar você hoje?' },
-  { flag: '🇫🇷', lang: 'Français', reply: 'Bonjour! Je suis ALEX, votre assistant cognitif. Comment puis-je vous aider?' },
-  { flag: '🇩🇪', lang: 'Deutsch', reply: 'Hallo! Ich bin ALEX, Ihr kognitiver Assistent. Wie kann ich Ihnen helfen?' },
-  { flag: '🇮🇹', lang: 'Italiano', reply: 'Ciao! Sono ALEX, il tuo assistente cognitivo. Come posso aiutarti oggi?' },
-];
-
-const countries = ['🇦🇷 Argentina', '🇲🇽 México', '🇧🇷 Brasil', '🇨🇴 Colombia', '🇨🇱 Chile', '🇺🇸 USA', '🇪🇸 España', '🇵🇪 Perú', '🇺🇾 Uruguay', '🇧🇴 Bolivia', '🇩🇪 Alemania', '🇫🇷 Francia'];
-
-function useInView(threshold = 0.12) {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setInView(true);
-    }, { threshold });
-
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-
-  return [ref, inView];
-}
-
-function FadeIn({ children, delay = 0 }) {
-  const [ref, inView] = useInView();
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        opacity: inView ? 1 : 0,
-        transform: inView ? 'translateY(0)' : 'translateY(24px)',
-        transition: `opacity .65s ease ${delay}s, transform .65s ease ${delay}s`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default function LandingPage() {
+const LandingPage = () => {
   const navigate = useNavigate();
-  const [billing, setBilling] = useState('monthly');
-  const [activeLang, setActiveLang] = useState(0);
-  const [msg, setMsg] = useState('');
-  const [chat, setChat] = useState([
-    { from: 'bot', text: 'Hola 👋 Soy ALEX, tu asistente cognitivo. Preguntame lo que quieras — precios, funcionalidades, idiomas.' },
-  ]);
-  const [typing, setTyping] = useState(false);
-  const chatRef = useRef(null);
-  const currentYear = new Date().getFullYear();
-
-  const activateDemoMode = () => {
-    localStorage.setItem('demo_mode', 'true');
-    localStorage.setItem('alex_io_role', 'SUPERADMIN');
-    localStorage.setItem('demo_email', 'demo@alex.io');
-    localStorage.setItem('alex_io_tenant', 'tenant_demo');
-    navigate('/superadmin');
-  };
-
-  const goToLogin = () => {
-    localStorage.removeItem('demo_mode');
-    navigate('/login');
-  };
-
-  // getReply se elimina, ahora llamamos al backend
-  async function sendMessage() {
-    if (!msg.trim()) return;
-    const userMessage = { from: 'user', text: msg };
-    setChat((current) => [...current, userMessage]);
-    setMsg('');
-    setTyping(true);
-
-    try {
-      const response = await fetch('/api/webhooks/webchat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderId: 'landing_usr_' + Math.floor(Math.random() * 10000),
-          text: userMessage.text,
-          metadata: { tenantId: 'demo-tenant', isLanding: true }
-        })
-      });
-      const data = await response.json();
-      // Accept reply from both success AND error responses
-      if (data && data.reply) {
-        setChat((current) => [...current, { from: 'bot', text: data.reply }]);
-      } else {
-        setChat((current) => [...current, { from: 'bot', text: 'Error inesperado del servidor.' }]);
-      }
-    } catch (err) {
-      console.error(err);
-      setChat((current) => [...current, { from: 'bot', text: 'Parece que no tengo conexión con el backend ahora mismo.' }]);
-    } finally {
-      setTyping(false);
-    }
-  }
+  const [theme, setTheme] = useState('onyx');
+  const [lang, setLang] = useState('es');
 
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, [chat, typing]);
+    document.documentElement.setAttribute('data-theme', theme);
+    const handleScroll = () => {
+      document.getElementById('nav')?.classList.toggle('stuck', window.scrollY > 40);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [theme]);
 
-  const price = (plan) => (billing === 'annual' ? plan.annual : plan.price);
-  const saving = (plan) => (plan.price - plan.annual) * 12;
+  const toggleTheme = () => setTheme(theme === 'onyx' ? 'silver' : 'onyx');
+  const scroll2 = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  const handleEnter = () => navigate('/login');
+
+  const content = {
+    es: {
+      nav: ['Canales', 'Arquitectura', 'Inversión', 'Roadmap v2'],
+      badge: 'La nueva frontera del cierre automático',
+      h1: ['Cada mensaje que no', 'respondes es', 'dinero perdido.'],
+      p: 'ALEX IO responde, califica y convierte clientes automáticamente en WhatsApp y redes sociales, las 24 horas, los 7 días.',
+      mini: [
+        { icon: '⚡', txt: 'Respuestas en segundos' },
+        { icon: '📈', txt: 'Seguimiento automático' },
+        { icon: '👥', txt: 'Más ventas sin equipo' },
+        { icon: '🌐', txt: 'IA multilingüe con contexto' }
+      ],
+      btns: ['HABLAR CON ALEX AHORA', 'Ver demo en vivo'],
+      kicker1: 'Visión de producto · 2025–2026',
+      secH1: ['Tres productos.', 'Un solo cerebro.'],
+      products: [
+        { ghost: 'IO', status: '● Disponible hoy · 80%', title: 'ALEX IO', sub: 'Automatización comercial · Ventas · CRM', tag: 'El primer asistente de IA que responde, califica y cierra clientes en WhatsApp e Instagram sin que toques nada.', feat: ['Cascada de modelos IA: Gemini → OpenAI → Safeguard', 'Multi-canal: WhatsApp, Instagram, Facebook, TikTok', 'CRM integrado: HubSpot, Copper, GHL', 'Shadow Audit con Claude para compliance', 'RAG con base de conocimiento propia', 'Detección de idioma y voz adaptativa'], pct: '80%' },
+        { ghost: 'IN', status: '⬡ Próximamente', title: 'ALEX INCLUSIVE', sub: 'Accesibilidad universal · AIO Engine', tag: 'La primera plataforma de IA que detecta automáticamente cómo puede comunicarse cada persona y se adapta — sin configurar nada.', feat: ['Visual First: modo texto para usuarios sordos', 'Audio First: TTS con ElevenLabs + detección de idioma', 'Low Input: quick replies IA para motricidad reducida', 'Avatar en lengua de señas (Hand Talk SDK)', 'Perfil adaptativo que aprende en silencio', 'LSA en desarrollo con ANDIS y CILSA Argentina'], pct: '35%' },
+        { ghost: 'TB', status: '◈ Diciembre 2025', title: 'ALEX TRANSLATE', sub: 'Comunicación inteligente para un mundo sin barreras', tag: 'Comunicación inteligente para un mundo sin barreras. Traducción espontánea, inmersión lingüística y guía turística IA en cualquier idioma y canal.', feat: ['Tutor de idiomas conversacional — aprende hablando', 'Inmersión espontánea: el bot cambia de idioma según el contexto', 'Guía turística IA con knowledge base de destinos', 'Traducción en tiempo real bidireccional', 'Corrección contextual de errores gramaticales', 'Mercados: turismo, academias, educación remota'], pct: '15%' }
+      ],
+      demo: { kicker: 'Demo en vivo', h: 'Hablá con ALEX ahora.', p: 'Probá cómo ALEX califica leads en tiempo real. Respondé las preguntas y mirá cómo funciona el sistema de diagnóstico inteligente.', btn: 'Iniciar diagnóstico IA →' },
+      roadmap: { h: 'Roadmap v2', date: 'En desarrollo', phases: [
+        { ghost: '01', tag: 'Fase 01', week: 'Semanas 1–2 · Supabase', title: 'Cimientos adaptativos', items: ['Preferencias por usuario', 'Logs de interacción', 'Eventos accesibilidad'] },
+        { ghost: '02', tag: 'Fase 02', week: 'Semanas 3–4 · Detection', title: 'Detection Layer', items: ['Whisper STT', 'Detección de idioma', 'Behavior tracker'] },
+        { ghost: '03', tag: 'Fase 03', week: 'Semanas 5–6 · AIO Engine', title: 'AIO Engine', items: ['Selector de formato', 'Respuesta por contexto', 'TTS premium'] },
+        { ghost: '04', tag: 'Fase 04', week: 'Semanas 7–8 · Sign', title: 'Lengua de Señas', items: ['Hand Talk SDK', 'ASL / LIBRAS / LSA', 'Partner ANDIS · CILSA'] }
+      ]},
+      cta: { h: '¿Cuántos clientes estás perdiendo hoy?', p: 'Cada día sin ALEX IO es dinero que no vuelve. Automatizá conversación, seguimiento y cierre con arquitectura lista para escalar.', btn: 'HABLAR CON ALEX AHORA' },
+      access: 'ACCESO MASTER'
+    },
+    en: {
+      nav: ['Channels', 'Architecture', 'Pricing', 'Roadmap v2'],
+      badge: 'The new frontier of automated closing',
+      h1: ['Every message you', 'dont answer is', 'lost money.'],
+      p: 'ALEX IO answers, qualifies, and converts customers automatically on WhatsApp and social media, 24/7.',
+      mini: [
+        { icon: '⚡', txt: 'Responses in seconds' },
+        { icon: '📈', txt: 'Automated follow-up' },
+        { icon: '👥', txt: 'More sales without a team' },
+        { icon: '🌐', txt: 'Multilingual AI with context' }
+      ],
+      btns: ['TALK TO ALEX NOW', 'Watch live demo'],
+      kicker1: 'Product Vision · 2025–2026',
+      secH1: ['Three products.', 'One single brain.'],
+      products: [
+        { ghost: 'IO', status: '● Available today · 80%', title: 'ALEX IO', sub: 'Commercial Automation · Sales · CRM', tag: 'The first AI assistant that answers, qualifies, and closes customers on WhatsApp and Instagram without you touching anything.', feat: ['AI Model Cascade: Gemini → OpenAI → Safeguard', 'Multi-channel: WhatsApp, Instagram, Facebook, TikTok', 'Integrated CRM: HubSpot, Copper, GHL', 'Shadow Audit with Claude for compliance', 'RAG with own knowledge base', 'Adaptive language and voice detection'], pct: '80%' },
+        { ghost: 'IN', status: '⬡ Coming Soon', title: 'ALEX INCLUSIVE', sub: 'Universal Accessibility · AIO Engine', tag: 'The first AI platform that automatically detects how each person can communicate and adapts — without configuring anything.', feat: ['Visual First: text mode for deaf users', 'Audio First: TTS with ElevenLabs + language detection', 'Low Input: AI quick replies for reduced motor skills', 'Sign language avatar (Hand Talk SDK)', 'Adaptive profile that learns in silence', 'LSA in development with ANDIS and CILSA Argentina'], pct: '35%' },
+        { ghost: 'TB', status: '◈ December 2025', title: 'ALEX TRANSLATE', sub: 'Intelligent communication for a world without barriers', tag: 'Intelligent communication for a world without barriers. Spontaneous translation, linguistic immersion and AI tour guide in any language and channel.', feat: ['Conversational language tutor — learn by speaking', 'Spontaneous immersion: the bot changes language according to context', 'AI tour guide with knowledge base of destinations', 'Real-time bidirectional translation', 'Contextual correction of grammatical errors', 'Markets: tourism, academies, remote education'], pct: '15%' }
+      ],
+      demo: { kicker: 'Live Demo', h: 'Talk with ALEX now.', p: 'Test how ALEX qualifies leads in real-time. Answer the questions and see how the intelligent diagnostic system works.', btn: 'Start AI Diagnostic →' },
+      roadmap: { h: 'Roadmap v2', date: 'In development', phases: [
+        { ghost: '01', tag: 'Phase 01', week: 'Weeks 1–2 · Supabase', title: 'Adaptive Foundations', items: ['User preferences', 'Interaction logs', 'Accessibility events'] },
+        { ghost: '02', tag: 'Phase 02', week: 'Weeks 3–4 · Detection', title: 'Detection Layer', items: ['Whisper STT', 'Language detection', 'Behavior tracker'] },
+        { ghost: '03', tag: 'Phase 03', week: 'Weeks 5–6 · AIO Engine', title: 'AIO Engine', items: ['Format selector', 'Contextual response', 'Premium TTS'] },
+        { ghost: '04', tag: 'Phase 04', week: 'Weeks 7–8 · Sign', title: 'Sign Language', items: ['Hand Talk SDK', 'ASL / LIBRAS / LSA', 'Partner ANDIS · CILSA'] }
+      ]},
+      cta: { h: 'How many customers are you losing today?', p: 'Every day without ALEX IO is money that doesnt return. Automate conversation, follow-up and closing with architecture ready to scale.', btn: 'TALK TO ALEX NOW' },
+      access: 'MASTER ACCESS'
+    }
+  };
+
+  const t = content[lang];
 
   return (
-    <div style={{ background: '#07090C', color: '#EDE9E3', fontFamily: "'DM Sans','Helvetica Neue',sans-serif", minHeight: '100vh', overflowX: 'hidden' }}>
+    <div className="landing-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        .serif{font-family:'DM Serif Display',serif;}
-        nav a{color:#6B7280;text-decoration:none;font-size:14px;transition:color .2s;}
-        nav a:hover{color:#EDE9E3;}
-        .btn-g{background:${G};color:#07090C;border:none;padding:13px 26px;border-radius:8px;font-weight:500;font-size:15px;cursor:pointer;transition:background .2s,transform .15s;font-family:inherit;}
-        .btn-g:hover{background:${GH};transform:translateY(-1px);}
-        .btn-o{background:transparent;color:#EDE9E3;border:1px solid #2A2F38;padding:12px 26px;border-radius:8px;font-size:15px;cursor:pointer;transition:border-color .2s,background .2s;font-family:inherit;}
-        .btn-o:hover{border-color:#4B5563;background:#111418;}
-        .card{background:#0D1117;border:1px solid #1E2530;border-radius:16px;padding:1.75rem;}
-        .card-g{background:#0D1117;border:2px solid ${GB};border-radius:16px;padding:1.75rem;position:relative;}
-        .tag{display:inline-block;background:${GD};color:${G};border:1px solid ${GB};font-size:12px;padding:4px 14px;border-radius:100px;margin-bottom:1.5rem;letter-spacing:.04em;}
-        .pill{display:inline-flex;align-items:center;gap:8px;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:8px 16px;font-size:13px;color:#9CA3AF;}
-        .dot{width:8px;height:8px;border-radius:50%;}
-        .metric{background:#0D1117;border:1px solid #1E2530;border-radius:12px;padding:1.5rem;text-align:center;}
-        .bubble-bot{background:#1A1F28;border-radius:4px 16px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;color:#E5E7EB;}
-        .bubble-user{background:${G};color:#07090C;border-radius:16px 4px 16px 16px;padding:11px 15px;font-size:14px;line-height:1.6;max-width:86%;margin-left:auto;}
-        .tdot{width:6px;height:6px;background:#6B7280;border-radius:50%;display:inline-block;animation:blink 1.2s infinite;}
-        .tdot:nth-child(2){animation-delay:.2s;}
-        .tdot:nth-child(3){animation-delay:.4s;}
-        @keyframes blink{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
-        .lang-btn{background:transparent;border:1px solid #1E2530;border-radius:100px;padding:7px 14px;font-size:13px;color:#9CA3AF;cursor:pointer;transition:all .2s;font-family:inherit;}
-        .lang-btn.active{border-color:${GB};color:${G};background:${GD};}
-        .billing-toggle{display:flex;background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:3px;width:fit-content;margin:0 auto 2.5rem;}
-        .btog{background:transparent;border:none;padding:8px 20px;border-radius:100px;font-size:13px;cursor:pointer;color:#9CA3AF;font-family:inherit;transition:all .2s;}
-        .btog.on{background:${G};color:#07090C;font-weight:500;}
-        .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:${G};color:#07090C;font-size:11px;font-weight:500;padding:3px 14px;border-radius:100px;white-space:nowrap;}
-        .country-tag{background:#0D1117;border:1px solid #1E2530;border-radius:100px;padding:6px 14px;font-size:13px;color:#9CA3AF;}
-        footer a{color:#374151;text-decoration:none;font-size:13px;}
-        footer a:hover{color:#9CA3AF;}
-        input[type=text]{background:#1A1F28;border:1px solid #2A2F38;border-radius:8px;color:#EDE9E3;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;width:100%;transition:border-color .2s;}
-        input[type=text]:focus{border-color:${GB};}
-        input[type=text]::placeholder{color:#4B5563;}
-        @media (max-width: 1024px){
-          .steps-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .healing-grid{grid-template-columns:1fr !important;}
-          .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-        }
-        @media (max-width: 768px){
-          .steps-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-          .plans-grid{grid-template-columns:1fr !important;}
-          .nav-links{display:none !important;}
-          .metrics-grid{grid-template-columns:1fr !important;}
-        }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root { --gold:#C5A028; --gold2:#D4B03A; --gold3:#E8C84A; --gold-glow:rgba(197,160,40,0.35); --gold-dim:rgba(197,160,40,0.08); --gold-mid:rgba(197,160,40,0.25); --ff:'Playfair Display',Georgia,serif; --fb:'Instrument Sans',sans-serif; --fm:'DM Mono',monospace; }
+        [data-theme="onyx"] { --bg:#08080D; --bg2:#0D0D14; --bg3:#121219; --b1:rgba(255,255,255,0.06); --b2:rgba(255,255,255,0.10); --b3:rgba(255,255,255,0.15); --tx:#F2F0E8; --tm:#8A8880; --td:#3A3830; --glass:rgba(255,255,255,0.04); --glass-h:rgba(255,255,255,0.07); }
+        [data-theme="silver"] { --bg:#F5F3EE; --bg2:#ECEAE4; --bg3:#E2E0DA; --b1:rgba(0,0,0,0.06); --b2:rgba(0,0,0,0.10); --b3:rgba(0,0,0,0.18); --tx:#0A0A08; --tm:#5A5850; --td:#9A9890; --glass:rgba(0,0,0,0.03); --glass-h:rgba(0,0,0,0.06); }
+        body{background:var(--bg);color:var(--tx);font-family:var(--fb);overflow-x:hidden;}
+        .landing-root { background: var(--bg); color: var(--tx); font-family: var(--fb); }
+        nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;height:68px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;transition:all .4s;backdrop-filter:blur(0)}
+        nav.stuck{background:rgba(8,8,13,.92);backdrop-filter:blur(20px);border-color:var(--b1)}
+        .nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--ff);font-size:24px;font-weight:900;color:var(--tx);text-decoration:none}
+        .nav-icon{width:34px;height:34px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;transform:rotate(6deg);}
+        .nav-logo em{color:var(--gold);font-style:italic}
+        .nav-links{display:flex;gap:32px;font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+        .nav-links a{color:var(--tm);text-decoration:none;transition:color .2s;cursor:pointer}
+        .btn-gd{padding:10px 22px;background:var(--gold);border:none;border-radius:100px;color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;transition:all .3s}
+        .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 5vw 80px;position:relative}
+        .hero-h1{font-family:var(--ff);font-size:clamp(52px,8.5vw,118px);line-height:.94;font-weight:900;margin-bottom:28px;}
+        .hero-h1 em{font-style:italic;color:var(--gold);}
+        .hero-p{font-size:clamp(15px,1.7vw,20px);color:var(--tm);max-width:600px;line-height:1.75;margin-bottom:44px;}
+        .hero-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:800px;margin-bottom:44px;}
+        .mini-card{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 16px;border:1px solid var(--b1);background:var(--glass);border-radius:16px;}
+        .mini-icon{color:var(--gold);font-size:20px}
+        .mini-txt{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tm)}
+        .section{padding:100px 5vw;border-top:1px solid var(--b1);}
+        .sec-h{font-family:var(--ff);font-size:clamp(44px,6vw,80px);font-weight:900;line-height:.93;}
+        .sec-h em{font-style:italic;color:var(--gold)}
+        .timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:64px;}
+        .prod-card{padding:52px 44px;border:1px solid var(--b1);background:var(--bg2);position:relative;transition:all .35s;}
+        .prod-card.featured{background:var(--gold-dim);border-color:var(--gold-mid)}
+        .prod-ghost{position:absolute;bottom:-30px;right:10px;font-family:var(--ff);font-size:180px;font-weight:900;color:var(--gold);opacity:.04;line-height:1;}
+        .prod-status{font-family:var(--fm);font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:100px;width:fit-content;margin-bottom:24px;border:1px solid var(--gold-mid);color:var(--gold)}
+        .prod-title{font-family:var(--ff);font-size:42px;font-weight:900;line-height:1;margin-bottom:6px}
+        .prod-feat{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+        .pfeat{display:flex;gap:12px;font-size:12px;color:var(--tm);line-height:1.6;align-items:flex-start}
+        .pfeat::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--gold);margin-top:6px;flex-shrink:0}
+        .roadmap-phases{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-top:40px}
+        .rphase{padding:36px 28px;background:var(--bg2);border:1px solid var(--b1);position:relative;overflow:hidden}
+        .dashboard-preview { width:100%; max-width:1000px; margin-top:60px; border-radius:30px; border:1px solid var(--b2); box-shadow: 0 30px 60px rgba(0,0,0,0.5); overflow:hidden; }
       `}</style>
-      <nav style={{ borderBottom: '1px solid #1E2530', padding: '0 2rem', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#07090C', zIndex: 100 }}>
-        <div className="serif" style={{ fontSize: 22 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div className="nav-links" style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <a href="#como-funciona">Cómo funciona</a>
-          <a href="#canales">Canales</a>
-          <a href="#planes">Planes</a>
-          <a href="#demo">Demo</a>
-          <button className="btn-g" style={{ padding: '8px 20px', fontSize: 13 }} onClick={goToLogin}>Probar gratis →</button>
+
+      {/* NAV */}
+      <nav id="nav">
+        <a className="nav-logo" href="#">
+          <div className="nav-icon">A</div>
+          ALEX <em>IO</em>
+        </a>
+        <div className="nav-links">
+          <a onClick={() => scroll2('canales')}>{t.nav[0]}</a>
+          <a onClick={() => scroll2('arquitectura')}>{t.nav[1]}</a>
+          <a onClick={() => scroll2('inversion')}>{t.nav[2]}</a>
+          <a onClick={() => scroll2('roadmap')}>{t.nav[3]}</a>
+          <button onClick={() => setLang(lang === 'es' ? 'en' : 'es')} style={{background:'none', border:'none', color:'var(--gold)', fontWeight:'bold', cursor:'pointer', fontSize:'10px', letterSpacing:'.1em'}}>
+            {lang === 'es' ? 'EN' : 'ES'}
+          </button>
+        </div>
+        <div className="nav-r">
+          <button className="theme-btn" onClick={toggleTheme} style={{marginRight:'10px', background:'none', border:'none', cursor:'pointer'}}>{theme === 'onyx' ? '☀️' : '🌙'}</button>
+          <button className="btn-gd" onClick={handleEnter}>{t.access}</button>
         </div>
       </nav>
 
-      <section style={{ textAlign: 'center', padding: '100px 2rem 60px', maxWidth: 780, margin: '0 auto', position: 'relative' }}>
-        <div style={{ position: 'absolute', width: 560, height: 560, background: `radial-gradient(circle,${GD} 0%,transparent 70%)`, top: -80, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
-        <div className="tag">Sistema autónomo enterprise — activo en 12 países</div>
-        <h1 className="serif" style={{ fontSize: 'clamp(40px,6vw,70px)', lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: '1.25rem' }}>
-          Tu empresa opera sola.<br />
-          <em style={{ color: G, fontStyle: 'italic' }}>Vos cerrás ventas.</em>
-        </h1>
-        <p style={{ fontSize: 18, color: '#9CA3AF', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 2.5rem' }}>
-          ALEX IO responde, vende y gestiona tu comunicación 24/7 — en cualquier idioma, para cualquier país del mundo. Se detecta, se protege y se recupera solo.
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-g" onClick={goToLogin}>Probar en WhatsApp →</button>
-          <button className="btn-o" onClick={activateDemoMode}>Ver demo en vivo</button>
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-badge" style={{display:'inline-flex', padding:'8px 18px', border:'1px solid var(--b2)', borderRadius:'100px', fontFamily:'var(--fm)', fontSize:'11px', color:'var(--tm)', marginBottom:'40px'}}>{t.badge}</div>
+        <h1 className="hero-h1">{t.h1[0]}<br/>{t.h1[1]}<br/><em>{t.h1[2]}</em></h1>
+        <p className="hero-p">{t.p}</p>
+        <div className="hero-mini">
+          {t.mini.map((m, i) => (
+            <div key={i} className="mini-card">
+              <div className="mini-icon">{m.icon}</div>
+              <div className="mini-txt">{m.txt}</div>
+            </div>
+          ))}
         </div>
-        <p style={{ marginTop: '1.5rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos · Cancelás cuando quieras</p>
+        
+        {/* Dashboard Image Removed Temporarily */}
+
+        <div className="hero-btns" style={{marginTop:'50px', display:'flex', gap:'14px'}}>
+          <button 
+            className="btn-gd" 
+            style={{padding:'18px 44px', fontSize:'14px'}}
+            onClick={() => window.dispatchEvent(new CustomEvent('open-alex-chat'))}
+          >
+            {t.btns[0]}
+          </button>
+          <button className="hbtn-s" onClick={() => scroll2('demo')} style={{padding:'18px 36px', background:'none', border:'1px solid var(--b2)', borderRadius:'100px', color:'var(--tm)', cursor:'pointer'}}>{t.btns[1]}</button>
+        </div>
       </section>
 
-      <section style={{ padding: '0 2rem 80px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ background: '#0D1117', border: '1px solid #1E2530', borderRadius: 16, overflow: 'hidden', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', maxWidth: 860, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: G, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', cursor: 'pointer' }} onClick={activateDemoMode}>
-                <div style={{ width: 0, height: 0, borderTop: '12px solid transparent', borderBottom: '12px solid transparent', borderLeft: '20px solid #07090C', marginLeft: 4 }} />
+      {/* PRODUCTS / TIMELINE - EXACT COPY */}
+      <section className="section" id="productos">
+        <div className="kicker" style={{fontFamily:'var(--fm)', fontSize:'10px', color:'var(--gold)', letterSpacing:'.2em', marginBottom:'18px'}}>{t.kicker1}</div>
+        <h2 className="sec-h">{t.secH1[0]}<br/><em>{t.secH1[1]}</em></h2>
+        <div className="timeline">
+          {t.products.map((p, i) => (
+            <div key={i} className={`prod-card ${i === 0 ? 'featured' : ''}`}>
+              <div className="prod-ghost">{p.ghost}</div>
+              <span className="prod-status">{p.status}</span>
+              <div className="prod-title" style={{marginTop:'20px'}}>{p.title}</div>
+              <div className="prod-sub" style={{fontFamily:'var(--fm)', fontSize:'10px', color:'var(--td)', marginBottom:'20px'}}>{p.sub}</div>
+              <p className="prod-tagline" style={{fontSize:'15px', color:'var(--tm)', lineHeight:'1.75', marginBottom:'28px'}}>{p.tag}</p>
+              <div className="prod-feat">
+                {p.feat.map((f, j) => <div key={j} className="pfeat">{f}</div>)}
               </div>
-              <p style={{ fontSize: 13, color: '#4B5563' }}>Tu video va aquí · 1080p o 4K · máx 90 segundos</p>
             </div>
-            <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#07090C99', border: '1px solid #1E2530', borderRadius: 100, padding: '6px 18px', fontSize: 13, color: '#9CA3AF', whiteSpace: 'nowrap' }}>
-              ALEX IO — 90 segundos que cambian tu negocio
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '0 2rem 90px', maxWidth: 900, margin: '0 auto' }}>
-        <FadeIn>
-          <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-            {metrics.map((metric) => (
-              <div className="metric" key={metric.label}>
-                <div className="serif" style={{ fontSize: 34, color: G, marginBottom: 6 }}>{metric.value}</div>
-                <div style={{ fontSize: 13, color: '#6B7280' }}>{metric.label}</div>
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
-            <div className="tag">El problema real</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-              Cada mensaje sin respuesta<br />es una venta que perdiste
-            </h2>
-            <p style={{ color: '#6B7280', fontSize: 17, lineHeight: 1.7 }}>
-              No es falta de clientes. Es falta de sistema. Tu competidor que responde en 2 minutos cierra ventas que vos perdiste mientras dormías.
-            </p>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="como-funciona" style={{ padding: '100px 2rem', maxWidth: 1000, margin: '0 auto' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-            <div className="tag">El proceso</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2 }}>Sin humanos. Sin fricción.<br />Sin pérdidas.</h2>
-          </div>
-        </FadeIn>
-        <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 20 }}>
-          {steps.map((step, i) => (
-            <FadeIn key={step.icon} delay={i * 0.1}>
-              <div style={{ textAlign: 'center' }}>
-                <div className="serif" style={{ fontSize: 44, color: `${G}22`, lineHeight: 1, marginBottom: 8 }}>{step.icon}</div>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>{step.title}</div>
-                <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>{step.desc}</div>
-              </div>
-            </FadeIn>
           ))}
         </div>
       </section>
 
-      <section style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div className="healing-grid" style={{ maxWidth: 900, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
-            <div>
-              <div className="tag">Diferencial enterprise</div>
-              <h2 className="serif" style={{ fontSize: 'clamp(26px,3.5vw,40px)', lineHeight: 1.2, marginBottom: '1.25rem' }}>
-                ALEX IO no solo funciona.<br />
-                <em style={{ color: G }}>Se cura solo.</em>
-              </h2>
-              <p style={{ color: '#9CA3AF', lineHeight: 1.7, marginBottom: '1.5rem' }}>
-                Cuando una API externa cae o un canal se degrada, ALEX IO lo detecta, se suspende para proteger recursos y se recupera automáticamente — sin que nadie toque nada.
-              </p>
-              {[['🛡️', 'Detecta anomalías en tiempo real'], ['⏸️', 'Se pausa antes de fallar'], ['🔄', 'Se recupera sin intervención humana']].map(([icon, text]) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, color: '#9CA3AF', marginBottom: 10 }}>
-                  <span style={{ fontSize: 16 }}>{icon}</span>{text}
-                </div>
-              ))}
-            </div>
-            <div className="card" style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 2, color: '#4B5563' }}>
-              <div style={{ color: G, marginBottom: 8, fontSize: 11, letterSpacing: '.08em' }}>AUTO-HEALING LOG</div>
-              <div><span style={{ color: '#6B7280' }}>22:14:01</span> <span style={{ color: '#9CA3AF' }}>canal=whatsapp</span> success_rate=97%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#F59E0B' }}>DEGRADACIÓN detectada</span> rate=84%</div>
-              <div><span style={{ color: '#6B7280' }}>22:19:33</span> <span style={{ color: '#EF4444' }}>instancia suspendida</span> auto_paused=true</div>
-              <div><span style={{ color: '#6B7280' }}>22:31:12</span> evaluando recuperación...</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: G }}>RECUPERADO ✓</span> rate=99.1%</div>
-              <div><span style={{ color: '#6B7280' }}>22:34:50</span> <span style={{ color: '#9CA3AF' }}>alerta enviada</span> canal=discord</div>
-            </div>
+      {/* ROADMAP - EXACT COPY */}
+      <section className="section" id="roadmap">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'64px'}}>
+          <h2 className="sec-h">Roadmap <em>{t.roadmap.h.split(' ')[1]}</em></h2>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontFamily:'var(--fm)', fontSize:'10px', color:'var(--td)'}}>{t.roadmap.date}</div>
           </div>
-        </FadeIn>
-      </section>
-
-      <section style={{ padding: '100px 2rem', maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Global desde el día 1</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.2, marginBottom: '1rem' }}>
-            Vendé para cualquier país.<br />
-            <em style={{ color: G }}>Tu cliente lo verá en su idioma.</em>
-          </h2>
-          <p style={{ color: '#6B7280', fontSize: 16, lineHeight: 1.7, maxWidth: 540, margin: '0 auto 2.5rem' }}>
-            ALEX detecta automáticamente el idioma del cliente y responde en el mismo. Sin configuración extra. Sin barreras de mercado.
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-            {languages.map((language, index) => (
-              <button key={language.lang} className={`lang-btn${activeLang === index ? ' active' : ''}`} onClick={() => setActiveLang(index)}>
-                {language.flag} {language.lang}
-              </button>
-            ))}
-          </div>
-          <div className="card" style={{ maxWidth: 420, margin: '0 auto', textAlign: 'left', padding: '1rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, borderBottom: '1px solid #1E2530', paddingBottom: 10 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: G }} />
-              <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — {languages[activeLang].lang}</span>
-            </div>
-            <div className="bubble-bot">{languages[activeLang].reply}</div>
-          </div>
-          <div style={{ marginTop: '2.5rem' }}>
-            <p style={{ fontSize: 13, color: '#4B5563', marginBottom: '1rem' }}>Activo en más de 12 países</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-              {countries.map((country) => <div key={country} className="country-tag">{country}</div>)}
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="canales" style={{ padding: '80px 2rem', background: '#0A0D11', borderTop: '1px solid #1E2530', borderBottom: '1px solid #1E2530', textAlign: 'center' }}>
-        <FadeIn>
-          <div className="tag">Multi-canal</div>
-          <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', marginBottom: '1rem', lineHeight: 1.2 }}>
-            Un solo cerebro.<br />Toda tu comunicación.
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 16 }}>
-            Conectá tus canales y ALEX los gestiona todos desde un centro de control unificado.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', maxWidth: 600, margin: '0 auto' }}>
-            {channels.map((channel) => (
-              <div key={channel.label} className="pill">
-                <div className="dot" style={{ background: channel.color }} />{channel.label}
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="demo" style={{ padding: '100px 2rem' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 480, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <div className="tag">Demo en vivo</div>
-              <h2 className="serif" style={{ fontSize: 32, lineHeight: 1.2 }}>Hablá con ALEX ahora</h2>
-              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>Preguntale precios, funcionalidades, idiomas — lo que quieras</p>
-            </div>
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #1E2530', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: G }} />
-                <span style={{ fontSize: 13, fontWeight: 500 }}>ALEX — el Cognitivo</span>
-                <span style={{ fontSize: 11, color: '#4B5563', marginLeft: 'auto' }}>En línea ahora</span>
-              </div>
-              <div ref={chatRef} style={{ height: 260, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: 12, scrollBehavior: 'smooth' }}>
-                {chat.map((message, index) => (
-                  <div key={`${message.from}-${index}`} style={{ display: 'flex', justifyContent: message.from === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <div className={message.from === 'bot' ? 'bubble-bot' : 'bubble-user'}>{message.text}</div>
-                  </div>
-                ))}
-                {typing && (
-                  <div style={{ display: 'flex', gap: 4, padding: '10px 14px', background: '#1A1F28', borderRadius: '4px 16px 16px 16px', width: 'fit-content' }}>
-                    <span className="tdot" /><span className="tdot" /><span className="tdot" />
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '12px 16px', borderTop: '1px solid #1E2530', display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="Escribí tu mensaje..." value={msg} onChange={(event) => setMsg(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} />
-                <button className="btn-g" style={{ padding: '10px 16px', whiteSpace: 'nowrap', fontSize: 13 }} onClick={sendMessage}>Enviar</button>
+        </div>
+        <div className="roadmap-phases">
+          {t.roadmap.phases.map((ph, i) => (
+            <div key={i} className="rphase">
+              <div className="rphase-ghost">{ph.ghost}</div>
+              <div className="rphase-tag">{ph.tag}</div>
+              <div className="rphase-week" style={{fontFamily:'var(--fm)', fontSize:'10px', color:'var(--td)', marginBottom:'16px'}}>{ph.week}</div>
+              <div className="rphase-title" style={{fontFamily:'var(--ff)', fontSize:'20px', fontWeight:'900', marginBottom:'12px'}}>{ph.title}</div>
+              <div className="rphase-items">
+                {ph.items.map((item, j) => <div key={j} style={{fontSize:'10px', color:'var(--td)', marginBottom:'4px'}}>• {item}</div>)}
               </div>
             </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      <section id="planes" style={{ padding: '80px 2rem 100px', background: '#0A0D11', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <div className="tag">Precios</div>
-            <h2 className="serif" style={{ fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.2, marginBottom: '2rem' }}>Empezá hoy. Escalá mañana.</h2>
-            <div className="billing-toggle">
-              <button className={`btog${billing === 'monthly' ? ' on' : ''}`} onClick={() => setBilling('monthly')}>Mensual</button>
-              <button className={`btog${billing === 'annual' ? ' on' : ''}`} onClick={() => setBilling('annual')}>Anual — 20% off</button>
-            </div>
-          </div>
-        </FadeIn>
-        <div className="plans-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 22, maxWidth: 960, margin: '0 auto', alignItems: 'start' }}>
-          {plans.map((plan, index) => (
-            <FadeIn key={plan.name} delay={index * 0.1}>
-              <div className={plan.highlight ? 'card-g' : 'card'}>
-                {plan.highlight && <div className="plan-badge">Más popular ⚡</div>}
-                <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>{plan.desc}</div>
-                <div className="serif" style={{ fontSize: 20, marginBottom: 6 }}>{plan.name}</div>
-                <div className="serif" style={{ fontSize: 42, color: plan.highlight ? G : '#EDE9E3', lineHeight: 1.1, marginBottom: 2 }}>
-                  ${price(plan)}<span style={{ fontSize: 15, color: '#6B7280', fontFamily: 'inherit' }}>/mes</span>
-                </div>
-                {billing === 'annual'
-                  ? <div style={{ fontSize: 12, color: G, marginBottom: 4 }}>Ahorrás ${saving(plan)}/año</div>
-                  : <div style={{ fontSize: 12, color: '#4B5563', marginBottom: 4 }}>o ${plan.annual}/mes pagando anual</div>
-                }
-                <div style={{ height: 1, background: '#1E2530', margin: '1.25rem 0' }} />
-                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1.5rem' }}>
-                  {plan.features.map((feature) => (
-                    <li key={`${plan.name}-${feature}`} style={{ fontSize: 13, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: G, fontSize: 12 }}>✓</span>{feature}
-                    </li>
-                  ))}
-                </ul>
-                <button className={plan.highlight ? 'btn-g' : 'btn-o'} style={{ width: '100%' }} onClick={plan.name === 'Scale' ? activateDemoMode : goToLogin}>{plan.cta}</button>
-              </div>
-            </FadeIn>
           ))}
         </div>
       </section>
 
-      <section style={{ padding: '100px 2rem', textAlign: 'center', borderTop: '1px solid #1E2530' }}>
-        <FadeIn>
-          <h2 className="serif" style={{ fontSize: 'clamp(32px,5vw,56px)', lineHeight: 1.15, marginBottom: '1.5rem' }}>
-            Mientras vos dormís,<br />
-            <em style={{ color: G }}>tu empresa sigue creciendo.</em>
-          </h2>
-          <p style={{ color: '#6B7280', marginBottom: '2.5rem', fontSize: 17 }}>No es el futuro. Ya está pasando — en 12 países, en 6 idiomas.</p>
-          <button className="btn-g" style={{ fontSize: 16, padding: '16px 36px' }} onClick={activateDemoMode}>Activar ALEX IO ahora →</button>
-          <p style={{ marginTop: '1.25rem', fontSize: 13, color: '#374151' }}>Sin tarjeta requerida · Listo en 5 minutos</p>
-        </FadeIn>
+      {/* CTA */}
+      <section className="section" style={{textAlign:'center', background:'var(--bg2)'}}>
+        <h2 className="sec-h" style={{fontSize:'clamp(52px,7vw,96px)'}}>{t.cta.h}</h2>
+        <p className="cta-p" style={{fontSize:'17px', color:'var(--tm)', maxWidth:'500px', margin:'40px auto'}}>{t.cta.p}</p>
+        <button className="btn-gd" style={{padding:'18px 44px', fontSize:'15px'}}>{t.cta.btn}</button>
       </section>
 
-      <footer style={{ borderTop: '1px solid #1E2530', padding: '1.75rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div className="serif" style={{ fontSize: 18 }}>ALEX <span style={{ color: G }}>IO</span></div>
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
-          <a href="#">Privacidad</a>
-          <a href="#">Términos</a>
-          <a href="#">Contacto</a>
-        </div>
-        <div style={{ fontSize: 13, color: '#374151' }}>© {currentYear} ALEX IO — Tu arquitecto de negocios & ventas IA</div>
+      {/* FOOTER */}
+      <footer style={{padding:'48px 5vw', borderTop:'1px solid var(--b1)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--bg)'}}>
+        <div className="foot-logo">ALEX <em>IO</em></div>
+        <div style={{fontFamily:'var(--fm)', fontSize:'9px', color:'var(--td)'}}>© 2026 ALEX IO SYSTEMS</div>
       </footer>
     </div>
   );
-}
+};
+
+export default LandingPage;
