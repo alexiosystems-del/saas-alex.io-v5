@@ -2,8 +2,12 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const NodeCache = require('node-cache');
 const crypto = require('crypto');
-let franc;
-try { franc = require('franc-min').franc; } catch(e) { franc = () => 'und'; console.warn('⚠️ franc-min not installed, language detection disabled'); }
+// franc-min v6+ is ESM-only; use dynamic import with lazy init for CJS compat
+let _franc = null;
+async function detectLang(text) {
+    if (!_franc) { try { _franc = (await import('franc-min')).franc; } catch(e) { _franc = () => 'und'; } }
+    return _franc(text);
+}
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
