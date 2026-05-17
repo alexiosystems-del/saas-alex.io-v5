@@ -2,7 +2,8 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const NodeCache = require('node-cache');
 const crypto = require('crypto');
-const { franc } = require('franc-min');
+let franc;
+try { franc = require('franc-min').franc; } catch(e) { franc = () => 'und'; console.warn('⚠️ franc-min not installed, language detection disabled'); }
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
