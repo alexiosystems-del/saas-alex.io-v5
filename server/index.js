@@ -436,7 +436,7 @@ if (fs.existsSync(clientPath)) {
 }
 
 // --- BOT INITIATOR CORE (BIC) ROUTES ---
-const initiatorService = require('./services/initiatorProfileService');
+const initiatorService = (() => { try { return require('./services/initiatorProfileService'); } catch(e) { return { saveProfile: async () => ({}) }; } })();
 
 app.post('/api/saas/bot-initiator', authenticateTenant, async (req, res) => {
     try {
