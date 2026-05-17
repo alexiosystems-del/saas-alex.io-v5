@@ -21,6 +21,11 @@ const { encrypt, decrypt } = require('../utils/encryptionHelper');
 const { trackEvent } = require('./observability');
 const { redis, isRedisEnabled, acquireLock, releaseLock } = require('./redisService');
 
+let ioInstance = null;
+const setSocket = (io) => {
+    ioInstance = io;
+};
+
 const {
     savePromptVersion,
     listPromptVersions,
@@ -97,6 +102,10 @@ const logBotEvent = (instanceId, level, message, meta = {}) => {
     const logs = botEventLogs.get(instanceId);
     logs.push({ timestamp: new Date().toISOString(), level, message, meta });
     if (logs.length > BOT_LOG_MAX) logs.shift(); // ring buffer
+
+    if (ioInstance) {
+        ioInstance.emit('wa_log', { instanceId, log: { timestamp: new Date().toISOString(), level, message } });
+    }
 
     // Persist critical events to Supabase (async, non-blocking)
     if (['error', 'warn', 'connection'].includes(level)) {
@@ -189,6 +198,13 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
         tenantId: clientConfigs.get(instanceId)?.tenantId || extra.tenantId || null,
         ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || null
     });
+
+    if (ioInstance) {
+        ioInstance.emit('wa_status', { instanceId, status, companyName: payload.company_name });
+        if (payload.qr_code) {
+            ioInstance.emit('wa_qr', { instanceId, qr: payload.qr_code });
+        }
+    }
 
     if (!isSupabaseEnabled) return;
 
@@ -2734,6 +2750,7 @@ const restoreSessions = async () => {
 module.exports = {
     router,
     restoreSessions,
+    setSocket,
     logBotEvent,
     updateSessionStatus,
     trackEvent,
