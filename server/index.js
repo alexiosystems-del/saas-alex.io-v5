@@ -474,18 +474,33 @@ app.get('/api/status', (req, res) => {
 
 // AI Diagnostics Endpoint (shows which keys are configured/dead)
 app.get('/api/diagnostics/ai', (req, res) => {
-    const { getAiDiagnostics } = require('./services/alexBrain');
-    const aiDiag = getAiDiagnostics();
-    res.json({
-        providers: {
-            gemini: aiDiag.gemini?.configured || false,
-            openai: aiDiag.openai?.configured || false,
-            deepseek: aiDiag.deepseek?.configured || false
-        },
-        whatsapp: {
-            status: "READY"
-        }
-    });
+    try {
+        const { getAiDiagnostics } = require('./services/alexBrain');
+        const aiDiag = typeof getAiDiagnostics === 'function' ? getAiDiagnostics() : {};
+        res.json({
+            providers: {
+                gemini: aiDiag?.gemini?.configured || false,
+                openai: aiDiag?.openai?.configured || false,
+                deepseek: aiDiag?.deepseek?.configured || false
+            },
+            whatsapp: {
+                status: 'READY'
+            }
+        });
+    } catch (error) {
+        console.error('❌ [AI DIAGNOSTICS] Error:', error.message);
+        res.status(200).json({
+            providers: {
+                gemini: false,
+                openai: false,
+                deepseek: false
+            },
+            whatsapp: {
+                status: 'UNKNOWN'
+            },
+            warning: 'Diagnostics fallback response'
+        });
+    }
 });
 
 // ENDPOINT DE DIAGNÓSTICO DE SOCKETS

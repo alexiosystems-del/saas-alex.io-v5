@@ -314,8 +314,8 @@ const SaasDashboard = () => {
                 {bots.map((bot) => (
                   <div 
                     key={bot.id} 
-                    onClick={() => setSelectedBotId(bot.id)}
-                    className={`group bg-slate-900/60 border-2 ${selectedBotId === bot.id ? 'border-indigo-500' : 'border-white/5'} rounded-[3rem] p-8 hover:border-indigo-500/40 transition-all cursor-pointer relative`}
+                    onClick={() => setSelectedBotId(bot.instance_id || bot.id)}
+                    className={`group bg-slate-900/60 border-2 ${selectedBotId === (bot.instance_id || bot.id) ? 'border-indigo-500' : 'border-white/5'} rounded-[3rem] p-8 hover:border-indigo-500/40 transition-all cursor-pointer relative`}
                   >
                     <div className="flex justify-between items-start mb-8">
                       <div className="flex items-center gap-5">
