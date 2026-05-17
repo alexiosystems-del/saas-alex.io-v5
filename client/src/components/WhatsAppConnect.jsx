@@ -1,4 +1,4 @@
-// Deploy Trigger v2.1.5 - global-v8-ai rollout
+// Deploy Trigger v2.1.6 - global-v8-ai deduplication rollout
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';

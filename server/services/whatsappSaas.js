@@ -265,6 +265,41 @@ const clearSessionRuntime = (instanceId) => {
     reconnectAttempts.delete(instanceId);
 };
 
+const stopAndCleanupInstance = async (instanceId) => {
+    console.log(`🧹 [CLEANUP] Deteniendo y depurando instancia obsoleta/duplicada: ${instanceId}`);
+    
+    // 1. Desconectar adaptador activo
+    if (activeSessions.has(instanceId)) {
+        try {
+            activeSessions.get(instanceId).logout();
+        } catch (_) { }
+    }
+
+    // 2. Cerrar socket de Baileys
+    const sock = whatsappSockets.get(instanceId);
+    if (sock) {
+        try { sock.logout(); } catch (_) {}
+        try { sock.end(); } catch (_) {}
+        whatsappSockets.delete(instanceId);
+    }
+
+    // 3. Limpiar estados en memoria
+    clearSessionRuntime(instanceId);
+    clientConfigs.delete(instanceId);
+    sessionStatus.delete(instanceId);
+    connectionStates.delete(instanceId);
+
+    // 4. Borrar de la base de datos Supabase
+    await safeDeletePersistentSession(instanceId);
+    await purgeBotData(instanceId);
+
+    // 5. Borrar credenciales físicas en disco
+    try {
+        const fs = require('fs');
+        fs.rmSync(`./sessions/${instanceId}`, { recursive: true, force: true });
+    } catch (_) { }
+};
+
 const safeDeletePersistentSession = async (instanceId) => {
     if (!isSupabaseEnabled) return;
 
@@ -880,6 +915,37 @@ router.post('/connect', async (req, res) => {
     const safeRequestedId = /^[a-zA-Z0-9_-]{8,80}$/.test(requestedInstanceId) ? requestedInstanceId : null;
     const instanceId = safeRequestedId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
+
+    // Clean up any other active session in memory or DB for the same tenant to prevent conflicts
+    if (effectiveTenantId) {
+        try {
+            const duplicateInstanceIds = [];
+            for (const [id, cfg] of clientConfigs.entries()) {
+                if (cfg?.tenantId === effectiveTenantId && id !== instanceId) {
+                    duplicateInstanceIds.push(id);
+                }
+            }
+            if (isSupabaseEnabled && supabase) {
+                const { data: siblingSessions } = await supabase
+                    .from(sessionsTable)
+                    .select('instance_id')
+                    .eq('tenant_id', effectiveTenantId)
+                    .neq('instance_id', instanceId);
+                for (const sib of siblingSessions || []) {
+                    if (sib.instance_id && !duplicateInstanceIds.includes(sib.instance_id)) {
+                        duplicateInstanceIds.push(sib.instance_id);
+                    }
+                }
+            }
+
+            for (const dupId of duplicateInstanceIds) {
+                console.log(`🧹 [DEDUPLICATION] Matando instancia duplicada en conflicto para el inquilino ${effectiveTenantId}: ${dupId}`);
+                await stopAndCleanupInstance(dupId);
+            }
+        } catch (e) {
+            console.warn('⚠️ [DEDUPLICATION] Error cleaning up sibling instances:', e.message);
+        }
+    }
 
     // 1. Prepare credentials object for encryption
     const credentials = {
@@ -2610,9 +2676,26 @@ const restoreSessions = async () => {
 
         // Filter: only restore sessions updated in last 24 hours (skip truly dead ones)
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const restoreable = (sessions || []).filter(s => s.updated_at > cutoff);
+        const rawRestoreable = (sessions || []).filter(s => s.updated_at > cutoff);
 
-        console.log(`📡 [RECOVERY] Encontradas ${restoreable.length} sesiones para restaurar (de ${(sessions || []).length} totales).`);
+        // Deduplicar: mantener únicamente la sesión más reciente por inquilino (tenant_id)
+        const seenTenants = new Set();
+        const restoreable = [];
+        for (const session of rawRestoreable) {
+            const tId = session.tenant_id;
+            if (tId && !seenTenants.has(tId)) {
+                seenTenants.add(tId);
+                restoreable.push(session);
+            } else if (!tId) {
+                restoreable.push(session);
+            } else {
+                console.log(`🧹 [RECOVERY] Saltando y depurando sesión obsoleta para inquilino ${tId}: ${session.instance_id}`);
+                // Borrar automáticamente de la DB para limpiar la basura
+                stopAndCleanupInstance(session.instance_id).catch(() => null);
+            }
+        }
+
+        console.log(`📡 [RECOVERY] Encontradas ${restoreable.length} sesiones únicas para restaurar (de ${rawRestoreable.length} candidatas en las últimas 24h).`);
 
         // 4. Stagger reconnections (5 seconds between each bot)
         for (let i = 0; i < restoreable.length; i++) {
