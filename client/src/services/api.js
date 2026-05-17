@@ -1,11 +1,8 @@
 import axios from 'axios';
+import { getPreferredApiBase } from '../api';
 
 const getBaseUrl = () => {
-    if (import.meta.env.PROD) {
-        // Use relative path — frontend and backend share the same Render service
-        return import.meta.env.VITE_API_URL || '';
-    }
-    return 'http://localhost:3000';
+    return getPreferredApiBase() || import.meta.env.VITE_API_URL || '';
 };
 
 const api = axios.create({

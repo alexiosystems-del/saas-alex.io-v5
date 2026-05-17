@@ -3,17 +3,12 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import QRCode from 'react-qr-code';
 import io from 'socket.io-client';
 import api from '../services/api';
+import { getPreferredApiBase } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Cloud, Activity, Loader2, CheckCircle2, AlertCircle, RefreshCw, Smartphone, Zap, ShieldCheck } from 'lucide-react';
 
 const getSocketUrl = () => {
-    if (import.meta.env.PROD) {
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-        if (typeof window !== 'undefined') {
-            return window.location.origin;
-        }
-    }
-    return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    return getPreferredApiBase() || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 };
 
 const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
