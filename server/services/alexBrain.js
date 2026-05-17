@@ -1009,6 +1009,11 @@ Bot: ${botRes}`;
                 });
             }
         }
+    } catch (memErr) {
+        console.error('🧠 [Memory] Error extrayendo memoria:', memErr.message);
+    }
+}
+
 /**
  * Optional wrapper for progressive migration to V8.97 orchestration.
  * Backward compatible with existing generateResponse consumers.

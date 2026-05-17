@@ -1,6 +1,6 @@
 {
   "name": "alex-io-saas-server",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "ALEX IO SaaS Backend - Optimized for 5000+ users",
   "main": "index.js",
   "scripts": {
