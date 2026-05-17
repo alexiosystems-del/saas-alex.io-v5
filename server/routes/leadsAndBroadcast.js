@@ -299,6 +299,9 @@ router.delete('/bots/:id', async (req, res) => {
         const tenantId = req.tenant.id;
         const botId = req.params.id;
 
+        console.log(`[BOTS] 🗑️ Deleting bot ${botId} for tenant ${tenantId}`);
+
+        // 1. Delete from whatsapp_sessions
         const { error } = await supabase
             .from('whatsapp_sessions')
             .delete()
@@ -307,10 +310,24 @@ router.delete('/bots/:id', async (req, res) => {
 
         if (error) throw error;
 
-        // Cleanup bot_configs (best-effort)
+        // 2. Cleanup bot_configs (best-effort)
         try {
             await supabase.from('bot_configs').delete().eq('instance_id', botId);
-        } catch (e) { /* non-critical */ }
+        } catch (e) {
+            console.warn('[BOTS] bot_configs delete failed (non-critical):', e.message);
+        }
+
+        // 3. Cleanup core bots table (best-effort)
+        try {
+            await supabase
+                .from('bots')
+                .delete()
+                .eq('id', botId)
+                .eq('tenant_id', tenantId);
+            console.log(`[BOTS] ✅ Bot row successfully deleted from core bots table.`);
+        } catch (e) {
+            console.warn('[BOTS] core bots table delete failed (non-critical):', e.message);
+        }
 
         res.json({ success: true });
     } catch (err) {
