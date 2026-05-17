@@ -89,7 +89,7 @@ const RedisStore = require('rate-limit-redis').default;
 const { authenticateTenant } = require('./middleware/auth');
 const { getHealthSnapshot, getMetrics } = require('./services/observability');
 const { requestLogger } = require('./middleware/requestLogger');
-const botPool = require('./services/botPoolRouter');
+const botPool = (() => { try { return require('./services/botPoolRouter'); } catch(e) { return { getPoolStatus: () => [], hydratePool: async () => {}, startHealthMonitor: () => {} }; } })();
 
 // Redis Client (centralized service)
 const { redis, isRedisEnabled } = require('./services/redisService');
