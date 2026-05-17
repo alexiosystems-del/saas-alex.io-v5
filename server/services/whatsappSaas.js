@@ -876,7 +876,7 @@ router.post('/connect', async (req, res) => {
         return res.status(400).json({ error: 'companyName es requerido.' });
     }
 
-    const requestedInstanceId = String(req.body?.instanceId || '').trim();
+    const requestedInstanceId = String(req.body?.instanceId || req.body?.instance_id || '').trim();
     const safeRequestedId = /^[a-zA-Z0-9_-]{8,80}$/.test(requestedInstanceId) ? requestedInstanceId : null;
     const instanceId = safeRequestedId || `alex_${Date.now()}`;
     const effectiveTenantId = req.tenant?.id;
