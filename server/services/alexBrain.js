@@ -213,11 +213,36 @@ async function classifyMessage(message, history) {
 }
 
 function selectModel(complexity, estimatedTokens) {
-    const models = {
-        simple: { model: 'gemini-2.0-flash', maxTokens: 512 },
-        conversational: { model: 'minimax-abab6.5s-chat', maxTokens: 1024 },
-        complex: { model: 'deepseek-chat', maxTokens: 2048 }
-    };
+    // Smart availability check: skip providers that are known dead
+    const geminiOk = GEMINI_KEY && circuitBreaker.isAvailable('GEMINI');
+    const minimaxOk = MINIMAX_KEY && circuitBreaker.isAvailable('MINIMAX');
+    const deepseekOk = DEEPSEEK_KEY && circuitBreaker.isAvailable('DEEPSEEK');
+    const openaiOk = OPENAI_KEY && circuitBreaker.isAvailable('OPENAI');
+
+    let models;
+    if (geminiOk && minimaxOk) {
+        // All providers healthy — original routing
+        models = {
+            simple: { model: 'gemini-2.0-flash', maxTokens: 512 },
+            conversational: { model: 'minimax-abab6.5s-chat', maxTokens: 1024 },
+            complex: { model: 'deepseek-chat', maxTokens: 2048 }
+        };
+    } else if (openaiOk) {
+        // Gemini/MiniMax dead — route everything through OpenAI
+        models = {
+            simple: { model: 'gpt-4o-mini', maxTokens: 512 },
+            conversational: { model: 'gpt-4o-mini', maxTokens: 1024 },
+            complex: { model: 'gpt-4o-mini', maxTokens: 2048 }
+        };
+    } else {
+        // Last resort
+        models = {
+            simple: { model: 'gemini-2.0-flash', maxTokens: 512 },
+            conversational: { model: 'gpt-4o-mini', maxTokens: 1024 },
+            complex: { model: 'gpt-4o-mini', maxTokens: 2048 }
+        };
+    }
+
     const decision = models[complexity] || models.conversational;
     const estimatedCost = (estimatedTokens / 1000) * (MODEL_COST_PER_1K[decision.model] || 0.0001);
     return { ...decision, estimatedCost };
@@ -225,7 +250,7 @@ function selectModel(complexity, estimatedTokens) {
 
 function getFallback(model) {
     const fallbacks = {
-        'gemini-2.0-flash': 'minimax-abab6.5s-chat',
+        'gemini-2.0-flash': 'gpt-4o-mini',
         'minimax-abab6.5s-chat': 'gpt-4o-mini',
         'deepseek-chat': 'gpt-4o-mini',
         'gpt-4o-mini': 'safeguard'
@@ -345,7 +370,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
 
     // AI Limiters: Extraction and Application
     const maxWords = botConfig.maxWords || 50;
-    const maxMessages = botConfig.maxMessages || 10;
+    const maxMessages = botConfig.maxMessages || 500;
 
     const userMessageCount = history.filter(h => h.role === 'user').length;
     if (userMessageCount >= maxMessages) {
@@ -489,6 +514,9 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         tokensUsed = estimateTokens(responseText) + estimatedTokens;
     } catch (err) {
         console.warn(`⚠️ [SMART ROUTER] Primario falló (${decision.model}):`, err.message);
+        // Record failure so circuit breaker trips and future calls skip this provider
+        const providerMap = { 'gemini-2.0-flash': 'GEMINI', 'minimax-abab6.5s-chat': 'MINIMAX', 'deepseek-chat': 'DEEPSEEK', 'gpt-4o-mini': 'OPENAI' };
+        if (providerMap[decision.model]) circuitBreaker.recordFailure(providerMap[decision.model], err.message);
         const fallback = getFallback(decision.model);
         
         if (fallback === 'safeguard') {
@@ -718,19 +746,15 @@ async function alexBrain(payload = {}) {
  * y extraer su temperatura y datos para el CRM.
  */
 async function extractLeadInfo({ history = [], systemPrompt }) {
-    if (!GEMINI_KEY || history.length < 2) return null;
+    if (history.length < 2) return null;
 
-    try {
-        console.log(`🤖 [LeadExtractor] Analizando conversación de ${history.length} mensajes...`);
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+    // Determine which provider to use based on circuit breaker status
+    const geminiOk = GEMINI_KEY && circuitBreaker.isAvailable('GEMINI');
+    const openaiOk = OPENAI_KEY && circuitBreaker.isAvailable('OPENAI');
 
-        const contents = [];
-        // Analizar últimos 8 mensajes para contexto
-        history.slice(-15).forEach(h => {
-            contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text || "" }] });
-        });
+    if (!geminiOk && !openaiOk) return null; // Both dead
 
-        const analysisPrompt = `
+    const analysisPrompt = `
 Analiza la conversación anterior. 
 El System Prompt del Bot actuante era: "${systemPrompt || ''}"
 
@@ -743,26 +767,46 @@ Extrae la información del usuario en un objeto JSON estricto con esta estructur
     "summary": string (resumen de 1-2 líneas de lo que quiere el usuario o de la interacción)
 }
 `;
-        contents.push({ role: 'user', parts: [{ text: analysisPrompt }] });
 
-        const payload = {
-            contents,
-            generationConfig: {
-                temperature: 0.1,
-                responseMimeType: "application/json"
-            }
-        };
+    try {
+        console.log(`🤖 [LeadExtractor] Analizando conversación de ${history.length} mensajes...`);
+        let parsed;
 
-        const res = await axios.post(url, payload, { timeout: 8000 });
-        if (res.data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            let parsed = JSON.parse(res.data.candidates[0].content.parts[0].text);
+        if (geminiOk) {
+            // --- Gemini path ---
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+            const contents = [];
+            history.slice(-15).forEach(h => {
+                contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text || "" }] });
+            });
+            contents.push({ role: 'user', parts: [{ text: analysisPrompt }] });
+            const payload = { contents, generationConfig: { temperature: 0.1, responseMimeType: "application/json" } };
+            const res = await axios.post(url, payload, { timeout: 8000 });
+            if (!res.data.candidates?.[0]?.content?.parts?.[0]?.text) return null;
+            parsed = JSON.parse(res.data.candidates[0].content.parts[0].text);
+            circuitBreaker.recordSuccess('GEMINI');
+        } else {
+            // --- OpenAI fallback path ---
+            const messages = [
+                { role: 'system', content: 'Eres un analizador de leads. Responde SOLO con JSON válido, sin markdown.' },
+                ...history.slice(-15).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text || "" })),
+                { role: 'user', content: analysisPrompt }
+            ];
+            const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+                model: 'gpt-4o-mini',
+                messages,
+                temperature: 0
+            }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });
+            const rawText = res.data.choices?.[0]?.message?.content?.replace(/^```(json)?\n/, '').replace(/\n```$/, '').trim();
+            if (!rawText) return null;
+            parsed = JSON.parse(rawText);
+        }
 
-            // 5. LEAD SCHEMA GUARD (GPT-4o-mini / Codex)
-            // Audits the JSON to ensure it won't crash HubSpot or GoHighLevel
-            if (OPENAI_KEY && parsed.isLead) {
-                try {
-                    console.log(`🛡️ [SCHEMA GUARD] Auditando JSON del Lead antes de inyectar en CRM...`);
-                    const guardPrompt = `
+        // LEAD SCHEMA GUARD (GPT-4o-mini)
+        if (OPENAI_KEY && parsed.isLead) {
+            try {
+                console.log(`🛡️ [SCHEMA GUARD] Auditando JSON del Lead antes de inyectar en CRM...`);
+                const guardPrompt = `
 Eres un Validador Estructural de Datos CRM (HubSpot/GoHighLevel).
 Revisa este JSON:
 ${JSON.stringify(parsed)}
@@ -774,22 +818,21 @@ Reglas de corrección:
 
 Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
 
-                    const guardRes = await axios.post('https://api.openai.com/v1/chat/completions', {
-                        model: 'gpt-4o-mini',
-                        messages: [{ role: 'user', content: guardPrompt }],
-                        temperature: 0
-                    }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 4000 });
+                const guardRes = await axios.post('https://api.openai.com/v1/chat/completions', {
+                    model: 'gpt-4o-mini',
+                    messages: [{ role: 'user', content: guardPrompt }],
+                    temperature: 0
+                }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 4000 });
 
-                    const cleanedContent = guardRes.data.choices[0].message.content.replace(/^\`\`\`(json)?\n/, '').replace(/\n\`\`\`$/, '').trim();
-                    parsed = JSON.parse(cleanedContent);
-                    console.log(`✅ [SCHEMA GUARD] JSON Sanitizado con éxito.`);
-                } catch (err) {
-                    console.warn(`⚠️ [SCHEMA GUARD] Error auditando el JSON, usando la versión original:`, err.message);
-                }
+                const cleanedContent = guardRes.data.choices[0].message.content.replace(/^```(json)?\n/, '').replace(/\n```$/, '').trim();
+                parsed = JSON.parse(cleanedContent);
+                console.log(`✅ [SCHEMA GUARD] JSON Sanitizado con éxito.`);
+            } catch (err) {
+                console.warn(`⚠️ [SCHEMA GUARD] Error auditando el JSON, usando la versión original:`, err.message);
             }
-
-            return parsed;
         }
+
+        return parsed;
     } catch (err) {
         console.warn(`⚠️ [LeadExtractor] Falló la extracción:`, err.response?.data?.error?.message || err.message);
     }
@@ -801,7 +844,35 @@ Devuelve ÚNICAMENTE el JSON corregido y sanitizado.`;
  * Fast path: Gemini Flash
  */
 async function translateIncomingMessage(text, targetLang = 'es') {
-    if (!text || text.length < 2 || !GEMINI_KEY) return { original: text, translated: null, model: null };
+    if (!text || text.length < 2) return { original: text, translated: null, model: null };
+
+    // If Gemini circuit breaker is open, skip directly to OpenAI fallback
+    const geminiDead = !GEMINI_KEY || !circuitBreaker.isAvailable('GEMINI');
+    if (geminiDead && OPENAI_KEY) {
+        try {
+            const completion = await axios.post('https://api.openai.com/v1/chat/completions', {
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: `Analiza el texto. Si ya está en idioma '${targetLang}', devuélvelo exacto. Si está en otro idioma, tradúcelo naturalmente a '${targetLang}'. Devuelve SOLO el resultado, sin explicaciones.` },
+                    { role: 'user', content: text }
+                ],
+                temperature: 0
+            }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 5000 });
+
+            if (completion.data.choices?.[0]?.message?.content) {
+                const translated = completion.data.choices[0].message.content.trim();
+                if (translated.toLowerCase() === text.toLowerCase()) {
+                    return { original: text, translated: null, model: 'openai-direct' };
+                }
+                return { original: text, translated, model: 'openai-direct' };
+            }
+        } catch (oaErr) {
+            console.error(`❌ [Translator] OpenAI direct falló:`, oaErr.message);
+        }
+        return { original: text, translated: null, model: 'error' };
+    }
+
+    if (!GEMINI_KEY) return { original: text, translated: null, model: null };
 
     // Quick heuristic: if it contains typical Spanish words, ignore translation to save cost/latency
     const lower = text.toLowerCase();
