@@ -802,8 +802,8 @@ async function translateIncomingMessage(text, targetLang = 'es') {
     }
 
     try {
-        // Use gemini-2.0-flash-lite for maximum stability/latency in translation task
-        const model = 'gemini-2.0-flash-lite';
+        // Use gemini-2.0-flash for maximum stability/latency in translation task
+        const model = 'gemini-2.0-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const prompt = `Analiza el texto. Si ya está en idioma ISO '${targetLang}', devuelve exacto el mismo texto. Si está en OTRO idioma, tradúcelo de forma natural a '${targetLang}'. Devuelve SOLO la traducción o el texto original, sin explicaciones, comillas ni prefijos. Texto: "${text}"`;
 

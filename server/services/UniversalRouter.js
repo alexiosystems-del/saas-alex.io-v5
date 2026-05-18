@@ -15,7 +15,7 @@ const OpenAI = require("openai");
 const MODELS = {
     ALEX: {
         PRIMARY: { provider: 'GOOGLE', model: 'gemini-2.0-flash', timeout: 4000 },
-        BACKUP: { provider: 'GOOGLE', model: 'gemini-2.0-flash-lite' } // Misma API, diferente modelo
+        BACKUP: { provider: 'GOOGLE', model: 'gemini-2.0-flash' } // Misma API, diferente modelo
     },
     TALKME: {
         PRIMARY: { provider: 'GOOGLE', model: 'gemini-2.0-flash', timeout: 3500 },
