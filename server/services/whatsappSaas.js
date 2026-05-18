@@ -790,6 +790,7 @@ async function connectToWhatsApp(instanceId, config, res = null) {
     try {
         connectionStates.set(instanceId, 'connecting');
         const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+        const { HttpsProxyAgent } = require('https-proxy-agent');
         clientConfigs.set(instanceId, config);
 
         let state, saveCreds, clearState;
@@ -815,6 +816,18 @@ async function connectToWhatsApp(instanceId, config, res = null) {
             version = [2, 3000, 1015901307];
         }
 
+        // Setup optional proxy agent for WhatsApp CDN & socket
+        const proxyUrl = process.env.PROXY_URL || process.env.HTTPS_PROXY || process.env.HTTPS_PROXY?.toLowerCase() || process.env.HTTP_PROXY || process.env.HTTP_PROXY?.toLowerCase();
+        let agent = undefined;
+        if (proxyUrl) {
+            try {
+                console.log(`🔌 [PROXY] Routing Baileys WhatsApp connection through: ${proxyUrl}`);
+                agent = new HttpsProxyAgent(proxyUrl);
+            } catch (err) {
+                console.error(`❌ [PROXY] Failed to parse PROXY_URL:`, err.message);
+            }
+        }
+
         const sock = makeWASocket({
             auth: state,
             version,
@@ -824,6 +837,8 @@ async function connectToWhatsApp(instanceId, config, res = null) {
             connectTimeoutMs: 120000,
             keepAliveIntervalMs: 30000,
             maxMsgRetryCount: 5,
+            agent,
+            fetchAgent: agent,
         });
 
         whatsappSockets.set(instanceId, sock);
