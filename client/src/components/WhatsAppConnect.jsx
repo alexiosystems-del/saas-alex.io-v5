@@ -314,14 +314,14 @@ const WhatsAppConnect = ({ instanceId, initialCompanyName }) => {
                                             <motion.div 
                                                 initial={{ scale: 0.8, opacity: 0 }}
                                                 animate={{ scale: 1, opacity: 1 }}
-                                                className="bg-white p-6 rounded-[2.5rem] shadow-[0_0_60px_rgba(255,255,255,0.1)] relative"
+                                                className="bg-white p-8 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] relative"
                                             >
                                                 {qrCode.startsWith('data:image') ? (
                                                     <img src={qrCode} alt="WhatsApp QR" className="w-[220px] h-[220px] object-contain" />
                                                 ) : (
                                                     <QRCode value={qrCode} size={220} level="H" />
                                                 )}
-                                                <div className="absolute -inset-2 border border-white/20 rounded-[3rem] pointer-events-none" />
+                                                <div className="absolute -inset-2 border border-white/20 rounded-3xl pointer-events-none" />
                                             </motion.div>
                                         ) : status === 'CONNECTING' || status === 'RECONNECTING_CLEAN' ? (
                                             <div className="w-56 h-56 bg-slate-800/30 rounded-[3rem] flex flex-col items-center justify-center border border-white/5 border-dashed">
