@@ -1546,7 +1546,9 @@ const resolveSessionInfo = async (instanceId) => {
 
 router.get('/status/:instanceId', async (req, res) => {
     const { instanceId } = req.params;
-    let info = sessionStatus.get(instanceId);
+    const alternativeId = instanceId.startsWith('v5_') ? instanceId.slice(3) : 'v5_' + instanceId;
+    
+    let info = sessionStatus.get(instanceId) || sessionStatus.get(alternativeId);
     const tenantId = req.tenant?.id;
 
     // 1) Fast in-memory tenant fallback to avoid UUID(alex_) drift deadlocks.
@@ -1567,14 +1569,29 @@ router.get('/status/:instanceId', async (req, res) => {
 
     if (!info && supabase) {
         try {
-            const { data, error } = await supabase
+            let lookupId = instanceId;
+            let { data, error } = await supabase
                 .from('whatsapp_sessions')
                 .select('instance_id,status,qr_code,tenant_id,updated_at,provider')
-                .eq('instance_id', instanceId)
+                .eq('instance_id', lookupId)
                 .maybeSingle();
 
             if (error) {
-                console.warn(`⚠️ [STATUS] Supabase lookup failed for ${instanceId}:`, error.message);
+                console.warn(`⚠️ [STATUS] Supabase lookup failed for ${lookupId}:`, error.message);
+            }
+
+            // Try prefix toggle fallback
+            if (!data && !error) {
+                const altLookupId = alternativeId;
+                const { data: altData, error: altError } = await supabase
+                    .from('whatsapp_sessions')
+                    .select('instance_id,status,qr_code,tenant_id,updated_at,provider')
+                    .eq('instance_id', altLookupId)
+                    .maybeSingle();
+                if (altData) {
+                    data = altData;
+                    lookupId = altLookupId;
+                }
             }
 
             if (data) {
@@ -1583,7 +1600,8 @@ router.get('/status/:instanceId', async (req, res) => {
                     qr_code: data.qr_code || null,
                     tenantId: data.tenant_id || null,
                     updated_at: data.updated_at || null,
-                    provider: data.provider || 'baileys'
+                    provider: data.provider || 'baileys',
+                    resolved_from_instance: lookupId
                 };
             } else if (tenantId) {
                 // Compatibility bridge: if frontend asks for bot UUID while runtime session uses alex_<timestamp>,
@@ -1619,17 +1637,19 @@ router.get('/status/:instanceId', async (req, res) => {
     if (!info) return res.status(404).json({ error: 'Instance not found' });
 
     // Ownership check
-    const config = clientConfigs.get(instanceId);
+    const config = clientConfigs.get(instanceId) || clientConfigs.get(alternativeId);
     const ownerTenantId = config?.tenantId || info?.tenantId;
     if (ownerTenantId && req.tenant && req.tenant.role !== 'SUPERADMIN' && ownerTenantId !== req.tenant.id) {
         return res.status(403).json({ error: 'No tienes permisos para ver el estado de este bot.' });
     }
 
+    const resolvedId = info.resolved_from_instance || instanceId;
+
     res.json({
-        instance_id: instanceId,
-        reconnect_attempts: reconnectAttempts.get(instanceId) || 0,
+        instance_id: resolvedId,
+        reconnect_attempts: reconnectAttempts.get(resolvedId) || reconnectAttempts.get(alternativeId) || 0,
         ...info,
-        provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
+        provider: info.provider || clientConfigs.get(resolvedId)?.provider || clientConfigs.get(alternativeId)?.provider || 'baileys'
     });
 });
 

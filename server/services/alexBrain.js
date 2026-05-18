@@ -678,8 +678,16 @@ Devuelve SOLO JSON:
 
   } catch (masterError) {
     console.error('🔥 [ALEX BRAIN MASTER ERROR] Fallo catastrófico en generateResponse:', masterError.message);
+    
+    const isCalibrating = process.env.IS_CALIBRATING === 'true' || 
+                         (typeof botConfig === 'object' && (botConfig?.status === 'calibrating' || botConfig?.isCalibrating === true));
+                         
+    const fallbackText = isCalibrating
+        ? '¡Hola! Soy ALEX IO. Estoy recalibrando mis sistemas. ¿Podés contarme qué necesitás?'
+        : '¡Hola! Soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero no te preocupes, sigo aquí. ¿En qué puedo ayudarte?';
+        
     return {
-        text: '¡Hola! Soy ALEX IO. Estoy recalibrando mis sistemas. ¿Podés contarme qué necesitás?',
+        text: fallbackText,
         trace: { model: 'master_safeguard', error: masterError.message, timestamp: new Date().toISOString() },
         botPaused: false
     };

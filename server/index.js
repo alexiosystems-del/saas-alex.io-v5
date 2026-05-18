@@ -578,9 +578,10 @@ const saasRouter = require('./routes/saas');
 const enterpriseRouter = require('./routes/leadsAndBroadcast');
 const { router: whatsappRouter, restoreSessions } = require('./services/whatsappSaas');
 
-app.use('/api/saas', authenticateTenant, tenantLimiter, saasRouter);
-app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter);
-app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);
+app.use('/api/saas', authenticateTenant, tenantLimiter, enterpriseRouter); // Prioritize Leads and Broadcast (NEW v5 system)
+app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappRouter);   // Prioritize WhatsApp SaaS
+app.use('/api/saas', authenticateTenant, tenantLimiter, saasRouter);       // Fallback for other saas routes
+
 
 // 3. SYSTEM STATUS (NEURAL HEALTH)
 app.get('/api/status', (req, res) => res.json({ status: 'online', timestamp: new Date().toISOString() }));

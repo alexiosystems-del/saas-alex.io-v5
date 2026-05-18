@@ -82,7 +82,13 @@ async function generateResponse(userMessage, personaKey = 'ALEX_MIGRATION', user
     }
 
     metrics.responseTime = Date.now() - startTime;
-    const finalResponse = (responseText || "Hola, soy ALEX. Mi cerebro principal está en mantenimiento, pero sigo aquí.").replace(/Alexandra/g, 'ALEX');
+    
+    const isCalibrating = process.env.IS_CALIBRATING === 'true';
+    const fallbackMessage = isCalibrating
+        ? "Hola, soy ALEX. Mi cerebro principal está en mantenimiento, pero sigo aquí."
+        : "Hola, soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero sigo aquí. ¿En qué puedo ayudarte?";
+        
+    const finalResponse = (responseText || fallbackMessage).replace(/Alexandra/g, 'ALEX');
 
     return {
         response: finalResponse,
