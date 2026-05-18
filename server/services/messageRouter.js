@@ -104,9 +104,11 @@ const processMessageWithAI = async (msg) => {
         }
     };
 
-    const history = [
-        { role: 'user', content: msg.text }
-    ];
+    // Use conversation history from the message if provided (webchat sends full chat history)
+    // Otherwise, fall back to a single-message array for platforms without frontend history
+    const history = (msg.history && msg.history.length > 0)
+        ? msg.history
+        : [{ role: 'user', content: msg.text }];
 
     try {
         logToDB('INBOUND', msg.text);
