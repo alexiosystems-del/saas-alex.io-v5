@@ -230,7 +230,7 @@ router.put('/bots/:id', async (req, res) => {
                 let payload = { ...configUpdate };
                 let attempt = 0;
 
-                while (Object.keys(payload).length > 0 && attempt < 2) {
+                while (Object.keys(payload).length > 0 && attempt < 5) {
                     const { error: cfgErr } = await supabase
                         .from('bot_configs')
                         .update(payload)
@@ -273,17 +273,25 @@ router.put('/bots/:id', async (req, res) => {
         }
 
         // 🔱 Real-time Memory Sync (SRE-style)
-        const currentLive = clientConfigs.get(botId);
-        if (currentLive) {
-            clientConfigs.set(botId, {
-                ...currentLive,
-                companyName: updates.name || currentLive.companyName,
-                customPrompt: updates.prompt || currentLive.customPrompt,
-                voiceEnabled: updates.voice_enabled !== undefined ? updates.voice_enabled : currentLive.voiceEnabled,
-                voice: updates.voice || currentLive.voice,
-                provider: updates.provider || currentLive.provider
-            });
-            console.log(`⚡ [LIVE SYNC] Configuración actualizada en memoria para ${botId}`);
+        try {
+            const whatsappSaas = require('../services/whatsappSaas');
+            const clientConfigs = whatsappSaas?.clientConfigs;
+            if (clientConfigs && clientConfigs.get) {
+                const currentLive = clientConfigs.get(botId);
+                if (currentLive) {
+                    clientConfigs.set(botId, {
+                        ...currentLive,
+                        companyName: updates.name || currentLive.companyName,
+                        customPrompt: updates.prompt || currentLive.customPrompt,
+                        voiceEnabled: updates.voice_enabled !== undefined ? updates.voice_enabled : currentLive.voiceEnabled,
+                        voice: updates.voice || currentLive.voice,
+                        provider: updates.provider || currentLive.provider
+                    });
+                    console.log(`⚡ [LIVE SYNC] Configuración actualizada en memoria para ${botId}`);
+                }
+            }
+        } catch (e) {
+            console.warn('[BOTS] Live sync skipped:', e.message);
         }
 
         res.json({ success: true });
