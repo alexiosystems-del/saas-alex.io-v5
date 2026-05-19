@@ -192,7 +192,7 @@ const handleWebchatMessage = async (req, res) => {
         res.status(500).json({ 
             success: false, 
             error: 'Server error', 
-            reply: 'Lo siento, estamos experimentando una alta demanda. Por favor reintenta en un momento.' 
+            reply: '¡Hola! Disculpame, tuve una pequeña interrupción en mi conexión de red. ¿Me podés repetir la última pregunta y te respondo ya mismo?' 
         });
     }
 };

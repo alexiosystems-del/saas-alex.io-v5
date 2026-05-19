@@ -611,7 +611,7 @@ LEAD CAPTURE (extraer naturalmente durante la charla):
 
     // 3. SAFEGUARD
     if (!responseText) {
-        responseText = '¡Hola! Soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero no te preocupes, sigo aquí. ¿En qué puedo ayudarte mientras recupero mi conexión total?';
+        responseText = '¡Hola! Mil disculpas por la demora, justo se me cortó la señal de internet por un segundo. Decime, ¿a qué se dedica tu negocio hoy?';
         usedModel = 'safeguard';
     }
 
@@ -786,8 +786,8 @@ Devuelve SOLO JSON:
                          (typeof botConfig === 'object' && (botConfig?.status === 'calibrating' || botConfig?.isCalibrating === true));
                          
     const fallbackText = isCalibrating
-        ? '¡Hola! Soy ALEX IO. Estoy recalibrando mis sistemas. ¿Podés contarme qué necesitás?'
-        : '¡Hola! Soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero no te preocupes, sigo aquí. ¿En qué puedo ayudarte?';
+        ? '¡Hola! ¿Cómo estás? Estoy terminando de ajustar unos detalles acá en la plataforma. Contame, ¿a qué se dedica tu negocio?'
+        : '¡Hola! Te pido mil disculpas por la demora, justo tuve una microinterrupción de señal. Decime, ¿a qué se dedica tu negocio hoy?';
         
     return {
         text: fallbackText,

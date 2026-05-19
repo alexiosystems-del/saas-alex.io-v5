@@ -85,8 +85,8 @@ async function generateResponse(userMessage, personaKey = 'ALEX_MIGRATION', user
     
     const isCalibrating = process.env.IS_CALIBRATING === 'true';
     const fallbackMessage = isCalibrating
-        ? "Hola, soy ALEX. Mi cerebro principal está en mantenimiento, pero sigo aquí."
-        : "Hola, soy ALEX. Estoy experimentando una alta demanda en mis sistemas de IA, pero sigo aquí. ¿En qué puedo ayudarte?";
+        ? "¡Hola! ¿Cómo estás? Estoy terminando de configurar unos detalles acá. Contame, ¿a qué se dedica tu negocio?"
+        : "¡Hola! Mil disculpas, tuve una microinterrupción de señal. Decime, ¿a qué se dedica tu negocio hoy?";
         
     const finalResponse = (responseText || fallbackMessage).replace(/Alexandra/g, 'ALEX');
 

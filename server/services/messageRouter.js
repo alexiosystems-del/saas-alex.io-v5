@@ -144,8 +144,8 @@ const processMessageWithAI = async (msg) => {
             logError('[MessageRouter] Error en alexBrain', e);
         }
         const fallback = isTimeout 
-            ? '¡Hola! Soy ALEX IO. Mis sistemas de IA están bajo alta demanda. ¿Podés contarme brevemente qué necesitás y te respondo enseguida?'
-            : 'Lo siento, estoy teniendo problemas técnicos en este momento.';
+            ? '¡Hola! Te pido mil disculpas por la demora, justo tuve una microinterrupción de señal. Decime, ¿a qué se dedica tu negocio hoy?'
+            : '¡Hola! Disculpame la demora, se me cayó un segundo la señal. Contame, ¿a qué se dedica tu negocio hoy?';
         logToDB('OUTBOUND', fallback);
         return fallback;
     }
