@@ -520,7 +520,7 @@ async function handleQRMessage(sock, msg, instanceId) {
                 tenantId: config.tenantId,
                 instanceId: instanceId
             },
-            isAudio: isAudioMessage
+            isAudio: isAudioMessage || config.voiceEnabled === true
         });
 
         // Save AI response to memory (fallback if no Supabase)
@@ -2769,7 +2769,11 @@ const restoreSessions = async () => {
                     companyName: session.company_name,
                     tenantId: session.tenant_id,
                     ownerEmail: session.owner_email,
-                    provider: session.provider || 'baileys'
+                    provider: session.provider || 'baileys',
+                    customPrompt: session.custom_prompt || null,
+                    voice: session.voice || 'nova',
+                    voiceEnabled: session.voice_enabled === true || session.voice_enabled === 'true',
+                    targetLanguage: session.target_language || 'es'
                 };
                 
                 // Use unified connection engine
