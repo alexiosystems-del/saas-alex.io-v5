@@ -688,7 +688,9 @@ Devuelve SOLO JSON:
         let audioGenerated = false;
 
         // Try OpenAI TTS First (Current Default)
-        if (openai && !deadKeys.has('OPENAI')) {
+        // NOTE: TTS uses its own circuit breaker key ('OPENAI_TTS') separate from LLM ('OPENAI')
+        // so that LLM failures don't silence the voice engine.
+        if (openai && !deadKeys.has('OPENAI_TTS')) {
             try {
                 console.log(`🎙️ [${botName}] Generando Audio OpenAI (${botConfig.voice || 'nova'})...`);
                 const mp3 = await openai.audio.speech.create({
@@ -706,9 +708,13 @@ Devuelve SOLO JSON:
                 const errMsg = err.message || String(err);
                 console.error(`❌ [${botName}] OpenAI TTS Error (${statusCode}):`, errMsg);
                 if (statusCode === 401 || statusCode === 429 || /quota|billing|credit/i.test(errMsg)) {
-                    markProviderDead('OPENAI', `TTS Error: ${errMsg}`);
+                    markProviderDead('OPENAI_TTS', `TTS Error: ${errMsg}`);
                 }
             }
+        } else if (!openai) {
+            console.warn(`⚠️ [${botName}] TTS omitido: OpenAI client no inicializado (falta OPENAI_API_KEY).`);
+        } else {
+            console.warn(`⚠️ [${botName}] TTS omitido: OPENAI_TTS marcado como muerto por circuit breaker.`);
         }
 
         // Fallback or Alternative: MiniMax TTS
