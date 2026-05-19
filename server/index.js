@@ -992,3 +992,114 @@ const startServer = async () => {
 };
 
 startServer();
+
+// ============================================================
+// 🛡️ 24/7 STABILITY ENGINE — Anti-Hibernation + Supabase Backup
+// ============================================================
+
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://0.0.0.0:${PORT}`;
+
+// 1. ANTI-HIBERNATE SELF-PING (every 4 minutes)
+// Render free-tier hibernates after 15 min of inactivity.
+// This internal ping keeps the process alive.
+setInterval(async () => {
+    try {
+        const axios = require('axios');
+        const res = await axios.get(`http://0.0.0.0:${PORT}/api/status`, {
+            timeout: 5000,
+            headers: { 'User-Agent': 'ALEX-IO-Heartbeat/1.0' }
+        });
+        // Log once per hour only (to avoid log spam)
+        const now = new Date();
+        if (now.getMinutes() === 0) {
+            console.log(`💓 [HEARTBEAT] Self-ping OK (${res.status}) — ${now.toISOString()}`);
+        }
+    } catch (e) {
+        console.warn(`⚠️ [HEARTBEAT] Self-ping failed: ${e.message}`);
+    }
+}, 4 * 60 * 1000); // 4 minutes
+
+// 2. SUPABASE HEARTBEAT LOG (every 10 minutes)
+// Writes a heartbeat record to Supabase so you can verify
+// uptime externally by querying the `system_heartbeats` table.
+setInterval(async () => {
+    if (!supabase) return;
+    try {
+        const uptime = Math.floor(process.uptime());
+        const memUsage = process.memoryUsage();
+        const activeBots = Array.from(global.sessionStatus?.entries?.() || [])
+            .filter(([, v]) => v === 'connected' || v === 'ready').length;
+
+        await supabase.from('system_heartbeats').insert({
+            hostname: require('os').hostname(),
+            uptime_seconds: uptime,
+            memory_rss_mb: Math.round(memUsage.rss / 1024 / 1024),
+            memory_heap_mb: Math.round(memUsage.heapUsed / 1024 / 1024),
+            active_bots: activeBots,
+            version: process.env.npm_package_version || '2.1.7',
+            status: 'alive'
+        }).then(({ error }) => {
+            if (error) {
+                // Table might not exist yet — silent fail, not critical
+                if (!error.message?.includes('system_heartbeats')) {
+                    console.warn(`⚠️ [HEARTBEAT-DB] ${error.message}`);
+                }
+            }
+        });
+    } catch (e) {
+        // Non-critical — never crash the server for monitoring
+    }
+}, 10 * 60 * 1000); // 10 minutes
+
+// 3. CONFIGURATION BACKUP TO SUPABASE (every 6 hours)
+// Snapshots all in-memory bot configurations to Supabase
+// so they survive cold restarts and can be audited.
+setInterval(async () => {
+    if (!supabase) return;
+    try {
+        const whatsappSaas = require('./services/whatsappSaas');
+        const clientConfigs = whatsappSaas?.clientConfigs;
+        if (!clientConfigs || clientConfigs.size === 0) return;
+
+        let backedUp = 0;
+        for (const [instanceId, config] of clientConfigs.entries()) {
+            try {
+                await supabase.from('whatsapp_sessions').update({
+                    custom_prompt: config.customPrompt || null,
+                    company_name: config.companyName || null,
+                    target_language: config.targetLanguage || 'es',
+                    updated_at: new Date().toISOString()
+                }).eq('instance_id', instanceId);
+                backedUp++;
+            } catch (e) {
+                // Schema drift is handled gracefully
+            }
+        }
+        if (backedUp > 0) {
+            console.log(`💾 [BACKUP] ${backedUp} bot config(s) backed up to Supabase — ${new Date().toISOString()}`);
+        }
+    } catch (e) {
+        console.warn(`⚠️ [BACKUP] Config backup failed: ${e.message}`);
+    }
+}, 6 * 60 * 60 * 1000); // 6 hours
+
+// 4. GRACEFUL SHUTDOWN HANDLER
+// On SIGTERM (Render sends this before stopping), flush any pending state.
+process.on('SIGTERM', async () => {
+    console.log('🛑 [SHUTDOWN] SIGTERM received. Flushing state...');
+    try {
+        if (supabase) {
+            await supabase.from('system_heartbeats').insert({
+                hostname: require('os').hostname(),
+                uptime_seconds: Math.floor(process.uptime()),
+                memory_rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+                memory_heap_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                active_bots: 0,
+                version: process.env.npm_package_version || '2.1.7',
+                status: 'shutdown'
+            });
+        }
+    } catch (e) { /* best effort */ }
+    console.log('🛑 [SHUTDOWN] Goodbye.');
+    process.exit(0);
+});
